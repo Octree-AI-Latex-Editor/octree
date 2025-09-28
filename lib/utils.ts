@@ -14,6 +14,8 @@ export const getBaseUrl = () => {
 export const initialContent = `\\documentclass{article}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
+\\usepackage{float}
+\\usepackage{graphicx}
 \\title{Sample LaTeX Document with Equations}
 \\author{Basil Yusuf}
 \\date{18th Jan, 1991}

@@ -183,6 +183,7 @@ export function ClientFileEditor({ projectId }: { projectId: string }) {
           exportingPDF={exportingPDF}
           isSaving={isSaving}
           lastSaved={lastSaved}
+          projectId={projectId}
         />
 
         <div className="flex min-h-0 flex-1">
@@ -220,6 +221,7 @@ export function ClientFileEditor({ projectId }: { projectId: string }) {
         exportingPDF={exportingPDF}
         isSaving={isSaving}
         lastSaved={lastSaved}
+        projectId={projectId}
       />
 
       <div className="flex min-h-0 flex-1">

@@ -167,6 +167,27 @@ export async function POST(request: Request) {
     const tempDir = path.join(process.cwd(), 'tmp', compilationId);
     fs.mkdirSync(tempDir, { recursive: true });
 
+    // Copy all images from all project directories to temp directory root
+    const imagesDir = path.join(process.cwd(), 'public', 'images');
+    if (fs.existsSync(imagesDir)) {
+      // Read all subdirectories (project directories)
+      const projectDirs = fs.readdirSync(imagesDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name);
+      
+      // Copy all images from all project directories to temp directory root
+      for (const projectDir of projectDirs) {
+        const projectImagesDir = path.join(imagesDir, projectDir);
+        const images = fs.readdirSync(projectImagesDir);
+        
+        for (const image of images) {
+          const sourcePath = path.join(projectImagesDir, image);
+          const destPath = path.join(tempDir, image);
+          fs.copyFileSync(sourcePath, destPath);
+        }
+      }
+    }
+
     // Write the LaTeX content to a file
     const texFilePath = path.join(tempDir, 'main.tex');
     fs.writeFileSync(texFilePath, content);

@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupItem } from '@/components/ui/button-group';
 import { UsageIndicator } from '@/components/subscription/usage-indicator';
+import { ImageToLatexConverter } from '@/components/image-to-latex-converter';
 import { Loader2 } from 'lucide-react';
 
 interface EditorToolbarProps {
@@ -13,6 +14,7 @@ interface EditorToolbarProps {
   exportingPDF: boolean;
   isSaving: boolean;
   lastSaved: Date | null;
+  projectId: string;
 }
 
 export function EditorToolbar({
@@ -23,6 +25,7 @@ export function EditorToolbar({
   exportingPDF,
   isSaving,
   lastSaved,
+  projectId,
 }: EditorToolbarProps) {
   return (
     <div className="flex-shrink-0 border-b border-slate-200 bg-white p-2">
@@ -49,6 +52,10 @@ export function EditorToolbar({
         </ButtonGroup>
 
         <div className="flex items-center gap-2">
+          <ImageToLatexConverter
+            projectId={projectId}
+            className="h-8"
+          />
           <UsageIndicator />
           {lastSaved && (
             <span className="text-xs text-slate-500">
