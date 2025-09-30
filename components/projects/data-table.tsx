@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   ColumnDef,
   flexRender,
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 interface DataTableProps<TData extends { id: string }, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -27,6 +29,8 @@ export function DataTable<TData extends { id: string }, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const router = useRouter();
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
+  
   const table = useReactTable({
     data,
     columns,
@@ -34,6 +38,10 @@ export function DataTable<TData extends { id: string }, TValue>({
   });
 
   const handleProjectClick = async (projectId: string) => {
+    if (loadingProjectId) return; // Prevent multiple clicks
+    
+    setLoadingProjectId(projectId);
+    
     try {
       const supabase = createClient();
       
@@ -55,13 +63,24 @@ export function DataTable<TData extends { id: string }, TValue>({
       router.push(`/projects/${projectId}/files/${latestFile.id}/editor`);
     } catch (error) {
       console.error('Error getting latest file:', error);
+      setLoadingProjectId(null); // Reset on error
       // Fallback to project files page
       router.push(`/projects/${projectId}/files`);
     }
   };
 
   return (
-    <div className="rounded-md border">
+    <div className="relative rounded-md border">
+      {/* Loading overlay */}
+      {loadingProjectId && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="text-sm font-medium text-slate-700">Opening project...</p>
+          </div>
+        </div>
+      )}
+      
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -90,7 +109,7 @@ export function DataTable<TData extends { id: string }, TValue>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && 'selected'}
-                className="cursor-pointer"
+                className={`cursor-pointer transition-opacity ${loadingProjectId && loadingProjectId !== row.original.id ? 'opacity-50' : ''}`}
                 onClick={() => handleProjectClick(row.original.id)}
               >
                 {row.getVisibleCells().map((cell) => (
