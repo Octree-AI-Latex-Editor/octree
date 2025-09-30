@@ -16,8 +16,8 @@ Before running this project locally, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd ai-latex-editor
+git clone https://github.com/Octree-AI-Latex-Editor/octree.git
+cd octree
 ```
 
 ### 2. Install Dependencies
