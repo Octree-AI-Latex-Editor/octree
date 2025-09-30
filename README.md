@@ -8,7 +8,7 @@ Before running this project locally, ensure you have the following installed:
 
 - **Node.js** (v20 or higher)
 - **npm** or **yarn** or **pnpm** or **bun**
-- **Docker Desktop** (required for local LaTeX PDF compilation)
+- **Docker Desktop** (optional, for faster local LaTeX PDF compilation - falls back to remote service if not available)
 - **Supabase CLI** (optional, for local database development)
 
 ## Getting Started
@@ -44,10 +44,7 @@ STRIPE_PROD_SECRET_KEY=your_stripe_secret_key
 STRIPE_TEST_SECRET_KEY=your_stripe_test_secret_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 
-# AI Provider Keys (Required for AI editing features)
-DEEPSEEK_API_KEY=your_deepseek_api_key
-# OR
-DEEPSEEK_API_KEY_ID=your_deepseek_api_key_id
+# AI Provider Key (Required for AI editing features)
 OPENAI_API_KEY=your_openai_api_key
 
 # Environment (Optional)
@@ -59,8 +56,7 @@ NODE_ENV=development
 
 - **Supabase**: Sign up at [supabase.com](https://supabase.com), create a project, and get your URL and anon key from Project Settings > API
 - **Stripe**: Get API keys from [stripe.com/dashboard](https://dashboard.stripe.com/apikeys)
-- **DeepSeek**: Get API key from [platform.deepseek.com](https://platform.deepseek.com)
-- **OpenAI**: Get API key from [platform.openai.com](https://platform.openai.com/api-keys)
+- **OpenAI**: Get API key from [platform.openai.com](https://platform.openai.com/api-keys) - The app uses GPT-5 with smart model selection (GPT-5 mini for small tasks, GPT-5 for large/complex files)
 
 ### 4. Database Setup
 
@@ -78,18 +74,21 @@ This project uses Supabase for authentication and data storage. You need to:
    # - 003_fix_ambiguous_column_reference.sql
    ```
 
-### 5. Docker Setup (for PDF Compilation)
+### 5. Docker Setup (for PDF Compilation) - Optional
 
-The app compiles LaTeX to PDF locally using Docker in development mode:
+The app can compile LaTeX to PDF locally using Docker in development mode:
 
-1. **Install Docker Desktop** from [docker.com](https://www.docker.com/products/docker-desktop)
-2. **Start Docker Desktop**
+1. **Install Docker Desktop** from [docker.com](https://www.docker.com/products/docker-desktop) (optional)
+2. **Start Docker Desktop** (if installed)
 3. **Pull the TeX Live image** (optional, will auto-pull on first use):
    ```bash
    docker pull texlive/texlive
    ```
 
-> **Note**: In production (`ENVIRONMENT=prod`), the app uses a remote compilation service instead of local Docker.
+> **Note**: 
+> - If Docker is not installed or not running, the app automatically falls back to the remote compilation service
+> - In production (`ENVIRONMENT=prod`), the app always uses the remote compilation service
+> - Docker is recommended for faster local compilation, but **not required**
 
 ### 6. Run the Development Server
 
@@ -134,7 +133,7 @@ ai-latex-editor/
 
 ## Key Features
 
-- 🤖 **AI-Powered Editing** - Intelligent LaTeX suggestions using DeepSeek/OpenAI
+- 🤖 **AI-Powered Editing** - Intelligent LaTeX suggestions with smart GPT-5 model selection (mini for speed, full for complex tasks)
 - 📝 **Monaco Editor** - Advanced code editing with syntax highlighting
 - 📄 **Real-time PDF Compilation** - Instant preview of your LaTeX documents
 - 👥 **Authentication** - Secure user auth via Supabase
@@ -144,9 +143,12 @@ ai-latex-editor/
 ## Troubleshooting
 
 ### Docker Issues
-- Ensure Docker Desktop is running
-- Check Docker has sufficient resources allocated (Settings > Resources)
-- Verify the `tmp/` directory can be created in the project root
+- **Docker is optional** - the app will automatically use the remote service if Docker is unavailable
+- If you want to use Docker locally:
+  - Ensure Docker Desktop is running
+  - Check Docker has sufficient resources allocated (Settings > Resources)
+  - Verify the `tmp/` directory can be created in the project root
+- If compilation fails, check the browser console for error details
 
 ### Database Connection
 - Verify Supabase credentials in `.env.local`

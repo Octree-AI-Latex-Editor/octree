@@ -237,23 +237,85 @@ export async function POST(request: Request) {
       fs.rmSync(tempDir, { recursive: true, force: true });
 
       console.error('Docker compilation error:', dockerError);
+      console.log('Docker not available, falling back to remote compilation service...');
       
-      // Try to get log content for debugging
-      const logPath = path.join(tempDir, 'main.log');
-      let logContent = '';
-      if (fs.existsSync(logPath)) {
-        logContent = fs.readFileSync(logPath, 'utf-8');
-      }
+      // Fallback to remote compilation if Docker fails
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        
+        const response = await fetch('http://142.93.195.236:3001/compile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+          body: content,
+          signal: controller.signal,
+        });
 
-      return NextResponse.json(
-        {
-          error: 'Docker compilation failed',
-          details: String(dockerError),
-          log: logContent.substring(0, 2000),
-          suggestion: 'Check your LaTeX syntax and try again'
-        },
-        { status: 500 }
-      );
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText };
+          }
+          
+          return NextResponse.json(
+            {
+              error: errorData.error || 'LaTeX compilation failed',
+              details: errorData.details || errorData.message || `Server returned status ${response.status}`,
+              log: errorData.log,
+              suggestion: 'Check your LaTeX syntax and try again'
+            },
+            { status: response.status }
+          );
+        }
+
+        const pdfArrayBuffer = await response.arrayBuffer();
+
+        if (pdfArrayBuffer.byteLength === 0) {
+          throw new Error('Remote server returned empty response');
+        }
+
+        const firstBytes = Buffer.from(pdfArrayBuffer.slice(0, 4)).toString('hex');
+        if (firstBytes !== '25504446') {
+          throw new Error(`Invalid PDF format. First bytes: ${firstBytes}`);
+        }
+
+        const pdfBuffer = Buffer.from(pdfArrayBuffer);
+        const base64PDF = pdfBuffer.toString('base64');
+
+        console.log('Remote fallback compilation successful:', {
+          size: pdfBuffer.length,
+          method: 'remote-fallback'
+        });
+
+        return NextResponse.json({
+          pdf: base64PDF,
+          size: pdfBuffer.length,
+          mimeType: 'application/pdf',
+          debugInfo: {
+            method: 'remote-fallback',
+            reason: 'docker-unavailable',
+            contentLength: pdfArrayBuffer.byteLength,
+          },
+        });
+      } catch (remoteError) {
+        console.error('Remote fallback compilation also failed:', remoteError);
+        
+        return NextResponse.json(
+          {
+            error: 'LaTeX compilation failed',
+            details: `Docker error: ${String(dockerError)}. Remote fallback error: ${String(remoteError)}`,
+            suggestion: 'Please install Docker Desktop or contact support if the issue persists'
+          },
+          { status: 500 }
+        );
+      }
     }
   } catch (error) {
     console.error('LaTeX compilation error:', error);
