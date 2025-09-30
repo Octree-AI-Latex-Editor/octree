@@ -384,7 +384,8 @@ export function Chat({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      handleSubmit(e as any);
+                      const formEvent = new Event('submit', { bubbles: true, cancelable: true });
+                      handleSubmit(formEvent as unknown as React.FormEvent<HTMLFormElement>);
                       setTextFromEditor(null);
                     }
                   }}
