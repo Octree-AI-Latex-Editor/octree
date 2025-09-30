@@ -233,17 +233,21 @@ export async function POST(request: Request) {
         );
       }
     } catch (dockerError) {
-      // Clean up temp directory
-      fs.rmSync(tempDir, { recursive: true, force: true });
-
       console.error('Docker compilation error:', dockerError);
       
-      // Try to get log content for debugging
+      // Try to get log content for debugging BEFORE cleanup
       const logPath = path.join(tempDir, 'main.log');
       let logContent = '';
-      if (fs.existsSync(logPath)) {
-        logContent = fs.readFileSync(logPath, 'utf-8');
-      }
+      try {
+        if (fs.existsSync(logPath)) {
+          logContent = fs.readFileSync(logPath, 'utf-8');
+        }
+      } catch {}
+
+      // Clean up temp directory (best effort)
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch {}
 
       return NextResponse.json(
         {

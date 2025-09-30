@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { getBaseUrl } from '@/lib/utils';
 
 const stripe = new Stripe(process.env.STRIPE_TEST_SECRET_KEY!, {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2023-10-16',
 });
 
 export async function POST(request: Request) {
@@ -13,7 +13,6 @@ export async function POST(request: Request) {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      payment_method_types: ['card'],
       line_items: [
         {
           price: priceId,
