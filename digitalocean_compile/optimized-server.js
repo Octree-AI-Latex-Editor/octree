@@ -9,50 +9,76 @@ const app = express();
 const port = 3001;
 
 // Request queue to prevent overload
-let requestQueue = [];
-let isProcessing = false;
-const MAX_CONCURRENT_REQUESTS = 2;
+const requestQueue = [];
+let activeCount = 0;
+const MAX_CONCURRENT_REQUESTS = parseInt(process.env.MAX_CONCURRENT_REQUESTS || '2', 10);
+const MAX_QUEUE_SIZE = parseInt(process.env.MAX_QUEUE_SIZE || '50', 10);
 
 app.use(cors());
 app.use(bodyParser.text({ type: 'text/plain', limit: '10mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', queueLength: requestQueue.length, isProcessing });
+  res.json({
+    status: 'ok',
+    queueLength: requestQueue.length,
+    activeCount,
+    maxConcurrentRequests: MAX_CONCURRENT_REQUESTS,
+    maxQueueSize: MAX_QUEUE_SIZE
+  });
 });
 
-// Process queue
-async function processQueue() {
-  if (isProcessing || requestQueue.length === 0) return;
-  
-  isProcessing = true;
-  
-  while (requestQueue.length > 0) {
-    const { req, res, next } = requestQueue.shift();
-    await handleCompilation(req, res, next);
+function processQueue() {
+  if (activeCount >= MAX_CONCURRENT_REQUESTS) {
+    return;
   }
-  
-  isProcessing = false;
+
+  while (activeCount < MAX_CONCURRENT_REQUESTS && requestQueue.length > 0) {
+    const job = requestQueue.shift();
+    activeCount += 1;
+    handleCompilation(job.req, job.res, job.next)
+      .catch((error) => {
+        console.error('Unhandled compilation error:', error);
+        if (!job.res.headersSent) {
+          job.res.status(500).json({
+            error: 'LaTeX compilation failed',
+            message: error.message
+          });
+        }
+      })
+      .finally(() => {
+        activeCount = Math.max(0, activeCount - 1);
+        processQueue();
+      });
+  }
 }
 
 // Main compilation endpoint
 app.post('/compile', (req, res, next) => {
   // Add to queue if we're at capacity
-  if (requestQueue.length >= MAX_CONCURRENT_REQUESTS) {
+  if (requestQueue.length + activeCount >= MAX_QUEUE_SIZE) {
     return res.status(503).json({
       error: 'Server busy',
       message: 'Too many compilation requests. Please try again in a moment.',
       queuePosition: requestQueue.length + 1
     });
   }
-  
+
   requestQueue.push({ req, res, next });
   processQueue();
 });
 
 async function handleCompilation(req, res, next) {
   console.log('==== COMPILE REQUEST RECEIVED ====');
-  const texContent = req.body;
+  const texContent = typeof req.body === 'string' ? req.body : '';
+
+  if (!texContent.trim()) {
+    res.status(400).json({
+      error: 'Invalid payload',
+      message: 'Expected non-empty LaTeX content in plain text.'
+    });
+    return;
+  }
   
   // Log the first 100 chars of the content
   console.log(`TeX content received (first 100 chars): ${texContent.substring(0, 100)}...`);
@@ -137,10 +163,13 @@ async function handleCompilation(req, res, next) {
       }
       
       // Return error with log details
+      const parsedError = extractLatexError(logContent);
+
       res.status(500).json({
         error: 'LaTeX compilation failed',
         code: result.code,
         log: logContent || 'No log file generated',
+        parsedError,
         stdout: result.stdout.substring(0, 1000),
         stderr: result.stderr.substring(0, 1000)
       });
@@ -155,12 +184,15 @@ async function handleCompilation(req, res, next) {
       logContent = fs.readFileSync(logPath, 'utf-8');
     }
     
+    const parsedError = extractLatexError(logContent);
+
     res.status(500).json({
       error: 'LaTeX compilation failed',
       message: error.message,
-      log: logContent || 'No log file generated'
+      log: logContent || 'No log file generated',
+      parsedError
     });
-    
+
   } finally {
     // Clean up temporary files
     try {
@@ -172,9 +204,45 @@ async function handleCompilation(req, res, next) {
   }
 }
 
+function extractLatexError(logContent) {
+  if (!logContent) {
+    return null;
+  }
+
+  const lines = logContent.split('\n');
+  const errorLineIndex = lines.findIndex((line) => line.trim().startsWith('!'));
+
+  if (errorLineIndex !== -1) {
+    const context = lines.slice(errorLineIndex, errorLineIndex + 3);
+    return context.join('\n').trim();
+  }
+
+  const lineMatch = logContent.match(/l\.(\d+)\s*(.*)/);
+  if (lineMatch) {
+    return `Error near line ${lineMatch[1]}: ${lineMatch[2].trim()}`;
+  }
+
+  return null;
+}
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Express error:', error);
+
+  if (error && (error.type === 'entity.too.large' || error.status === 413)) {
+    return res.status(413).json({
+      error: 'Payload too large',
+      message: 'Submitted LaTeX document exceeds the maximum allowed size.'
+    });
+  }
+
+  if (error instanceof SyntaxError && error.status === 400) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      message: 'Unable to parse request body as plain text.'
+    });
+  }
+
   res.status(500).json({
     error: 'Internal server error',
     message: error.message
