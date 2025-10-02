@@ -17,10 +17,15 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import GoogleLogo from '@/components/icons/google-logo';
 
+interface LoginFormProps extends React.ComponentPropsWithoutRef<'div'> {
+  nextPath?: string;
+}
+
 export function LoginForm({
   className,
+  nextPath = '/',
   ...props
-}: React.ComponentPropsWithoutRef<'div'>) {
+}: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +44,7 @@ export function LoginForm({
         password,
       });
       if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push('/');
+      router.push(nextPath);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
@@ -58,7 +62,7 @@ export function LoginForm({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/oauth`,
+          redirectTo: `${window.location.origin}/auth/oauth?next=${encodeURIComponent(nextPath)}`,
         },
       });
 
@@ -117,13 +121,8 @@ export function LoginForm({
           </form>
 
           <form onSubmit={handleSocialLogin}>
-            <div className="flex flex-col gap-6">
-              <Button
-                variant="outline"
-                type="submit"
-                className="w-full"
-                disabled={isLoading}
-              >
+            <div className="mt-2">
+              <Button type="submit" variant="outline" className="w-full" disabled={isLoading}>
                 <GoogleLogo />
                 Continue with Google
               </Button>
