@@ -48,7 +48,8 @@ export async function updateSession(request: NextRequest) {
     url.pathname = '/auth/login';
     // Preserve destination so the app can continue the flow after login
     url.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(url);
+    // Use 303 so POST navigations become GET at the login page (prevents 405)
+    return NextResponse.redirect(url, { status: 303 });
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
