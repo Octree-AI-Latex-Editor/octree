@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import Navbar from "@/components/navbar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { SubscriptionStatus } from "@/components/subscription/subscription-status"
@@ -15,8 +16,12 @@ export default async function SettingsPage() {
     redirect("/auth/login")
   }
 
+  const userName = user?.user_metadata?.name ?? user?.email ?? null
+
   return (
-    <main className="container mx-auto px-4 py-8">
+    <>
+      <Navbar userName={userName} />
+      <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-neutral-900">Settings</h1>
           <p className="text-sm text-neutral-500">Manage your account and preferences</p>
@@ -93,5 +98,6 @@ export default async function SettingsPage() {
           </Card>
         </div>
       </main>
+    </>
   )
 }

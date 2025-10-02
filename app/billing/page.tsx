@@ -85,6 +85,8 @@ export default function BillingPage() {
     fetchUserAndBillingData();
   }, [router]);
 
+  const userName = user?.user_metadata?.name ?? user?.email ?? null;
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -117,29 +119,34 @@ export default function BillingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen">
-        <Navbar userName={user?.user_metadata?.name ?? user?.email} />
+      <>
+        <Navbar userName={userName} />
         <main className="container mx-auto px-4 py-8">
           <div className="flex h-64 items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         </main>
-      </div>
+      </>
     );
   }
 
   if (error) {
     return (
-      <main className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <p className="text-red-600">Error: {error}</p>
-        </div>
-      </main>
+      <>
+        <Navbar userName={userName} />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <p className="text-red-600">Error: {error}</p>
+          </div>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
+    <>
+      <Navbar userName={userName} />
+      <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-neutral-900">
             Billing History
@@ -291,5 +298,6 @@ export default function BillingPage() {
           </Card>
         </div>
       </main>
+    </>
   );
 }
