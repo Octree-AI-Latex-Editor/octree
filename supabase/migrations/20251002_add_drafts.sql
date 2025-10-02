@@ -12,17 +12,44 @@ create table if not exists public.drafts (
 alter table public.drafts enable row level security;
 
 -- Allow anonymous and authenticated inserts/selects/deletes for short-lived drafts
-create policy if not exists drafts_insert_any on public.drafts
-  for insert to anon, authenticated
-  with check (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'drafts' AND policyname = 'drafts_insert_any'
+  ) THEN
+    CREATE POLICY drafts_insert_any ON public.drafts
+      FOR INSERT TO anon, authenticated
+      WITH CHECK (true);
+  END IF;
+END
+$$;
 
-create policy if not exists drafts_select_any on public.drafts
-  for select to anon, authenticated
-  using (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'drafts' AND policyname = 'drafts_select_any'
+  ) THEN
+    CREATE POLICY drafts_select_any ON public.drafts
+      FOR SELECT TO anon, authenticated
+      USING (true);
+  END IF;
+END
+$$;
 
-create policy if not exists drafts_delete_any on public.drafts
-  for delete to anon, authenticated
-  using (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'drafts' AND policyname = 'drafts_delete_any'
+  ) THEN
+    CREATE POLICY drafts_delete_any ON public.drafts
+      FOR DELETE TO anon, authenticated
+      USING (true);
+  END IF;
+END
+$$;
 
 -- Optional: simple cleanup helper (not executed automatically)
 -- delete from public.drafts where created_at < now() - interval '24 hours'; 
