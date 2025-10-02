@@ -2,6 +2,121 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasUnlimitedEdits } from '@/lib/paywall';
 
+// GET handler to check edit limits without incrementing
+export async function GET() {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const hasUnlimitedUser = hasUnlimitedEdits(user.email);
+
+    // Fetch user usage data
+    const { data: usageData, error: usageError } = await supabase
+      .from('user_usage')
+      .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+      .eq('user_id', user.id)
+      .single();
+
+    // If no usage record exists, create one
+    if (usageError && usageError.code === 'PGRST116') {
+      const { data: newUsageData, error: createError } = await supabase
+        .from('user_usage')
+        .insert({
+          user_id: user.id,
+          edit_count: 0,
+          monthly_edit_count: 0,
+          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          is_pro: hasUnlimitedUser,
+          subscription_status: hasUnlimitedUser ? 'unlimited' : 'inactive'
+        })
+        .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+        .single();
+      
+      if (createError) {
+        console.error('Error creating user_usage record:', createError);
+        return NextResponse.json(
+          { error: 'Failed to create usage record' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        canEdit: true,
+        editCount: 0,
+        monthlyEditCount: 0,
+        limit: hasUnlimitedUser ? null : 5,
+        monthlyLimit: hasUnlimitedUser ? null : 50,
+        isPro: hasUnlimitedUser,
+        subscriptionStatus: hasUnlimitedUser ? 'unlimited' : 'inactive',
+        monthlyResetDate: newUsageData?.monthly_reset_date ?? null,
+        hasUnlimitedEdits: hasUnlimitedUser
+      });
+    }
+
+    if (usageError) {
+      console.error('Error fetching usage data:', usageError);
+      return NextResponse.json(
+        { error: 'Failed to fetch usage data' },
+        { status: 500 }
+      );
+    }
+
+    // Check if monthly reset is needed
+    if (usageData && usageData.monthly_reset_date) {
+      const resetDate = new Date(usageData.monthly_reset_date);
+      const currentDate = new Date();
+      
+      if (currentDate >= resetDate) {
+        // Reset monthly count
+        await supabase
+          .from('user_usage')
+          .update({
+            monthly_edit_count: 0,
+            monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          })
+          .eq('user_id', user.id);
+        
+        usageData.monthly_edit_count = 0;
+      }
+    }
+
+    const editCount = usageData?.edit_count ?? 0;
+    const monthlyEditCount = usageData?.monthly_edit_count ?? 0;
+    const isPro = usageData?.is_pro || hasUnlimitedUser;
+    const canEdit = hasUnlimitedUser || (isPro ? monthlyEditCount < 50 : editCount < 5);
+
+    return NextResponse.json({
+      canEdit,
+      editCount,
+      monthlyEditCount,
+      limit: hasUnlimitedUser || isPro ? null : 5,
+      monthlyLimit: isPro ? 50 : null,
+      isPro,
+      subscriptionStatus: usageData?.subscription_status ?? (hasUnlimitedUser ? 'unlimited' : 'inactive'),
+      monthlyResetDate: usageData?.monthly_reset_date ?? null,
+      hasUnlimitedEdits: hasUnlimitedUser
+    });
+
+  } catch (error) {
+    console.error('Error fetching edit limits:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch edit limits' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST() {
   try {
     const supabase = await createClient();

@@ -42,3 +42,5 @@ next-env.d.ts
 
 # tmp
 tmp/
+
+digitalocean_compile/README.md

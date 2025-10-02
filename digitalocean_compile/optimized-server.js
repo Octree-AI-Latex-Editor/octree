@@ -73,15 +73,12 @@ async function handleCompilation(req, res, next) {
     console.log('Spawning LaTeX compilation process...');
     
     const result = await new Promise((resolve, reject) => {
-      const child = exec('/opt/latex-service/run-latex.sh', {
+      // Use pdflatex directly instead of the run-latex.sh script
+      const child = exec(`pdflatex -interaction=nonstopmode -output-directory=${tempDir} ${texFilePath}`, {
         cwd: tempDir,
         timeout: 30000, // 30 second timeout
         maxBuffer: 1024 * 1024 // 1MB buffer
       });
-      
-      // Send content to stdin
-      child.stdin.write(texContent);
-      child.stdin.end();
       
       let stdout = '';
       let stderr = '';

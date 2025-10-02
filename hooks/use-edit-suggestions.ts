@@ -5,6 +5,7 @@ import { EditSuggestion } from '@/types/edit';
 import { parseLatexDiff } from '@/lib/parse-latex-diff';
 import type * as Monaco from 'monaco-editor';
 import { toast } from 'sonner';
+import { useEditLimitCache } from './use-edit-limit-cache';
 
 export interface EditSuggestionsState {
   editSuggestions: EditSuggestion[];
@@ -31,6 +32,9 @@ export function useEditSuggestions({
   const continueToastIdRef = useRef<string | number | null>(null);
   const promptDisplayedRef = useRef(false);
   const hasActiveBatchRef = useRef(false);
+  
+  // Use cached edit limit to avoid API calls on every accept
+  const { canEdit, trackEdit } = useEditLimitCache();
 
   const clearContinueToast = useCallback(() => {
     if (continueToastIdRef.current !== null) {
@@ -129,33 +133,11 @@ export function useEditSuggestions({
     const suggestion = editSuggestions.find((s) => s.id === suggestionId);
     if (!suggestion || suggestion.status !== 'pending') return;
 
-    // Check if user can make edits
-    try {
-      const response = await fetch('/api/track-edit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to check edit limits');
-      }
-
-      const data = await response.json();
-
-      if (!data.canEdit) {
-        // Show paywall or error message
-        toast.error(
-          'You have reached your free edit limit. Please upgrade to Pro for unlimited edits.'
-        );
-        return;
-      }
-
-      // Notify other components to refresh usage data
-      window.dispatchEvent(new Event('usage-update'));
-    } catch (error) {
-      console.error('Error checking edit limits:', error);
+    // Fast check using cached status
+    if (!canEdit) {
+      toast.error(
+        'You have reached your free edit limit. Please upgrade to Pro for unlimited edits.'
+      );
       return;
     }
 
@@ -197,7 +179,13 @@ export function useEditSuggestions({
         },
       ]);
 
+      // Track edit in background (non-blocking)
+      trackEdit();
+
       setEditSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
+      
+      // Show success feedback
+      toast.success('Edit applied', { duration: 1000 });
     } catch (error) {
       console.error('Error applying edit:', error);
       toast.error('Failed to apply this suggestion. Please try again.');

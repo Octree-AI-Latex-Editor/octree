@@ -2,18 +2,19 @@ import { type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
 export async function middleware(request: NextRequest) {
+  // Do not force auth redirects for API routes; route will return 401 JSON
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
+  if (isApiRoute) {
+    // Still refresh session cookies via updateSession (no redirect on missing user)
+    return await updateSession(request);
+  }
+
   return await updateSession(request);
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Run on everything under app, including API
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

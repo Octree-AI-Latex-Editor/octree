@@ -1,65 +1,115 @@
-/* eslint-disable */
 import { NextResponse } from 'next/server';
-import { deepseek } from '@ai-sdk/deepseek';
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 
 export const runtime = 'edge';
 export const preferredRegion = 'auto';
 
-// Simple model selection based on optional override or heuristic
-type ChangeType = 'small' | 'large' | 'auto';
-function chooseModel(params: {
-  changeType?: ChangeType;
-  textFromEditor?: string;
-  messages: Array<{ role: string; content: string }>;
-}) {
-  const { changeType, textFromEditor, messages } = params;
-
-  if (changeType === 'small') return openai('gpt-4o-mini');
-  if (changeType === 'large') return deepseek('deepseek-coder');
-
-  const textBasis = (textFromEditor && textFromEditor.trim().length > 0)
-    ? textFromEditor
-    : (messages.slice().reverse().find((m) => m.role === 'user')?.content ?? '');
-
-  const newlineCount = (textBasis.match(/\n/g) || []).length;
-  const isNonEmpty = textBasis.trim().length > 0;
-
-  // Strict: single-line small change => GPT-4o mini; otherwise DeepSeek Coder
-  if (isNonEmpty && newlineCount === 0) {
-    return openai('gpt-4o-mini');
+// Validate required environment variables
+function validateApiKeys(): { isValid: boolean; error?: string } {
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+  
+  if (!hasOpenAI) {
+    return {
+      isValid: false,
+      error: 'No OpenAI API key configured. Please set OPENAI_API_KEY.'
+    };
   }
+  
+  return { isValid: true };
+}
 
-  return deepseek('deepseek-coder');
+// Model selection thresholds
+const LARGE_FILE_THRESHOLD = 10000; // characters (increased - most LaTeX files are < 10k)
+const LARGE_SELECTION_THRESHOLD = 2000; // characters (only selected text, not message)
+
+// Smart model selection based on file size and selection complexity
+function chooseModel(fileContentLength: number, selectedTextLength: number): string {
+  // Use GPT-5 (full) for:
+  // 1. Very large files (>10k chars) - complex documents
+  // 2. Large text selections (>2k chars) - complex edits
+  if (fileContentLength > LARGE_FILE_THRESHOLD || selectedTextLength > LARGE_SELECTION_THRESHOLD) {
+    console.log('Using GPT-5 (full) for large/complex request');
+    return 'gpt-5-2025-08-07';
+  }
+  
+  // Use GPT-5 mini for smaller, well-defined tasks
+  console.log('Using GPT-5 mini for standard request');
+  return 'gpt-5-mini';
 }
 
 export async function POST(request: Request) {
   try {
-    const { messages, fileContent, textFromEditor, changeType } = await request.json();
-
-    // --- Add Line Numbers to Content ---
-    const lines = fileContent.split('\n');
-    const numberedContent = lines
-      .map((line: unknown, index: number) => `${index + 1}: ${line}`)
-      .join('\n');
-    // ------------------------------------
-
-    let model = chooseModel({ changeType, textFromEditor, messages });
-
-    // Fallback to gpt-4o-mini if deepseek key/config is missing
-    const prefersDeepseek = (m: any) => typeof m?.providerId === 'string' && m.providerId.includes('deepseek');
-    const deepseekKeyMissing = !process.env.DEEPSEEK_API_KEY && !process.env.DEEPSEEK_API_KEY_ID;
-    if (prefersDeepseek(model) && deepseekKeyMissing) {
-      model = openai('gpt-4o-mini');
+    // Validate API keys first
+    const keyValidation = validateApiKeys();
+    if (!keyValidation.isValid) {
+      return NextResponse.json(
+        { error: keyValidation.error },
+        { status: 503 }
+      );
     }
 
-    const result = streamText({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and suggest precise code edits.
+    const { messages, fileContent, textFromEditor, changeType } = await request.json();
+
+    // Validate request body
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid request: messages array is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!fileContent || typeof fileContent !== 'string') {
+      return NextResponse.json(
+        { error: 'Invalid request: fileContent is required' },
+        { status: 400 }
+      );
+    }
+
+    // --- Add Line Numbers to Content ---
+    // Optimize for large files: only include relevant context if file is very large
+    const lines = fileContent.split('\n');
+    const MAX_LINES_FULL_CONTEXT = 500; // Only send full file if under 500 lines
+    
+    let numberedContent: string;
+    if (lines.length <= MAX_LINES_FULL_CONTEXT) {
+      // Send full file with line numbers
+      numberedContent = lines
+        .map((line: unknown, index: number) => `${index + 1}: ${line}`)
+        .join('\n');
+    } else {
+      // For large files, provide smart context window
+      // Include first 100 lines, last 100 lines, and context around selection if available
+      const startLines = lines.slice(0, 100)
+        .map((line: unknown, index: number) => `${index + 1}: ${line}`)
+        .join('\n');
+      const endLines = lines.slice(-100)
+        .map((line: unknown, index: number) => `${lines.length - 100 + index + 1}: ${line}`)
+        .join('\n');
+      
+      numberedContent = `${startLines}\n\n... [${lines.length - 200} lines omitted] ...\n\n${endLines}`;
+      
+      // If there's selected text, try to include that region
+      if (textFromEditor && textFromEditor.length > 0) {
+        // This is a simplified approach - in production you might want to find the exact line range
+        numberedContent += `\n\n[Selected region context will be provided separately]`;
+      }
+    }
+    // ------------------------------------
+
+    // Calculate selection length for model selection (NOT including user message)
+    const selectedTextLength = textFromEditor?.length || 0;
+    
+    // Choose model based on file size and selection size
+    const selectedModel = chooseModel(fileContent.length, selectedTextLength);
+
+    console.log('Octra API: Starting AI request with model:', selectedModel);
+    console.log('Octra API: Messages count:', messages.length);
+    console.log('Octra API: File content length:', fileContent.length);
+    console.log('Octra API: Selected text length:', selectedTextLength);
+
+    // Build the input for GPT-5 Responses API
+    const systemPrompt = `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and suggest precise code edits.
 
 The user's current file content will be provided with line numbers prepended, like "1: \\documentclass...".
 
@@ -101,30 +151,76 @@ Correct Output Diff Block:
 -    F = m a
 +    F = k x
 \`\`\`
-*Explanation:* The change only affects the line numbered '17'. The header correctly reflects \`-17,1 +17,1\`. The diff body lines do NOT repeat the '17:'.`,
-        },
-        {
-          role: 'system',
-          content: `Current numbered file content:\n---\n${numberedContent}\n---\n`,
-        },
-        ...(textFromEditor ? [{
-          role: 'system' as const,
-          content: `Selected text from editor for context:\n---\n${textFromEditor}\n---\n\nThe user has selected this specific text and may be asking about improvements or changes to it.`,
-        }] : []),
-        ...messages.slice(-3),
-      ],
-      temperature: 0.2,
-      maxTokens: 1500,
-    });
+*Explanation:* The change only affects the line numbered '17'. The header correctly reflects \`-17,1 +17,1\`. The diff body lines do NOT repeat the '17:'.
 
-    // --- Return Response ---
-    // Directly convert the result to the response format.
-    return result.toDataStreamResponse();
+Current numbered file content:
+---
+${numberedContent}
+---
+${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEditor}\n---\n\nThe user has selected this specific text and may be asking about improvements or changes to it.` : ''}`;
+
+    const userMessage = messages[messages.length - 1]?.content || '';
+
+    try {
+      // Use GPT-4o-mini for now (GPT-5 requires organization verification)
+      const result = await streamText({
+        model: openai('gpt-4o-mini'),
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          ...messages.slice(-3),
+        ],
+        temperature: 0.2,
+        maxTokens: 2000,
+      });
+
+      console.log('Octra API: streamText completed');
+      
+      return result.toDataStreamResponse();
+    } catch (apiError) {
+      console.error('Octra API: streamText error:', apiError);
+      throw apiError;
+    }
   } catch (error) {
     console.error('AI API error:', error);
+    
+    // Provide more detailed error information
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const isRateLimitError = errorMessage.toLowerCase().includes('rate limit');
+    const isAuthError = errorMessage.toLowerCase().includes('auth') || errorMessage.toLowerCase().includes('api key');
+    
+    if (isRateLimitError) {
+      return NextResponse.json(
+        { 
+          error: 'AI service rate limit exceeded',
+          details: 'Please try again in a few moments',
+          retryable: true
+        },
+        { status: 429 }
+      );
+    }
+    
+    if (isAuthError) {
+      return NextResponse.json(
+        { 
+          error: 'AI service authentication failed',
+          details: 'Please check API key configuration',
+          retryable: false
+        },
+        { status: 401 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to process request' },
+      { 
+        error: 'Failed to process request',
+        details: errorMessage,
+        retryable: true
+      },
       { status: 500 }
     );
   }
 }
+

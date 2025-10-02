@@ -42,7 +42,6 @@ export function Chat({
 }: ChatProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const [userInput, setUserInput] = useState<string>('');
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -157,27 +156,39 @@ export function Chat({
 
   const {
     messages,
-    handleSubmit: originalHandleSubmit,
+    input,
+    handleInputChange,
+    handleSubmit,
     isLoading,
-    setInput,
+    error,
   } = useChat({
     api: '/api/octra',
     body: {
       fileContent: fileContent,
       textFromEditor: textFromEditor,
     },
+    onResponse(response) {
+      console.log('Octra API response received:', response.status);
+    },
     onFinish(message) {
+      console.log('Octra AI message finished:', message);
       const allSuggestions = parseEditSuggestions(message.content);
       // Do not clear the message content so the AI response remains visible
       if (allSuggestions.length > 0) {
         onEditSuggestion(allSuggestions);
       }
     },
+    onError(error) {
+      console.error('Octra API error:', error);
+    },
   });
 
+  // Log any errors
   useEffect(() => {
-    setInput(userInput);
-  }, [userInput, setInput]);
+    if (error) {
+      console.error('Chat error:', error);
+    }
+  }, [error]);
 
   useEffect(() => {
     if (textFromEditor) {
@@ -359,25 +370,23 @@ export function Chat({
 
               <form
                 onSubmit={(e) => {
-                  originalHandleSubmit(e);
+                  e.preventDefault();
+                  handleSubmit(e);
                   setTextFromEditor(null);
-                  setUserInput('');
                 }}
                 className="relative flex w-full flex-col items-end rounded-md border p-1"
               >
                 <Textarea
                   ref={inputRef}
-                  value={userInput}
+                  value={input}
                   placeholder="Prompt to edit your document..."
-                  onChange={(e) => {
-                    setUserInput(e.target.value);
-                  }}
+                  onChange={handleInputChange}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      originalHandleSubmit(e);
+                      const formEvent = new Event('submit', { bubbles: true, cancelable: true });
+                      handleSubmit(formEvent as unknown as React.FormEvent<HTMLFormElement>);
                       setTextFromEditor(null);
-                      setUserInput('');
                     }
                   }}
                   className="scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent relative h-[70px] resize-none border-none px-1 shadow-none focus-visible:ring-0"

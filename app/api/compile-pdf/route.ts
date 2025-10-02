@@ -157,121 +157,93 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback: Use local compilation if remote fails or in development
-    console.log('Using local LaTeX compilation...');
+    // Development: Try remote service directly (skip broken Docker)
+    console.log('Development mode: Using remote LaTeX compilation service...');
     
-    // Create a unique ID for this compilation
-    const compilationId = uuidv4();
-
-    // Create temp directory at project root to work with Docker
-    const tempDir = path.join(process.cwd(), 'tmp', compilationId);
-    fs.mkdirSync(tempDir, { recursive: true });
-
-    // Copy all images from all project directories to temp directory root
-    const imagesDir = path.join(process.cwd(), 'public', 'images');
-    if (fs.existsSync(imagesDir)) {
-      // Read all subdirectories (project directories)
-      const projectDirs = fs.readdirSync(imagesDir, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory())
-        .map(dirent => dirent.name);
-      
-      // Copy all images from all project directories to temp directory root
-      for (const projectDir of projectDirs) {
-        const projectImagesDir = path.join(imagesDir, projectDir);
-        const images = fs.readdirSync(projectImagesDir);
-        
-        for (const image of images) {
-          const sourcePath = path.join(projectImagesDir, image);
-          const destPath = path.join(tempDir, image);
-          fs.copyFileSync(sourcePath, destPath);
-        }
-      }
-    }
-
-    // Write the LaTeX content to a file
-    const texFilePath = path.join(tempDir, 'main.tex');
-    fs.writeFileSync(texFilePath, content);
-
     try {
-      // Run pdflatex in Docker - continue even with LaTeX errors
-      const { stdout, stderr } = await execAsync(
-        `docker run --rm -v ${tempDir}:/data texlive/texlive pdflatex -interaction=nonstopmode -output-directory=/data /data/main.tex`
-      );
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      
+      const response = await fetch('http://142.93.195.236:3001/compile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        body: content,
+        signal: controller.signal,
+      });
 
-      if (stderr) console.error('Docker stderr:', stderr);
+      clearTimeout(timeoutId);
 
-      // Check if PDF was created regardless of errors
-      const pdfPath = path.join(tempDir, 'main.pdf');
-
-      if (fs.existsSync(pdfPath)) {
-        // Read the PDF file
-        const pdfBuffer = fs.readFileSync(pdfPath);
-
-        // Convert to Base64
-        const base64PDF = pdfBuffer.toString('base64');
-
-        // Clean up temp directory
-        fs.rmSync(tempDir, { recursive: true, force: true });
-
-        console.log('Local compilation successful:', {
-          size: pdfBuffer.length,
-          compilationId
-        });
-
-        return NextResponse.json({
-          pdf: base64PDF,
-          size: pdfBuffer.length,
-          mimeType: 'application/pdf',
-          debugInfo: {
-            compilationId,
-            method: 'local-docker',
-            stdout: stdout.substring(0, 200),
-            stderr: stderr ? stderr.substring(0, 200) : null
-          },
-        });
-      } else {
-        // PDF not created, check for log file
-        const logPath = path.join(tempDir, 'main.log');
-        let logContent = '';
-        
-        if (fs.existsSync(logPath)) {
-          logContent = fs.readFileSync(logPath, 'utf-8');
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
         }
-
-        // Clean up temp directory
-        fs.rmSync(tempDir, { recursive: true, force: true });
-
+        
         return NextResponse.json(
           {
-            error: 'PDF not generated',
-            details: 'LaTeX compilation completed but no PDF was created',
-            log: logContent.substring(0, 2000), // Limit log size
-            stdout: stdout.substring(0, 1000),
-            stderr: stderr ? stderr.substring(0, 1000) : null,
-            suggestion: 'Check your LaTeX syntax and ensure all required packages are included'
+            error: errorData.error || 'LaTeX compilation failed',
+            details: errorData.details || errorData.message || `Server returned status ${response.status}`,
+            log: errorData.log,
+            stdout: errorData.stdout,
+            stderr: errorData.stderr,
+            suggestion: 'Check your LaTeX syntax and try again'
           },
-          { status: 500 }
+          { status: response.status }
         );
       }
-    } catch (dockerError) {
-      // Clean up temp directory
-      fs.rmSync(tempDir, { recursive: true, force: true });
 
-      console.error('Docker compilation error:', dockerError);
-      
-      // Try to get log content for debugging
-      const logPath = path.join(tempDir, 'main.log');
-      let logContent = '';
-      if (fs.existsSync(logPath)) {
-        logContent = fs.readFileSync(logPath, 'utf-8');
+      const pdfArrayBuffer = await response.arrayBuffer();
+
+      if (pdfArrayBuffer.byteLength === 0) {
+        throw new Error('Remote server returned empty response');
       }
 
+      const firstBytes = Buffer.from(pdfArrayBuffer.slice(0, 4)).toString('hex');
+      if (firstBytes !== '25504446') {
+        throw new Error(`Invalid PDF format. First bytes: ${firstBytes}`);
+      }
+
+      const pdfBuffer = Buffer.from(pdfArrayBuffer);
+      const base64PDF = pdfBuffer.toString('base64');
+
+      console.log('Remote compilation successful:', {
+        size: pdfBuffer.length,
+        method: 'remote-development'
+      });
+
+      return NextResponse.json({
+        pdf: base64PDF,
+        size: pdfBuffer.length,
+        mimeType: 'application/pdf',
+        debugInfo: {
+            method: 'remote-development',
+          contentLength: pdfArrayBuffer.byteLength,
+        },
+      });
+    } catch (remoteError) {
+      console.error('Remote compilation failed:', remoteError);
+      
+      if (remoteError instanceof Error && remoteError.name === 'AbortError') {
+        return NextResponse.json(
+          {
+            error: 'LaTeX compilation timed out',
+            details: 'Request took longer than 60 seconds',
+            suggestion: 'Try again or simplify your LaTeX document'
+          },
+          { status: 504 }
+        );
+      }
+      
       return NextResponse.json(
         {
-          error: 'Docker compilation failed',
-          details: String(dockerError),
-          log: logContent.substring(0, 2000),
-          suggestion: 'Check your LaTeX syntax and try again'
+          error: 'LaTeX compilation failed',
+          details: String(remoteError),
+          suggestion: 'The remote compilation service may be temporarily unavailable. Please try again.'
         },
         { status: 500 }
       );
