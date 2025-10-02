@@ -6,6 +6,7 @@ import {
   ChevronDown,
   DonutIcon as DocumentIcon,
   FolderOpen,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -32,6 +33,12 @@ import Link from 'next/link';
 import { useProjectRefresh } from '@/app/context/project';
 import { AddFileDialog } from '@/components/projects/add-file-dialog';
 import { usePathname } from 'next/navigation';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { RenameFileDialog } from '@/components/projects/rename-file-dialog';
 
 interface Project {
   id: string;
@@ -195,23 +202,48 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                               <SidebarMenuItem key={file.id}>
                                 <SidebarMenuSubButton
                                   asChild
-                                  className={`rounded-md transition-all duration-200 ${
+                                  isActive={isActive}
+                                  className={`transition-all duration-200 ${
                                     isActive
                                       ? 'border border-blue-500 bg-blue-50 text-blue-700'
                                       : 'text-gray-700 hover:bg-gray-50'
                                   }`}
                                 >
-                                  <Link
-                                    href={`/projects/${currentProject.id}/files/${file.id}/editor`}
-                                    className="flex items-center gap-3"
-                                  >
-                                    {getFileIcon(file.name)}
-                                    <div className="min-w-0 flex-1">
-                                      <span className="block truncate text-sm font-medium">
-                                        {file.name}
-                                      </span>
-                                    </div>
-                                  </Link>
+                                  <div className="flex w-full items-center gap-2">
+                                    <Link
+                                      href={`/projects/${currentProject.id}/files/${file.id}/editor`}
+                                      className="flex flex-1 items-center gap-3 overflow-hidden px-1 py-1"
+                                    >
+                                      {getFileIcon(file.name)}
+                                      <div className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium">
+                                          {file.name}
+                                        </span>
+                                      </div>
+                                    </Link>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                          aria-label={`Open options for ${file.name}`}
+                                        >
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="end"
+                                        onClick={(event) => event.stopPropagation()}
+                                      >
+                                        <RenameFileDialog
+                                          projectId={currentProject.id}
+                                          fileId={file.id}
+                                          currentName={file.name}
+                                          onRenamed={() => fetchCurrentProjectAndFiles()}
+                                        />
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
                                 </SidebarMenuSubButton>
                               </SidebarMenuItem>
                             );
