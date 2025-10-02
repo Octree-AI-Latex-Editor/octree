@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Folder,
-  FileText,
-  ChevronDown,
-  DonutIcon as DocumentIcon,
-  FolderOpen,
-} from 'lucide-react';
+import { Trash2, Folder, FileText, ChevronDown, File as DocumentIcon, FolderOpen } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +26,8 @@ import Link from 'next/link';
 import { useProjectRefresh } from '@/app/context/project';
 import { AddFileDialog } from '@/components/projects/add-file-dialog';
 import { usePathname } from 'next/navigation';
+import type { MouseEvent } from 'react';
+import { DeleteFileDialog } from '@/components/files/delete-file-dialog';
 
 interface Project {
   id: string;
@@ -68,6 +64,12 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
   const { refreshTrigger } = useProjectRefresh();
 
   const pathname = usePathname();
+
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; fileId: string; fileName: string }>({
+    open: false,
+    fileId: '',
+    fileName: '',
+  })
 
   const fetchCurrentProjectAndFiles = useCallback(async () => {
     if (!projectId) return;
@@ -121,6 +123,16 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
   useEffect(() => {
     fetchCurrentProjectAndFiles();
   }, [refreshTrigger, projectId, fetchCurrentProjectAndFiles]);
+
+  const handleDeleteClick = (e: MouseEvent, fileId: string, fileName: string) => {
+    e.preventDefault() // Prevent navigation
+    e.stopPropagation() // Prevent event bubbling
+    setDeleteDialog({
+      open: true,
+      fileId,
+      fileName,
+    })
+  }
 
   const getFileIcon = (fileName: string) => {
     const extension = fileName.split('.').pop()?.toLowerCase();
@@ -195,7 +207,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                               <SidebarMenuItem key={file.id}>
                                 <SidebarMenuSubButton
                                   asChild
-                                  className={`rounded-md transition-all duration-200 ${
+                                  className={`group rounded-md transition-all duration-200 ${
                                     isActive
                                       ? 'border border-blue-500 bg-blue-50 text-blue-700'
                                       : 'text-gray-700 hover:bg-gray-50'
@@ -211,6 +223,10 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                                         {file.name}
                                       </span>
                                     </div>
+                                    <Trash2 
+                                      className="h-4 w-4 text-red-500 hover:text-red-700 cursor-pointer" 
+                                      onClick={(e) => handleDeleteClick(e, file.id, file.name)}
+                                    />
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuItem>
@@ -249,6 +265,18 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
       <SidebarFooter className="border-t border-gray-100 p-4">
         <UserProfileDropdown userName={userName} />
       </SidebarFooter>
+
+      {currentProject && deleteDialog.open && (
+        <DeleteFileDialog
+          fileId={deleteDialog.fileId}
+          fileName={deleteDialog.fileName}
+          projectId={currentProject.id}
+          open={deleteDialog.open}
+          onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}
+          onFileDeleted={fetchCurrentProjectAndFiles}
+          availableFiles={currentProject.files}
+        />
+      )}
     </Sidebar>
   );
 }

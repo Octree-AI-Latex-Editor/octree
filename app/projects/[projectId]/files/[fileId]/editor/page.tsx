@@ -169,6 +169,7 @@ export default function FileEditorPage() {
         exportingPDF={exportingPDF}
         isSaving={isSaving}
         lastSaved={lastSaved}
+        projectId={projectId}
       />
 
       <div className="flex min-h-0 flex-1">
