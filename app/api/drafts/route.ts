@@ -19,18 +19,14 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  // Some environments or prefetchers may accidentally issue GETs; respond clearly with allowed methods
-  return withCors(
-    NextResponse.json(
-      { error: 'Method Not Allowed', allowed: ['POST'] },
-      { status: 405 }
-    )
-  );
+  // Return No Content for accidental GETs to avoid noisy 405 logs
+  const res = new NextResponse(null, { status: 204 });
+  return withCors(res);
 }
 
 export async function HEAD(request: NextRequest) {
-  const res = new NextResponse(null, { status: 405 });
-  res.headers.set('Allow', 'POST, OPTIONS');
+  // Mirror GET behavior for HEAD requests
+  const res = new NextResponse(null, { status: 204 });
   return withCors(res);
 }
 
