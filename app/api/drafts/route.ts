@@ -10,12 +10,28 @@ function withCors(response: NextResponse) {
   response.headers.set('Access-Control-Allow-Origin', allowedOrigin);
   response.headers.set('Access-Control-Allow-Credentials', 'true');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
   return response;
 }
 
 export async function OPTIONS() {
   return withCors(NextResponse.json({}, { status: 204 }));
+}
+
+export async function GET(request: NextRequest) {
+  // Some environments or prefetchers may accidentally issue GETs; respond clearly with allowed methods
+  return withCors(
+    NextResponse.json(
+      { error: 'Method Not Allowed', allowed: ['POST'] },
+      { status: 405 }
+    )
+  );
+}
+
+export async function HEAD(request: NextRequest) {
+  const res = new NextResponse(null, { status: 405 });
+  res.headers.set('Allow', 'POST, OPTIONS');
+  return withCors(res);
 }
 
 export async function POST(request: NextRequest) {
