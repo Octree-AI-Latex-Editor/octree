@@ -1,7 +1,8 @@
 import { LoginForm } from '@/components/auth/login-form';
 
-export default function Page({ searchParams }: { searchParams?: { next?: string } }) {
-  const raw = searchParams?.next ?? '/';
+export default async function Page({ searchParams }: { searchParams?: Promise<{ next?: string }> }) {
+  const params = (await searchParams) ?? {};
+  const raw = params.next ?? '/';
   const next = typeof raw === 'string' && raw.startsWith('/') ? raw : '/';
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
