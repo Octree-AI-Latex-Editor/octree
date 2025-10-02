@@ -68,15 +68,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/', url.origin));
   }
 
-  await supabase.from('files').insert({
-    project_id: project.id,
-    name: 'main.tex',
-    type: 'text/plain',
-    size: content.length,
-  });
+  // Insert file record and capture ID for redirect to editor
+  const { data: file, error: fileError } = await supabase
+    .from('files')
+    .insert({
+      project_id: project.id,
+      name: 'main.tex',
+      type: 'text/plain',
+      size: content.length,
+    })
+    .select('id')
+    .single();
+
+  if (fileError || !file) {
+    return NextResponse.redirect(new URL(`/projects/${project.id}`, url.origin));
+  }
 
   // Delete draft (best effort)
   await (supabase.from('drafts' as any).delete().eq('id', draftId) as any);
 
-  return NextResponse.redirect(new URL(`/projects/${project.id}`, url.origin));
+  return NextResponse.redirect(
+    new URL(`/projects/${project.id}/files/${file.id}/editor`, url.origin)
+  );
 } 
