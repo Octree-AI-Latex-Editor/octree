@@ -33,11 +33,11 @@ export default async function ProjectLayout({
   const userName = user?.user_metadata?.name ?? user?.email ?? null;
 
   const { data: project } = await supabase
-    .from('projects')
+    .from('projects' as const)
     .select('title')
     .eq('id', projectId)
     .eq('user_id', user?.id || '')
-    .single();
+    .single<{ title: string }>();
 
   const headersList = await headers();
   const pathname = headersList.get('x-pathname') || '';
@@ -56,11 +56,11 @@ export default async function ProjectLayout({
   let file = null;
   if (fileId) {
     const { data: fileData } = await supabase
-      .from('files')
+      .from('files' as const)
       .select('name')
       .eq('id', fileId)
       .eq('project_id', projectId)
-      .single();
+      .single<{ name: string }>();
     file = fileData;
   }
 

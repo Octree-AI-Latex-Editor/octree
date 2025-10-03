@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import type { Tables, TablesInsert, TablesUpdate } from '@/database.types';
 
 export async function GET(
   request: NextRequest,
@@ -18,11 +19,11 @@ export async function GET(
 
     // First, check if the file exists in the files table
     const { data: fileData, error: fileError } = await supabase
-      .from('files')
+      .from('files' as const)
       .select('*')
       .eq('id', fileId)
       .eq('project_id', projectId)
-      .single();
+      .single<Tables<'files'>>();
 
     if (fileError || !fileData) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
@@ -30,25 +31,29 @@ export async function GET(
 
     // Check if there's a corresponding document in the documents table
     const { data: documentData, error: documentError } = await supabase
-      .from('documents')
+      .from('documents' as const)
       .select('*')
       .eq('project_id', projectId)
       .eq('filename', fileData.name)
       .eq('owner_id', user.id)
-      .single();
+      .single<Tables<'documents'>>();
 
     if (documentError) {
       // If no document exists, create one with default content
-      const { data: newDocument, error: createError } = await supabase
-        .from('documents')
-        .insert({
-          title: fileData.name,
-          content: `% ${fileData.name}\n% Created on ${new Date().toISOString()}\n\n\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n\\usepackage{amsfonts}\n\\usepackage{amssymb}\n\\usepackage{graphicx}\n\\usepackage{geometry}\n\\geometry{margin=1in}\n\n\\title{${fileData.name.replace(/\\.\\w+$/, '')}}\n\\author{}\n\\date{\\today}\n\n\\begin{document}\n\n\\maketitle\n\n\\section{Introduction}\n\nYour content here.\n\n\\end{document}`,
-          owner_id: user.id,
-          project_id: projectId,
-          filename: fileData.name,
-          document_type: 'article',
-        })
+      const insertDoc: TablesInsert<'documents'> = {
+        title: fileData.name,
+        content: `% ${fileData.name}\n% Created on ${new Date().toISOString()}\n\n\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n\\usepackage{amsfonts}\n\\usepackage{amssymb}\n\\usepackage{graphicx}\n\\usepackage{geometry}\n\\geometry{margin=1in}\n\n\\title{${fileData.name.replace(/\\.\\w+$/, '')}}\n\\author{}\n\\date{\\today}\n\n\\begin{document}\n\n\\maketitle\n\n\\section{Introduction}\n\nYour content here.\n\n\\end{document}`,
+        owner_id: user.id,
+        project_id: projectId,
+        filename: fileData.name,
+        document_type: 'article',
+      };
+
+      const { data: newDocument, error: createError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('documents') as any
+      )
+        .insert(insertDoc)
         .select('*')
         .single();
 
@@ -95,11 +100,11 @@ export async function PUT(
 
     // First, check if the file exists in the files table
     const { data: fileData, error: fileError } = await supabase
-      .from('files')
+      .from('files' as const)
       .select('*')
       .eq('id', fileId)
       .eq('project_id', projectId)
-      .single();
+      .single<Tables<'files'>>();
 
     if (fileError || !fileData) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
@@ -107,25 +112,29 @@ export async function PUT(
 
     // Check if there's a corresponding document in the documents table
     const { data: documentData, error: documentError } = await supabase
-      .from('documents')
+      .from('documents' as const)
       .select('*')
       .eq('project_id', projectId)
       .eq('filename', fileData.name)
       .eq('owner_id', user.id)
-      .single();
+      .single<Tables<'documents'>>();
 
     if (documentError) {
       // If no document exists, create one
-      const { data: newDocument, error: createError } = await supabase
-        .from('documents')
-        .insert({
-          title: fileData.name,
-          content: content,
-          owner_id: user.id,
-          project_id: projectId,
-          filename: fileData.name,
-          document_type: 'article',
-        })
+      const insertDoc: TablesInsert<'documents'> = {
+        title: fileData.name,
+        content: content,
+        owner_id: user.id,
+        project_id: projectId,
+        filename: fileData.name,
+        document_type: 'article',
+      };
+
+      const { data: newDocument, error: createError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('documents') as any
+      )
+        .insert(insertDoc)
         .select('*')
         .single();
 
@@ -140,12 +149,16 @@ export async function PUT(
     }
 
     // Update the existing document
-    const { data: updatedDocument, error: updateError } = await supabase
-      .from('documents')
-      .update({
-        content: content,
-        updated_at: new Date().toISOString(),
-      })
+    const updateDoc: TablesUpdate<'documents'> = {
+      content: content,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: updatedDocument, error: updateError } = await (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase.from('documents') as any
+    )
+      .update(updateDoc)
       .eq('id', documentData.id)
       .select('*')
       .single();
@@ -155,14 +168,17 @@ export async function PUT(
     }
 
     // Save version to document_versions table
-    const { error: versionError } = await supabase
-      .from('document_versions')
-      .insert({
-        document_id: documentData.id,
-        content: content,
-        change_summary: 'Auto-saved version',
-        created_by: user.id,
-      });
+    const versionInsert: TablesInsert<'document_versions'> = {
+      document_id: documentData.id,
+      content: content,
+      change_summary: 'Auto-saved version',
+      created_by: user.id,
+    };
+
+    const { error: versionError } = await (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase.from('document_versions') as any
+    ).insert(versionInsert);
 
     if (versionError) {
       console.warn('Failed to save version:', versionError);

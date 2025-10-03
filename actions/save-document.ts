@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import type { TablesInsert, TablesUpdate } from '@/database.types';
 
 export interface SaveDocumentResult {
   success: boolean;
@@ -27,12 +28,12 @@ export async function saveDocument(
     }
 
     const { data: documentData, error: documentError } = await supabase
-      .from('documents')
+      .from('documents' as const)
       .select('id')
       .eq('project_id', projectId)
       .eq('filename', 'main.tex')
       .eq('owner_id', user.id)
-      .single();
+      .single<{ id: string }>();
 
     if (documentError || !documentData) {
       return {
@@ -41,12 +42,14 @@ export async function saveDocument(
       };
     }
 
-    const { error: updateError } = await supabase
-      .from('documents')
-      .update({
-        content: contentToSave,
-        updated_at: new Date().toISOString(),
-      })
+    const updatePayload: TablesUpdate<'documents'> = {
+      content: contentToSave,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await (supabase
+      .from('documents') as any)
+      .update(updatePayload)
       .eq('id', documentData.id);
 
     if (updateError) {
@@ -56,14 +59,16 @@ export async function saveDocument(
       };
     }
 
-    const { error: versionError } = await supabase
-      .from('document_versions')
-      .insert({
-        document_id: documentData.id,
-        content: contentToSave,
-        change_summary: 'Auto-saved version',
-        created_by: user.id,
-      });
+    const versionPayload: TablesInsert<'document_versions'> = {
+      document_id: documentData.id,
+      content: contentToSave,
+      change_summary: 'Auto-saved version',
+      created_by: user.id,
+    };
+
+    const { error: versionError } = await (supabase
+      .from('document_versions') as any)
+      .insert(versionPayload);
 
     if (versionError) {
       console.warn('Failed to save version:', versionError);

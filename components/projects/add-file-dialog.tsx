@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Upload, FileText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import type { TablesInsert } from '@/database.types';
 
 interface AddFileDialogProps {
   projectId: string;
@@ -63,14 +64,17 @@ export function AddFileDialog({
 
       const content = await selectedFile.text();
 
-      const { data: fileData, error: fileError } = await supabase
-        .from('files')
-        .insert({
-          project_id: projectId,
-          name: fileName,
-          type: selectedFile.type || 'text/plain',
-          size: selectedFile.size,
-        })
+      const fileInsert: TablesInsert<'files'> = {
+        project_id: projectId,
+        name: fileName,
+        type: selectedFile.type || 'text/plain',
+        size: selectedFile.size,
+      };
+      const { data: fileData, error: fileError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('files') as any
+      )
+        .insert(fileInsert)
         .select()
         .single();
 
@@ -78,14 +82,18 @@ export function AddFileDialog({
         throw new Error('Failed to create file record');
       }
 
-      const { error: documentError } = await supabase.from('documents').insert({
+      const docInsert: TablesInsert<'documents'> = {
         title: fileName,
         content: content,
         owner_id: session.user.id,
         project_id: projectId,
         filename: fileName,
         document_type: 'file',
-      });
+      };
+      const { error: documentError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('documents') as any
+      ).insert(docInsert);
 
       if (documentError) {
         console.warn('Failed to create document record:', documentError);
@@ -122,14 +130,17 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const { data: fileData, error: fileError } = await supabase
-        .from('files')
-        .insert({
-          project_id: projectId,
-          name: fileName,
-          type: 'text/plain',
-          size: fileContent.length,
-        })
+      const fileInsert2: TablesInsert<'files'> = {
+        project_id: projectId,
+        name: fileName,
+        type: 'text/plain',
+        size: fileContent.length,
+      };
+      const { data: fileData, error: fileError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('files') as any
+      )
+        .insert(fileInsert2)
         .select()
         .single();
 
@@ -138,16 +149,18 @@ export function AddFileDialog({
       }
 
       if (fileContent.trim()) {
-        const { error: documentError } = await supabase
-          .from('documents')
-          .insert({
-            title: fileName,
-            content: fileContent,
-            owner_id: session.user.id,
-            project_id: projectId,
-            filename: fileName,
-            document_type: 'file',
-          });
+        const docInsert2: TablesInsert<'documents'> = {
+          title: fileName,
+          content: fileContent,
+          owner_id: session.user.id,
+          project_id: projectId,
+          filename: fileName,
+          document_type: 'file',
+        };
+        const { error: documentError } = await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('documents') as any
+        ).insert(docInsert2);
 
         if (documentError) {
           console.warn('Failed to create document record:', documentError);

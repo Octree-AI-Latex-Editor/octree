@@ -82,15 +82,18 @@ export async function POST(request: Request) {
             
             if (user) {
               try {
-                const result = await supabase.rpc('update_user_subscription_status', {
+                const rpcArgs = {
                   p_user_id: user.id,
                   p_stripe_customer_id: customerData.id,
                   p_stripe_subscription_id: subscription.id,
                   p_subscription_status: subscription.status,
                   p_current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
                   p_current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-                  p_cancel_at_period_end: subscription.cancel_at_period_end
-                });
+                  p_cancel_at_period_end: subscription.cancel_at_period_end,
+                } as const;
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const result = await (supabase.rpc('update_user_subscription_status', rpcArgs as any));
                 
                 console.log(`Updated subscription status for user ${user.id}: ${subscription.status}`, result);
               } catch (error) {

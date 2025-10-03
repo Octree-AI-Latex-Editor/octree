@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasUnlimitedEdits } from '@/lib/paywall';
+import type { TablesInsert, TablesUpdate, Tables } from '@/database.types';
+
+type UsageSlice = Pick<
+  Tables<'user_usage'>,
+  'edit_count' | 'monthly_edit_count' | 'monthly_reset_date' | 'is_pro' | 'subscription_status'
+>;
 
 // GET handler to check edit limits without incrementing
 export async function GET() {
@@ -22,26 +28,34 @@ export async function GET() {
     const hasUnlimitedUser = hasUnlimitedEdits(user.email);
 
     // Fetch user usage data
-    const { data: usageData, error: usageError } = await supabase
-      .from('user_usage')
+    const usageRes = await supabase
+      .from('user_usage' as const)
       .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
+    const usageData = usageRes.data as UsageSlice | null;
+    const usageError = usageRes.error;
 
     // If no usage record exists, create one
     if (usageError && usageError.code === 'PGRST116') {
-      const { data: newUsageData, error: createError } = await supabase
-        .from('user_usage')
-        .insert({
-          user_id: user.id,
-          edit_count: 0,
-          monthly_edit_count: 0,
-          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          is_pro: hasUnlimitedUser,
-          subscription_status: hasUnlimitedUser ? 'unlimited' : 'inactive'
-        })
+      const newUsagePayload: TablesInsert<'user_usage'> = {
+        user_id: user.id,
+        edit_count: 0,
+        monthly_edit_count: 0,
+        monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        is_pro: hasUnlimitedUser,
+        subscription_status: hasUnlimitedUser ? 'unlimited' : 'inactive',
+      };
+
+      const newUsageRes = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('user_usage') as any
+      )
+        .insert(newUsagePayload)
         .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
         .single();
+      const newUsageData = newUsageRes.data as UsageSlice | null;
+      const createError = newUsageRes.error;
       
       if (createError) {
         console.error('Error creating user_usage record:', createError);
@@ -79,12 +93,15 @@ export async function GET() {
       
       if (currentDate >= resetDate) {
         // Reset monthly count
-        await supabase
-          .from('user_usage')
-          .update({
-            monthly_edit_count: 0,
-            monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          })
+        const resetPayload: TablesUpdate<'user_usage'> = {
+          monthly_edit_count: 0,
+          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        };
+        await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .update(resetPayload)
           .eq('user_id', user.id);
         
         usageData.monthly_edit_count = 0;
@@ -136,30 +153,36 @@ export async function POST() {
     const hasUnlimitedUser = hasUnlimitedEdits(user.email);
 
     // First, ensure user has a usage record
-    const { data: initialUsageData, error: usageError } = await supabase
-      .from('user_usage')
+    const initialRes = await supabase
+      .from('user_usage' as const)
       .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
-
-    let usageData = initialUsageData;
+    let usageData = initialRes.data as UsageSlice | null;
+    const usageError = initialRes.error;
 
     // If no usage record exists, create one
     if (usageError && usageError.code === 'PGRST116') {
       console.log('Creating new user_usage record for user:', user.id);
       
-      const { data: newUsageData, error: createError } = await supabase
-        .from('user_usage')
-        .insert({
-          user_id: user.id,
-          edit_count: 0,
-          monthly_edit_count: 0,
-          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-          is_pro: hasUnlimitedUser,
-          subscription_status: hasUnlimitedUser ? 'unlimited' : 'inactive'
-        })
+      const newUsagePayload: TablesInsert<'user_usage'> = {
+        user_id: user.id,
+        edit_count: 0,
+        monthly_edit_count: 0,
+        monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+        is_pro: hasUnlimitedUser,
+        subscription_status: hasUnlimitedUser ? 'unlimited' : 'inactive',
+      };
+
+      const newUsageRes = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('user_usage') as any
+      )
+        .insert(newUsagePayload)
         .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
         .single();
+      const newUsageData = newUsageRes.data as UsageSlice | null;
+      const createError = newUsageRes.error;
       
       if (createError) {
         console.error('Error creating user_usage record:', createError);
@@ -185,43 +208,52 @@ export async function POST() {
       
       if (currentDate >= resetDate) {
         // Reset monthly count
-        const { error: resetError } = await supabase
-          .from('user_usage')
-          .update({
-            monthly_edit_count: 0,
-            monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          })
+        const resetPayload: TablesUpdate<'user_usage'> = {
+          monthly_edit_count: 0,
+          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        };
+        const resetRes = await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .update(resetPayload)
           .eq('user_id', user.id);
         
-        if (!resetError) {
+        if (!resetRes.error && usageData) {
           usageData.monthly_edit_count = 0;
         }
       }
     }
 
     if (hasUnlimitedUser) {
-      const { data: unlimitedUsageData, error: unlimitedUpdateError } = await supabase
-        .from('user_usage')
-        .update({
-          edit_count: (usageData?.edit_count ?? 0) + 1,
-          monthly_edit_count: (usageData?.monthly_edit_count ?? 0) + 1,
-          is_pro: true,
-          subscription_status:
-            usageData?.subscription_status === 'active'
-              ? usageData.subscription_status
-              : 'unlimited'
-        })
+      const updatePayload: TablesUpdate<'user_usage'> = {
+        edit_count: (usageData?.edit_count ?? 0) + 1,
+        monthly_edit_count: (usageData?.monthly_edit_count ?? 0) + 1,
+        is_pro: true,
+        subscription_status:
+          usageData?.subscription_status === 'active'
+            ? usageData.subscription_status
+            : 'unlimited',
+      };
+
+      const unlimitedRes = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('user_usage') as any
+      )
+        .update(updatePayload)
         .eq('user_id', user.id)
         .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
         .single();
 
-      if (unlimitedUpdateError) {
-        console.error('Error updating unlimited user usage data:', unlimitedUpdateError);
+      if (unlimitedRes.error) {
+        console.error('Error updating unlimited user usage data:', unlimitedRes.error);
         return NextResponse.json(
           { error: 'Failed to update usage data' },
           { status: 500 }
         );
       }
+
+      const unlimitedUsageData = unlimitedRes.data as UsageSlice | null;
 
       return NextResponse.json({
         success: true,
@@ -247,9 +279,9 @@ export async function POST() {
     }
 
     // Call the database function to increment edit count and check limits
-    const { data, error } = await supabase.rpc('increment_edit_count', {
-      p_user_id: user.id
-    });
+    const rpcArgs = { p_user_id: user.id } as const;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc('increment_edit_count', rpcArgs as any));
 
     if (error) {
       console.error('Error incrementing edit count:', error);
@@ -260,19 +292,13 @@ export async function POST() {
     }
 
     // Get updated usage info
-    const { data: updatedUsageData, error: updatedUsageError } = await supabase
-      .from('user_usage')
+    const updatedRes = await supabase
+      .from('user_usage' as const)
       .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
-
-    if (updatedUsageError) {
-      console.error('Error fetching updated usage data:', updatedUsageError);
-      return NextResponse.json(
-        { error: 'Failed to fetch updated usage data' },
-        { status: 500 }
-      );
-    }
+    // Cast via unknown to satisfy TS when nullable responses occur
+    const updatedUsageData = (updatedRes.data as unknown) as UsageSlice;
 
     const canEdit = data as boolean;
     const remainingEdits = Math.max(0, 5 - updatedUsageData.edit_count);

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import Stripe from 'stripe';
 import { hasUnlimitedEdits } from '@/lib/paywall';
+import type { TablesInsert, TablesUpdate, Tables } from '@/database.types';
 
 const stripe = new Stripe(process.env.STRIPE_PROD_SECRET_KEY!, {
   apiVersion: '2025-02-24.acacia',
@@ -27,30 +28,37 @@ export async function GET() {
 
     // Get current usage from database
     const { data: usageData, error: usageError } = await supabase
-      .from('user_usage')
+      .from('user_usage' as const)
       .select('*')
       .eq('user_id', user.id)
       .single();
 
-    let finalUsageData = usageData;
+    let finalUsageData: Tables<'user_usage'> | null = usageData ?? null;
 
     // If no usage record exists, create one
     if (usageError && usageError.code === 'PGRST116') {
       console.log('Creating new user_usage record for user:', user.id);
-      const { data: newUsageData, error: createError } = await supabase
-        .from('user_usage')
-        .insert({
-          user_id: user.id,
-          edit_count: 0,
-          monthly_edit_count: 0,
-          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-          is_pro: hasUnlimitedUser,
-          subscription_status: hasUnlimitedUser ? 'unlimited' : 'inactive'
-        })
+      const newUsagePayload: TablesInsert<'user_usage'> = {
+        user_id: user.id,
+        edit_count: 0,
+        monthly_edit_count: 0,
+        monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0], // 30 days from now
+        is_pro: hasUnlimitedUser,
+        subscription_status: hasUnlimitedUser ? 'unlimited' : 'inactive',
+      };
+
+      const { data: newUsageDataRaw, error: createError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('user_usage') as any
+      )
+        .insert(newUsagePayload)
         .select('*')
         .single();
       
-      if (createError) {
+      const newUsageData = newUsageDataRaw as Tables<'user_usage'> | null;
+      if (createError || !newUsageData) {
         console.error('Error creating user_usage record:', createError);
         return NextResponse.json(
           { error: 'Failed to create usage record' },
@@ -71,12 +79,17 @@ export async function GET() {
       const resetDate = new Date(finalUsageData.monthly_reset_date);
       const currentDate = new Date();
       if (currentDate >= resetDate) {
-        const { error: resetError } = await supabase
-          .from('user_usage')
-          .update({
-            monthly_edit_count: 0,
-            monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          })
+        const resetPayload: TablesUpdate<'user_usage'> = {
+          monthly_edit_count: 0,
+          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0],
+        };
+        const { error: resetError } = await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .update(resetPayload)
           .eq('user_id', user.id);
         if (!resetError) {
           finalUsageData.monthly_edit_count = 0;
@@ -93,18 +106,22 @@ export async function GET() {
         (!hasPaidStatus && finalUsageData.subscription_status !== 'unlimited');
 
       if (needsUnlimitedUpdate) {
-        const { data: updatedUnlimitedData, error: unlimitedUpdateError } = await supabase
-          .from('user_usage')
-          .update({
-            is_pro: true,
-            subscription_status: hasPaidStatus
-              ? finalUsageData.subscription_status
-              : 'unlimited'
-          })
+        const updatePayload: TablesUpdate<'user_usage'> = {
+          is_pro: true,
+          subscription_status: hasPaidStatus
+            ? finalUsageData.subscription_status
+            : 'unlimited',
+        };
+        const { data: updatedUnlimitedDataRaw, error: unlimitedUpdateError } = await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .update(updatePayload)
           .eq('user_id', user.id)
           .select('*')
           .single();
 
+        const updatedUnlimitedData = updatedUnlimitedDataRaw as Tables<'user_usage'> | null;
         if (!unlimitedUpdateError && updatedUnlimitedData) {
           finalUsageData = updatedUnlimitedData;
         }
@@ -204,15 +221,18 @@ export async function GET() {
 
     // Update database with latest subscription info
     try {
-      await supabase.rpc('update_user_subscription_status', {
+      const rpcArgs = {
         p_user_id: user.id,
         p_stripe_customer_id: customer.id,
         p_stripe_subscription_id: subscription.id,
         p_subscription_status: subscription.status,
         p_current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
         p_current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-        p_cancel_at_period_end: subscription.cancel_at_period_end
-      });
+        p_cancel_at_period_end: subscription.cancel_at_period_end,
+      } as const;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.rpc('update_user_subscription_status', rpcArgs as any));
     } catch (error) {
       console.error('Error updating subscription status in database:', error);
     }
