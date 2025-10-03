@@ -59,7 +59,7 @@ export function LoginForm({
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/oauth?next=${encodeURIComponent(nextPath)}`,
@@ -67,6 +67,10 @@ export function LoginForm({
       });
 
       if (error) throw error;
+      // Some environments/browsers may not auto-redirect. If a URL is returned, navigate explicitly.
+      if (data?.url) {
+        window.location.href = data.url;
+      }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred');
       setIsLoading(false);
