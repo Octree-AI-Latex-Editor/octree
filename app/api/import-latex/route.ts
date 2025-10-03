@@ -56,8 +56,10 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
     };
 
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
+    const { data: project, error: projectError } = await (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase.from('projects') as any
+    )
       .insert(projectData)
       .select()
       .single();
@@ -67,16 +69,20 @@ export async function POST(request: NextRequest) {
       return withCors(NextResponse.json({ error: 'Failed to create project' }, { status: 500 }));
     }
 
-    const { data: document, error: documentError } = await supabase
-      .from('documents')
-      .insert({
-        title: projectTitle,
-        content,
-        owner_id: user.id,
-        project_id: project.id,
-        filename: 'main.tex',
-        document_type: 'article',
-      })
+    const docData: TablesInsert<'documents'> = {
+      title: projectTitle,
+      content,
+      owner_id: user.id,
+      project_id: project.id,
+      filename: 'main.tex',
+      document_type: 'article',
+    };
+
+    const { data: document, error: documentError } = await (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase.from('documents') as any
+    )
+      .insert(docData)
       .select()
       .single();
 
@@ -85,12 +91,17 @@ export async function POST(request: NextRequest) {
       return withCors(NextResponse.json({ error: 'Failed to create document' }, { status: 500 }));
     }
 
-    await supabase.from('files').insert({
+    const fileData: TablesInsert<'files'> = {
       project_id: project.id,
       name: 'main.tex',
       type: 'text/plain',
       size: content.length,
-    });
+    };
+
+    await (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase.from('files') as any
+    ).insert(fileData);
 
     return withCors(NextResponse.json({ success: true, projectId: project.id, projectUrl: `/projects/${project.id}`, source: source || null }));
   } catch (err) {

@@ -45,8 +45,9 @@ export async function createProject(prevState: State, formData: FormData) {
       user_id: user.id,
     };
 
-    const { data, error } = await supabase
-      .from('projects')
+    // Narrow typing only for the insert chain to avoid TS inference issues
+    const { data, error } = await (supabase
+      .from('projects') as any)
       .insert(projectData)
       .select()
       .single();
@@ -58,16 +59,18 @@ export async function createProject(prevState: State, formData: FormData) {
 
     const defaultContent = DEFAULT_LATEX_CONTENT(title);
 
-    const { data: documentData, error: documentError } = await supabase
-      .from('documents')
-      .insert({
-        title: title,
-        content: defaultContent,
-        owner_id: user.id,
-        project_id: data.id,
-        filename: 'main.tex',
-        document_type: 'article',
-      })
+    const documentToInsert: TablesInsert<'documents'> = {
+      title: title,
+      content: defaultContent,
+      owner_id: user.id,
+      project_id: data.id,
+      filename: 'main.tex',
+      document_type: 'article',
+    };
+
+    const { data: documentData, error: documentError } = await (supabase
+      .from('documents') as any)
+      .insert(documentToInsert)
       .select()
       .single();
 
@@ -77,12 +80,16 @@ export async function createProject(prevState: State, formData: FormData) {
     }
 
     // Create a file record for the main.tex file
-    const { error: fileError } = await supabase.from('files').insert({
+    const fileToInsert: TablesInsert<'files'> = {
       project_id: data.id,
       name: 'main.tex',
       type: 'text/plain',
       size: defaultContent.length,
-    });
+    };
+
+    const { error: fileError } = await (supabase
+      .from('files') as any)
+      .insert(fileToInsert);
 
     if (fileError) {
       console.error('Error creating file record:', fileError);
