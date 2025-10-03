@@ -19,7 +19,7 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  // Return No Content for accidental GETs to avoid noisy 405 logs
+  // Return No Content for accidental GETs to avoid noisy logs
   const res = new NextResponse(null, { status: 204 });
   return withCors(res);
 }
