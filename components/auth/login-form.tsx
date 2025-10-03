@@ -59,14 +59,21 @@ export function LoginForm({
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Persist next path via first-party cookie to avoid provider state conflicts
+      document.cookie = `octree_oauth_next=${encodeURIComponent(nextPath)}; Path=/; Max-Age=600; SameSite=Lax; Secure`;
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/oauth?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${window.location.origin}/auth/oauth`,
         },
       });
 
       if (error) throw error;
+      // Some environments/browsers may not auto-redirect. If a URL is returned, navigate explicitly.
+      if (data?.url) {
+        window.location.href = data.url;
+      }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred');
       setIsLoading(false);

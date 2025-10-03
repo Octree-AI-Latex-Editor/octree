@@ -46,12 +46,15 @@ export function DataTable<TData extends { id: string }, TValue>({
       const supabase = createClient();
       
       // Get the latest file for this project
-      const { data: files, error } = await supabase
-        .from('files')
+      type MinimalFile = { id: string; name: string };
+      const filesRes = await supabase
+        .from('files' as const)
         .select('id, name')
         .eq('project_id', projectId)
         .order('uploaded_at', { ascending: false })
         .limit(1);
+      const files = (filesRes.data as MinimalFile[] | null) ?? [];
+      const error = filesRes.error;
 
       if (error || !files || files.length === 0) {
         // If no files found, redirect to the project files page
@@ -59,7 +62,7 @@ export function DataTable<TData extends { id: string }, TValue>({
         return;
       }
 
-      const latestFile = files[0];
+      const latestFile = files[0] as MinimalFile;
       router.push(`/projects/${projectId}/files/${latestFile.id}/editor`);
     } catch (error) {
       console.error('Error getting latest file:', error);

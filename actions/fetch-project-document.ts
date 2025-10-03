@@ -2,10 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { DEFAULT_LATEX_CONTENT } from '@/data/constants';
+import type { Tables, TablesInsert } from '@/database.types';
 
 export interface ProjectDocumentData {
-  project: any;
-  document: any;
+  project: Tables<'projects'>;
+  document: Pick<Tables<'documents'>, 'content' | 'title'>;
 }
 
 export interface FetchProjectDocumentResult {
@@ -32,13 +33,13 @@ export async function fetchProjectAndDocument(
     }
 
     const { data: projectData, error: projectError } = await supabase
-      .from('projects')
+      .from('projects' as const)
       .select('*')
       .eq('id', projectId)
       .eq('user_id', user.id)
-      .single();
+      .single<Tables<'projects'>>();
 
-    if (projectError) {
+    if (projectError || !projectData) {
       return {
         data: null,
         error: 'Project not found',
@@ -46,35 +47,42 @@ export async function fetchProjectAndDocument(
     }
 
     const { data: documentData, error: documentError } = await supabase
-      .from('documents')
+      .from('documents' as const)
       .select('content, title')
       .eq('project_id', projectId)
       .eq('filename', 'main.tex')
       .eq('owner_id', user.id)
-      .single();
+      .single<Pick<Tables<'documents'>, 'content' | 'title'>>();
 
-    if (documentError) {
+    if (documentError || !documentData) {
       const defaultContent = DEFAULT_LATEX_CONTENT(projectData.title);
 
-      const { data: newDocument, error: createError } = await supabase
-        .from('documents')
-        .insert({
-          title: projectData.title,
-          content: defaultContent,
-          owner_id: user.id,
-          project_id: projectId,
-          filename: 'main.tex',
-          document_type: 'article',
-        })
+      const newDocInsert: TablesInsert<'documents'> = {
+        title: projectData.title,
+        content: defaultContent,
+        owner_id: user.id,
+        project_id: projectId,
+        filename: 'main.tex',
+        document_type: 'article',
+      };
+
+      const { data: newDocumentRaw, error: createError } = await (supabase
+        .from('documents') as any)
+        .insert(newDocInsert)
         .select('content, title')
         .single();
 
-      if (createError) {
+      if (createError || !newDocumentRaw) {
         return {
           data: null,
           error: 'Failed to create document',
         };
       }
+
+      const newDocument = newDocumentRaw as Pick<
+        Tables<'documents'>,
+        'content' | 'title'
+      >;
 
       return {
         data: {

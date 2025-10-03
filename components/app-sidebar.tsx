@@ -83,11 +83,11 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
       if (!session?.user) return;
 
       const { data: projectData, error: projectError } = await supabase
-        .from('projects')
+        .from('projects' as const)
         .select('*')
         .eq('id', projectId)
         .eq('user_id', session.user.id)
-        .single();
+        .single<Project>();
 
       if (projectError) {
         console.error('Error fetching project:', projectError);
@@ -95,7 +95,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
       }
 
       const { data: filesData, error: filesError } = await supabase
-        .from('files')
+        .from('files' as const)
         .select('*')
         .eq('project_id', projectId)
         .order('uploaded_at', { ascending: false });
@@ -109,9 +109,16 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
         return;
       }
 
+      if (!projectData) {
+        setCurrentProject(null);
+        return;
+      }
+
+      const files = (filesData || []) as File[];
+
       setCurrentProject({
-        ...projectData,
-        files: filesData || [],
+        ...(projectData as Project),
+        files,
       });
     } catch (error) {
       console.error('Error fetching project and files:', error);
