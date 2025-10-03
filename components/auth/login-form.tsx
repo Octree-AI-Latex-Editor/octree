@@ -59,13 +59,10 @@ export function LoginForm({
     setError(null);
 
     try {
-      // Persist next path via first-party cookie to avoid provider state conflicts
-      document.cookie = `octree_oauth_next=${encodeURIComponent(nextPath)}; Path=/; Max-Age=600; SameSite=Lax; Secure`;
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/oauth`,
+          redirectTo: `${window.location.origin}/auth/oauth?next=${encodeURIComponent(nextPath)}`,
         },
       });
 
