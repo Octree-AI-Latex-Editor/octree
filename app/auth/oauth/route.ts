@@ -5,8 +5,19 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  // if "next" is in param use it; otherwise try OAuth state
-  let next = searchParams.get('next') ?? searchParams.get('state') ?? '/';
+  // if "next" is in param use it; otherwise read our cookie fallback
+  let next = searchParams.get('next') ?? '/';
+  if (!next || next === '/') {
+    const cookieHeader = request.headers.get('cookie') || '';
+    const match = cookieHeader.match(/(?:^|; )octree_oauth_next=([^;]+)/);
+    if (match) {
+      try {
+        next = decodeURIComponent(match[1]);
+      } catch {
+        next = '/';
+      }
+    }
+  }
   if (!next.startsWith('/')) {
     // if "next" is not a relative URL, use the default
     next = '/';
