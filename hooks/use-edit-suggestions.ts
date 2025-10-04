@@ -153,22 +153,45 @@ export function useEditSuggestions({
     }
 
     try {
-      const startLineNumber = suggestion.startLine;
-      const endLineNumber =
-        suggestion.originalLineCount > 0
-          ? startLineNumber + suggestion.originalLineCount - 1
-          : startLineNumber;
-      const endColumn =
-        suggestion.originalLineCount > 0
-          ? model.getLineMaxColumn(endLineNumber)
-          : 1;
+      const startLineNumber = Math.max(1, suggestion.startLine);
+      const isInsertionOnly = suggestion.originalLineCount === 0;
 
-      const rangeToReplace = new monacoInstance.Range(
-        startLineNumber,
-        1,
-        endLineNumber,
-        endColumn
-      );
+      let rangeToReplace: Monaco.Range;
+
+      if (isInsertionOnly) {
+        const lineCount = model.getLineCount();
+
+        if (lineCount === 0) {
+          rangeToReplace = new monacoInstance.Range(1, 1, 1, 1);
+        } else if (startLineNumber > lineCount) {
+          const lastLine = lineCount;
+          const lastColumn = model.getLineMaxColumn(lastLine);
+          rangeToReplace = new monacoInstance.Range(
+            lastLine,
+            lastColumn,
+            lastLine,
+            lastColumn
+          );
+        } else {
+          rangeToReplace = new monacoInstance.Range(
+            startLineNumber,
+            1,
+            startLineNumber,
+            1
+          );
+        }
+      } else {
+        const endLineNumber =
+          startLineNumber + suggestion.originalLineCount - 1;
+        const endColumn = model.getLineMaxColumn(endLineNumber);
+
+        rangeToReplace = new monacoInstance.Range(
+          startLineNumber,
+          1,
+          endLineNumber,
+          endColumn
+        );
+      }
 
       // Apply suggestion immediately without conflict resolution
       editor.executeEdits('accept-ai-suggestion', [
@@ -259,19 +282,22 @@ export function useEditSuggestions({
     );
 
     pendingSuggestions.forEach((suggestion) => {
+      const isInsertionOnly = suggestion.originalLineCount === 0;
       const startLineNumber = suggestion.startLine;
-      // Ensure endLineNumber is valid and >= startLineNumber
       const endLineNumber = Math.max(
         startLineNumber,
         startLineNumber + suggestion.originalLineCount - 1
       );
+      const modelLineCount = model.getLineCount();
+      const effectiveModelLineCount = Math.max(1, modelLineCount);
 
       // Validate line numbers against the current model state
       if (
         startLineNumber <= 0 ||
         endLineNumber <= 0 ||
-        startLineNumber > model.getLineCount() ||
-        endLineNumber > model.getLineCount()
+        (!isInsertionOnly &&
+          (startLineNumber > modelLineCount || endLineNumber > modelLineCount)) ||
+        (isInsertionOnly && startLineNumber > modelLineCount + 1)
       ) {
         console.warn(
           `Suggestion ${suggestion.id} line numbers [${startLineNumber}-${endLineNumber}] are out of bounds for model line count ${model.getLineCount()}. Skipping decoration.`
@@ -279,22 +305,30 @@ export function useEditSuggestions({
         return; // Skip this suggestion if lines are invalid
       }
 
+      const decorationStartLine = isInsertionOnly
+        ? Math.min(startLineNumber, effectiveModelLineCount)
+        : startLineNumber;
+      const decorationEndLine = isInsertionOnly
+        ? decorationStartLine
+        : endLineNumber;
+
       // Calculate end column precisely
-      const endColumn =
-        suggestion.originalLineCount > 0
-          ? model.getLineMaxColumn(endLineNumber) // End of the last original line
-          : 1; // Insertion point column 1
+      const endColumn = !isInsertionOnly
+        ? model.getLineMaxColumn(decorationEndLine) // End of the last original line
+        : startLineNumber > modelLineCount
+        ? model.getLineMaxColumn(effectiveModelLineCount)
+        : 1; // Insertion point column 1
 
       // Define the range for the original text (or insertion point)
       const originalRange = new monacoInstance.Range(
-        startLineNumber,
+        decorationStartLine,
         1, // Start column is always 1
-        endLineNumber,
+        decorationEndLine,
         endColumn
       );
 
       // --- Decoration 1: Mark original text (if any) + Glyph ---
-      if (suggestion.originalLineCount > 0) {
+      if (!isInsertionOnly) {
         // Apply red strikethrough to the original range
         newDecorations.push({
           range: originalRange,
@@ -311,11 +345,12 @@ export function useEditSuggestions({
         });
       } else {
         // If it's a pure insertion, just add the glyph marker at the start line
+        const glyphLine = Math.min(startLineNumber, effectiveModelLineCount);
         newDecorations.push({
           range: new monacoInstance.Range(
-            startLineNumber,
+            glyphLine,
             1,
-            startLineNumber,
+            glyphLine,
             1
           ), // Point decoration
           options: {
