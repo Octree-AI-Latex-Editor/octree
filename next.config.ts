@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // so the SDK doesn't error when probing for it.
   outputFileTracingIncludes: {
     'app/api/octra-agent/route': [
-      './node_modules/@anthropic-ai/claude-agent-sdk/cli.js',
+      './lib/octra-agent/claude-code-dummy.js',
     ],
   },
 };

@@ -1,3 +1,4 @@
+import path from 'path';
 /**
  * Configuration utilities for the Octra Agent
  * Centralizes configuration management and external server setup
@@ -13,10 +14,13 @@ export function getExternalServerConfig() {
       includePartialMessages: true,
       allowedTools: ['get_context', 'propose_edits'],
       permissionMode: 'bypassPermissions' as const,
-      // Only set Claude Code executable when explicitly provided.
-      // Leaving this undefined ensures the SDK runs purely in-process
-      // with our embedded MCP server in serverless environments like Vercel.
-      pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_PATH || undefined,
+      // Prefer explicit path via env var, else fall back to bundled dummy stub in prod
+      // to prevent the SDK from throwing when it probes for a CLI.
+      pathToClaudeCodeExecutable:
+        process.env.CLAUDE_CODE_PATH ||
+        (process.env.NODE_ENV === 'production'
+          ? path.join(process.cwd(), 'lib', 'octra-agent', 'claude-code-dummy.js')
+          : undefined),
     }
   };
 }
