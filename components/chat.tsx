@@ -265,11 +265,25 @@ export function Chat({
       };
 
       const handleEdits = (edits: ASTEdit[]) => {
-        const mapped: EditSuggestion[] = edits.map((edit, idx) => ({
-          ...edit,
-          id: `${Date.now()}-${idx}`,
-          status: 'pending' as const,
-        }));
+        const mapped: EditSuggestion[] = edits.map((edit, idx) => {
+          // For delete operations, we need to populate the original field
+          // by extracting the content that's being deleted from the file
+          let originalContent = '';
+          if (edit.editType === 'delete' && edit.position?.line && edit.originalLineCount) {
+            const startLine = edit.position.line;
+            const lineCount = edit.originalLineCount;
+            const lines = fileContent.split('\n');
+            const endLine = Math.min(startLine + lineCount - 1, lines.length);
+            originalContent = lines.slice(startLine - 1, endLine).join('\n');
+          }
+          
+          return {
+            ...edit,
+            id: `${Date.now()}-${idx}`,
+            status: 'pending' as const,
+            original: originalContent,
+          };
+        });
         if (mapped.length > 0) onEditSuggestion(mapped);
       };
 

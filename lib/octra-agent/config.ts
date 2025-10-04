@@ -13,7 +13,10 @@ export function getExternalServerConfig() {
       includePartialMessages: true,
       allowedTools: ['get_context', 'propose_edits'],
       permissionMode: 'bypassPermissions' as const,
-      // Use only in-process MCP server, no external server
+      // Point to dummy CLI file for serverless environments
+      pathToClaudeCodeExecutable: process.env.NODE_ENV === 'production' 
+        ? '/vercel/path0/node_modules/@anthropic-ai/claude-agent-sdk/cli.js'
+        : undefined,
     }
   };
 }
