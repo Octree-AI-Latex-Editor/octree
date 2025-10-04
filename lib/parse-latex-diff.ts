@@ -47,11 +47,16 @@ export function parseLatexDiff(content: string): EditSuggestion[] {
     const referenceOriginalCount = headerMatch[2]
       ? parseInt(headerMatch[2], 10)
       : 0;
+    const referenceAddedStartLine = parseInt(headerMatch[3], 10);
+    const hasValidAddedStart = !Number.isNaN(referenceAddedStartLine);
+
+    const baseStartLine =
+      actualOriginalLineCount > 0 || referenceOriginalCount > 0 || !hasValidAddedStart
+        ? referenceStartLine
+        : referenceAddedStartLine;
 
     const correctedStartLine =
-      firstChangeIndex !== -1
-        ? referenceStartLine + firstChangeIndex
-        : referenceStartLine;
+      firstChangeIndex !== -1 ? baseStartLine + firstChangeIndex : baseStartLine;
 
     if (actualOriginalLineCount === 0 && referenceOriginalCount > 0) {
       actualOriginalLineCount = referenceOriginalCount;
