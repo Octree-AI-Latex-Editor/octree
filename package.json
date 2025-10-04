@@ -39,6 +39,7 @@
     "dayjs": "^1.11.13",
     "framer-motion": "^12.5.0",
     "katex": "^0.16.22",
+    "latex-utensils": "^6.2.0",
     "latex.js": "^0.12.6",
     "lucide-react": "^0.482.0",
     "markdown-it": "^14.1.0",

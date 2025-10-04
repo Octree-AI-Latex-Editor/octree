@@ -3,12 +3,34 @@
 import { Button } from '@/components/ui/button';
 import { DiffViewer } from '@/components/ui/diff-viewer';
 import { Check, X } from 'lucide-react';
-import { EditSuggestion } from '@/types/edit';
+import { EditSuggestion, isLegacyEditSuggestion } from '@/types/edit';
 
 interface SuggestionActionsProps {
   suggestions: EditSuggestion[];
   onAccept: (suggestionId: string) => void;
   onReject: (suggestionId: string) => void;
+}
+
+// Helper functions to access edit properties
+function getStartLine(suggestion: EditSuggestion): number {
+  if (isLegacyEditSuggestion(suggestion)) {
+    return suggestion.startLine;
+  }
+  return suggestion.position?.line || 1;
+}
+
+function getOriginalLineCount(suggestion: EditSuggestion): number {
+  if (isLegacyEditSuggestion(suggestion)) {
+    return suggestion.originalLineCount;
+  }
+  return suggestion.originalLineCount || 1;
+}
+
+function getSuggestedText(suggestion: EditSuggestion): string {
+  if (isLegacyEditSuggestion(suggestion)) {
+    return suggestion.suggested;
+  }
+  return suggestion.content || '';
 }
 
 export function SuggestionActions({
@@ -31,9 +53,9 @@ export function SuggestionActions({
         >
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium text-blue-700">
-              Lines {suggestion.startLine}
-              {suggestion.originalLineCount > 1 &&
-                `-${suggestion.startLine + suggestion.originalLineCount - 1}`}
+              Lines {getStartLine(suggestion)}
+              {getOriginalLineCount(suggestion) > 1 &&
+                `-${getStartLine(suggestion) + getOriginalLineCount(suggestion) - 1}`}
             </div>
             <div className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">
               AI Suggestion
@@ -42,7 +64,7 @@ export function SuggestionActions({
 
           <DiffViewer
             original={suggestion.original ?? ''}
-            suggested={suggestion.suggested}
+            suggested={getSuggestedText(suggestion)}
             className="max-w-full"
           />
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { EditSuggestion } from '@/types/edit';
+import { EditSuggestion, isLegacyEditSuggestion, LegacyEditSuggestion } from '@/types/edit';
 import { parseLatexDiff } from '@/lib/parse-latex-diff';
 import type * as Monaco from 'monaco-editor';
 import { toast } from 'sonner';
@@ -24,6 +24,48 @@ interface UseEditSuggestionsProps {
 }
 
 // ---------------------- Helpers (pure) ----------------------
+
+// Helper functions to extract legacy format data from AST edits
+function getStartLine(suggestion: EditSuggestion): number {
+  if (isLegacyEditSuggestion(suggestion)) {
+    return suggestion.startLine;
+  }
+  return suggestion.position?.line || 1;
+}
+
+function getOriginalLineCount(suggestion: EditSuggestion): number {
+  if (isLegacyEditSuggestion(suggestion)) {
+    return suggestion.originalLineCount;
+  }
+  
+  // For AST edits, use the originalLineCount field if provided
+  if (suggestion.originalLineCount !== undefined) {
+    return suggestion.originalLineCount;
+  }
+  
+  // Fallback: determine line count based on edit type
+  const content = suggestion.content || '';
+  
+  if (suggestion.editType === 'insert') {
+    return 0; // Insert operations don't replace existing content
+  } else if (suggestion.editType === 'delete') {
+    // For delete operations, if no originalLineCount provided, use content length as heuristic
+    return content.split('\n').length || 1;
+  } else if (suggestion.editType === 'replace') {
+    // For replace operations, if no originalLineCount provided, use content length as heuristic
+    return content.split('\n').length || 1;
+  }
+  
+  // Default fallback
+  return 1;
+}
+
+function getSuggestedText(suggestion: EditSuggestion): string {
+  if (isLegacyEditSuggestion(suggestion)) {
+    return suggestion.suggested;
+  }
+  return suggestion.content || '';
+}
 
 function normalizeNewlines(text: string): string {
   return text.replace(/\r\n?/g, '\n');
@@ -104,7 +146,7 @@ export function useEditSuggestions({
         if (s.original !== undefined || !model) return s;
         return {
           ...s,
-          original: getOriginalTextFromModel(model, s.startLine, s.originalLineCount),
+          original: getOriginalTextFromModel(model, getStartLine(s), getOriginalLineCount(s)),
         };
       });
 
@@ -207,13 +249,16 @@ export function useEditSuggestions({
     }
 
     try {
-      const startLineNumber = suggestion.startLine;
+      const startLineNumber = getStartLine(suggestion);
+      const originalLineCount = getOriginalLineCount(suggestion);
+      const suggestedText = getSuggestedText(suggestion);
+      
       const endLineNumber =
-        suggestion.originalLineCount > 0
-          ? startLineNumber + suggestion.originalLineCount - 1
+        originalLineCount > 0
+          ? startLineNumber + originalLineCount - 1
           : startLineNumber;
       const endColumn =
-        suggestion.originalLineCount > 0
+        originalLineCount > 0
           ? model.getLineMaxColumn(endLineNumber)
           : 1;
 
@@ -228,7 +273,7 @@ export function useEditSuggestions({
       editor.executeEdits('accept-ai-suggestion', [
         {
           range: rangeToReplace,
-          text: suggestion.suggested,
+          text: suggestedText,
           forceMoveMarkers: true,
         },
       ]);
@@ -237,7 +282,7 @@ export function useEditSuggestions({
       trackEdit();
 
       // Rebase remaining suggestions to account for line shifts
-      const deltaLines = computeDeltaLines(suggestion.suggested || '', suggestion.originalLineCount);
+      const deltaLines = computeDeltaLines(suggestedText, originalLineCount);
       const acceptedStart = startLineNumber;
       const acceptedEnd = endLineNumber;
 
@@ -245,21 +290,43 @@ export function useEditSuggestions({
         const remaining = prev.filter((s) => s.id !== suggestionId);
         const adjusted: EditSuggestion[] = [];
         for (const s of remaining) {
-          const sStart = s.startLine;
-          const sEnd = s.originalLineCount > 0 ? s.startLine + s.originalLineCount - 1 : s.startLine;
+          const sStart = getStartLine(s);
+          const sOriginalLineCount = getOriginalLineCount(s);
+          const sEnd = sOriginalLineCount > 0 ? sStart + sOriginalLineCount - 1 : sStart;
 
           // If suggestion overlaps the accepted region, drop it (conflict)
           if (rangesOverlap(sStart, sEnd, acceptedStart, acceptedEnd)) {
             // Tie-aware insert: if both are pure insertions on the same line, shift instead of drop
-            const acceptedIsInsert = suggestion.originalLineCount === 0;
-            const currentIsInsert = s.originalLineCount === 0;
+            const acceptedIsInsert = originalLineCount === 0;
+            const currentIsInsert = sOriginalLineCount === 0;
             if (
               acceptedIsInsert &&
               currentIsInsert &&
               sStart === acceptedStart &&
               deltaLines !== 0
             ) {
-              adjusted.push({ ...s, startLine: s.startLine + deltaLines });
+              // For AST edits, we need to update the position
+              if (isLegacyEditSuggestion(s)) {
+                // Convert legacy to AST format for consistency
+                const astSuggestion: EditSuggestion = {
+                  id: s.id,
+                  editType: 'replace',
+                  content: s.suggested,
+                  position: { line: s.startLine + deltaLines },
+                  explanation: s.explanation,
+                  status: s.status,
+                  original: s.original,
+                };
+                adjusted.push(astSuggestion);
+              } else {
+                adjusted.push({ 
+                  ...s, 
+                  position: { 
+                    ...s.position, 
+                    line: (s.position?.line || 1) + deltaLines 
+                  } 
+                });
+              }
             }
             // Otherwise skip conflicting suggestion
             continue;
@@ -267,10 +334,27 @@ export function useEditSuggestions({
 
           // If suggestion is after the accepted region, shift by deltaLines
           if (sStart > acceptedEnd && deltaLines !== 0) {
-            adjusted.push({
-              ...s,
-              startLine: s.startLine + deltaLines,
-            });
+            if (isLegacyEditSuggestion(s)) {
+              // Convert legacy to AST format for consistency
+              const astSuggestion: EditSuggestion = {
+                id: s.id,
+                editType: 'replace',
+                content: s.suggested,
+                position: { line: s.startLine + deltaLines },
+                explanation: s.explanation,
+                status: s.status,
+                original: s.original,
+              };
+              adjusted.push(astSuggestion);
+            } else {
+              adjusted.push({
+                ...s,
+                position: { 
+                  ...s.position, 
+                  line: (s.position?.line || 1) + deltaLines 
+                },
+              });
+            }
           } else {
             adjusted.push(s);
           }
@@ -353,11 +437,14 @@ export function useEditSuggestions({
     );
 
     pendingSuggestions.forEach((suggestion) => {
-      const startLineNumber = suggestion.startLine;
+      const startLineNumber = getStartLine(suggestion);
+      const originalLineCount = getOriginalLineCount(suggestion);
+      const suggestedText = getSuggestedText(suggestion);
+      
       // Ensure endLineNumber is valid and >= startLineNumber
       const endLineNumber = Math.max(
         startLineNumber,
-        startLineNumber + suggestion.originalLineCount - 1
+        startLineNumber + originalLineCount - 1
       );
 
       // Validate line numbers against the current model state
@@ -375,7 +462,7 @@ export function useEditSuggestions({
 
       // Calculate end column precisely
       const endColumn =
-        suggestion.originalLineCount > 0
+        originalLineCount > 0
           ? model.getLineMaxColumn(endLineNumber) // End of the last original line
           : 1; // Insertion point column 1
 
@@ -388,7 +475,7 @@ export function useEditSuggestions({
       );
 
       // --- Decoration 1: Mark original text (if any) + Glyph ---
-      if (suggestion.originalLineCount > 0) {
+      if (originalLineCount > 0) {
         // Apply red strikethrough to the original range
         newDecorations.push({
           range: originalRange,
@@ -425,7 +512,7 @@ export function useEditSuggestions({
       }
 
       // --- Decoration 2: Show suggested text inline (if any and allowed) ---
-      if (showInlinePreview && suggestion.suggested && suggestion.suggested.trim().length > 0) {
+      if (showInlinePreview && suggestedText && suggestedText.trim().length > 0) {
         // Use 'after' content widget placed at the end of the original range
         // The range for the 'after' widget itself should be zero-length
         const afterWidgetRange = new monacoInstance.Range(
@@ -436,7 +523,7 @@ export function useEditSuggestions({
         );
 
         // Prepare suggested content, replacing newlines for inline view
-        const inlineSuggestedContent = ` ${suggestion.suggested.replace(/\n/g, ' ↵ ')}`;
+        const inlineSuggestedContent = ` ${suggestedText.replace(/\n/g, ' ↵ ')}`;
 
         newDecorations.push({
           range: afterWidgetRange, // Position the widget *after* the original range

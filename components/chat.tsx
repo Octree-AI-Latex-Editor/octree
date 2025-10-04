@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, X, Maximize2, Minimize2, ArrowUp, StopCircle } from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EditSuggestion } from '@/types/edit';
+import { EditSuggestion, isLegacyEditSuggestion } from '@/types/edit';
+import { ASTEdit } from '@/lib/octra-agent/ast-edits';
 import { cn } from '@/lib/utils';
 import { parseLatexDiff } from '@/lib/parse-latex-diff';
 import { Textarea } from './ui/textarea';
@@ -65,7 +66,6 @@ export function Chat({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const dispatchedForMessageRef = useRef<Set<string>>(new Set());
 
   const scrollToBottom = () => {
@@ -176,8 +176,9 @@ export function Chat({
     return parts;
   };
 
-  const parseEditSuggestions = (content: string): EditSuggestion[] =>
-    parseLatexDiff(content);
+  const parseEditSuggestions = (content: string): EditSuggestion[] => {
+    return parseLatexDiff(content);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -210,7 +211,6 @@ export function Chat({
 
     setIsLoading(true);
     setError(null);
-    setToolStatus(null);
 
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
@@ -264,13 +264,10 @@ export function Chat({
         if (shouldStickToBottomRef.current) scrollToBottom();
       };
 
-      const handleEdits = (edits: Array<{ startLine: number; originalLineCount: number; newText: string; explanation?: string }>) => {
-        const mapped = edits.map((e, idx) => ({
+      const handleEdits = (edits: ASTEdit[]) => {
+        const mapped: EditSuggestion[] = edits.map((edit, idx) => ({
+          ...edit,
           id: `${Date.now()}-${idx}`,
-          startLine: e.startLine,
-          originalLineCount: e.originalLineCount,
-          suggested: e.newText,
-          explanation: e.explanation,
           status: 'pending' as const,
         }));
         if (mapped.length > 0) onEditSuggestion(mapped);
@@ -345,8 +342,16 @@ export function Chat({
             if (payload?.state === 'started') setIsLoading(true);
           } else if (eventName === 'tool') {
             const name = payload?.name ? String(payload.name) : 'tool';
-            const count = typeof payload?.count === 'number' ? ` (${payload.count})` : '';
-            setToolStatus(`${name}${count}`);
+            const count = typeof payload?.count === 'number' ? ` (${payload.count} edits)` : '';
+            const violations = payload?.violations ? ` - ${payload.violations.length} blocked` : '';
+            
+            // Add tool usage message to chat instead of top status
+            const toolMessage: ChatMessage = {
+              id: `tool-${Date.now()}`,
+              role: 'assistant',
+              content: `🔧 ${name}${count}${violations}`
+            };
+            setMessages((prev) => [...prev, toolMessage]);
           } else if (eventName === 'error') {
             if (payload?.message) setError(new Error(String(payload.message)));
           } else if (eventName === 'result' && payload?.text) {
@@ -378,7 +383,6 @@ export function Chat({
     } finally {
       setIsLoading(false);
       setInput('');
-      setToolStatus(null);
       if (rafIdRef.current != null) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
@@ -485,11 +489,6 @@ export function Chat({
             <h3 className="font-semibold text-blue-800">Octra</h3>
             <div className="flex items-center gap-2">
               <p className="text-xs text-slate-500">LaTeX Assistant</p>
-              {toolStatus && (
-                <Badge variant="secondary" className="text-[10px]">
-                  {toolStatus}
-                </Badge>
-              )}
             </div>
           </div>
         </div>
