@@ -47,6 +47,8 @@ function buildNumberedContent(fileContent: string, textFromEditor?: string | nul
 // Heuristic intent inference from the latest user message
 function inferIntent(userText: string) {
   const t = (userText || '').toLowerCase();
+  
+  // Explicit editing requests
   const wantsInsert = /(insert|add|append|create)/.test(t);
   const wantsDelete = /(delete|remove|strip|drop)/.test(t);
   const wantsReplace = /(replace|edit|update|revamp|rewrite|overhaul|refactor|fix)/.test(t);
@@ -60,17 +62,24 @@ function inferIntent(userText: string) {
   const wantsImprove = /(improve|enhance|polish|refine|better|strengthen|clarify|expand|elaborate|develop)/.test(t);
   const wantsModify = /(modify|change|adjust|tweak|revise|amend|correct|improve|polish)/.test(t);
   
-  // Default to permissive when intent is unclear - allow edits unless explicitly restrictive
-  const hasExplicitRestriction = /(only|just|merely|simply)\s+(read|view|check|examine|review)/.test(t);
+  // Comprehensive restriction detection - be conservative
+  const hasExplicitRestriction = /(only|just|merely|simply)\s+(read|view|check|examine|review|look|see)/.test(t);
+  const hasNegativeRestriction = /(don'?t|do\s+not|no|never|avoid|prevent|stop)\s+(edit|modify|change|alter|update|delete|remove|add|insert|create|fix|correct)/.test(t);
+  const hasReadOnlyIntent = /(read|view|check|examine|review|look|see|show|display|inspect|analyze|understand|explain|describe)/.test(t) && 
+    !/(edit|modify|change|fix|correct|improve|add|remove|delete|insert|create)/.test(t);
+  
+  // Conservative approach: only allow edits when explicitly requested
+  const hasExplicitEditRequest = wantsInsert || wantsDelete || wantsReplace || wantsGrammar || wantsCleanup || wantsDedupe || wantsFull || wantsImprove || wantsModify;
   
   return {
-    allowInsert: wantsInsert || wantsReplace || wantsGrammar || wantsCleanup || wantsFull || wantsImprove || wantsModify || !hasExplicitRestriction,
-    allowDelete: wantsDelete || wantsReplace || wantsGrammar || wantsCleanup || wantsDedupe || wantsFull || wantsImprove || wantsModify || !hasExplicitRestriction,
-    allowReplace: wantsReplace || wantsGrammar || wantsCleanup || wantsFull || wantsImprove || wantsModify || !hasExplicitRestriction,
+    allowInsert: hasExplicitEditRequest && !hasExplicitRestriction && !hasNegativeRestriction,
+    allowDelete: hasExplicitEditRequest && !hasExplicitRestriction && !hasNegativeRestriction,
+    allowReplace: hasExplicitEditRequest && !hasExplicitRestriction && !hasNegativeRestriction,
     multiEdit: wantsMulti || wantsReplace || wantsFull || wantsImprove,
     fullRevamp: wantsFull,
     wantsDedupe,
     wantsGrammar: wantsGrammar || wantsCleanup,
+    isReadOnly: hasReadOnlyIntent || hasExplicitRestriction || hasNegativeRestriction,
   };
 }
 
