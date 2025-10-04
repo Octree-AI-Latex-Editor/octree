@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { query, tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
+import { createRequire } from 'module';
 
 export const runtime = 'nodejs';
 
@@ -107,6 +108,17 @@ export async function POST(request: Request) {
     }
 
     const numberedContent = buildNumberedContent(fileContent, textFromEditor);
+
+    // Resolve Claude Code CLI path for production (serverless bundlers may not include it unless referenced)
+    let pathToClaudeCodeExecutable: string | undefined = process.env.CLAUDE_CODE_EXECUTABLE;
+    if (!pathToClaudeCodeExecutable) {
+      try {
+        const req = createRequire(import.meta.url);
+        pathToClaudeCodeExecutable = req.resolve('@anthropic-ai/claude-agent-sdk/cli.js');
+      } catch {
+        // Leave undefined; SDK will error if it truly requires the executable
+      }
+    }
 
     // Determine user intent up-front for server-side validation
     const lastUser = messages[messages.length - 1];
@@ -268,6 +280,8 @@ export async function POST(request: Request) {
         allowedTools: ['get_context', 'propose_edits'],
         // Fully bypass permission prompts so tools run without asking
         permissionMode: 'bypassPermissions',
+        // Provide explicit CLI path to avoid prod resolution issues
+        pathToClaudeCodeExecutable,
       },
     });
 
