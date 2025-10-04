@@ -13,10 +13,10 @@ export function getExternalServerConfig() {
       includePartialMessages: true,
       allowedTools: ['get_context', 'propose_edits'],
       permissionMode: 'bypassPermissions' as const,
-      // Point to dummy CLI file for serverless environments
-      pathToClaudeCodeExecutable: process.env.NODE_ENV === 'production' 
-        ? '/vercel/path0/node_modules/@anthropic-ai/claude-agent-sdk/cli.js'
-        : undefined,
+      // Only set Claude Code executable when explicitly provided.
+      // Leaving this undefined ensures the SDK runs purely in-process
+      // with our embedded MCP server in serverless environments like Vercel.
+      pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_PATH || undefined,
     }
   };
 }
