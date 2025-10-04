@@ -1,7 +1,14 @@
 /** @type {import('tailwindcss').Config} */
 const config = {
   darkMode: ['class'],
-  content: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}'],
+  content: [
+    './app/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './pages/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
+    './lib/**/*.{ts,tsx}',
+    './hooks/**/*.{ts,tsx}',
+  ],
   theme: {
     container: {
       center: true,

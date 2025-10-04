@@ -41,7 +41,7 @@ export default async function Dashboard() {
     <>
     {/* Custom Navbar */}
     <nav className="bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="mx-auto w-full max-w-4xl px-6">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
@@ -71,7 +71,7 @@ export default async function Dashboard() {
       </div>
     </nav>
 
-    <main className="container mx-auto px-6 py-8 max-w-7xl">
+    <main className="mx-auto w-full max-w-4xl px-6 py-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-neutral-900">

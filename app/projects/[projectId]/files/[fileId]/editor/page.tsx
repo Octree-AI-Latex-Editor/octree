@@ -161,7 +161,7 @@ export default function FileEditorPage() {
     return <ErrorState error="Project or file not found" />;
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
+    <div className="flex h-[calc(100vh-49px)] flex-col bg-slate-100">
       <EditorToolbar
         onTextFormat={handleTextFormat}
         onCompile={handleCompile}
