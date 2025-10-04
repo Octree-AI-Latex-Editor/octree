@@ -86,8 +86,20 @@ export async function POST(request: Request) {
       start(controller) {
         // Cast to structural type for Node/Edge compatibility without DOM lib
         streamController = controller as unknown as StreamController;
+        // Heartbeat to keep SSE connection alive for intermediaries
+        const hb = setInterval(() => {
+          try {
+            writeEvent('ping', Date.now());
+          } catch {}
+        }, 15000);
+        // Store cleanup on controller
+        (streamController as unknown as { __hb?: NodeJS.Timeout }).__hb = hb as NodeJS.Timeout;
       },
       cancel() {
+        try {
+          const anyCtrl = streamController as unknown as { __hb?: NodeJS.Timeout } | null;
+          if (anyCtrl?.__hb) clearInterval(anyCtrl.__hb);
+        } catch {}
         streamController = null;
       },
     });
@@ -232,6 +244,10 @@ export async function POST(request: Request) {
         writeEvent('error', { message: (err as Error)?.message || 'Stream error' });
       } finally {
         writeEvent('done', { text: finalText, edits: collectedEdits });
+        try {
+          const anyCtrl = streamController as unknown as { __hb?: NodeJS.Timeout; close?: () => void } | null;
+          if (anyCtrl?.__hb) clearInterval(anyCtrl.__hb);
+        } catch {}
         (streamController as unknown as { close?: () => void } | null)?.close?.();
       }
     })();

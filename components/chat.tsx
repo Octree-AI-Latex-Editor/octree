@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
-import { Loader2, X, Maximize2, Minimize2, ArrowUp } from 'lucide-react';
+import { Loader2, X, Maximize2, Minimize2, ArrowUp, StopCircle } from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EditSuggestion } from '@/types/edit';
@@ -41,6 +41,10 @@ export function Chat({
 }: ChatProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const pendingTextRef = useRef<string>('');
+  const shouldStickToBottomRef = useRef<boolean>(true);
   
   interface ChatMessage {
     id: string;
@@ -52,6 +56,7 @@ export function Chat({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const dispatchedForMessageRef = useRef<Set<string>>(new Set());
 
   const scrollToBottom = () => {
@@ -179,8 +184,24 @@ export function Chat({
     // Clear input immediately so text doesn't linger while streaming
     setInput('');
 
+    // Cancel any existing stream before starting a new one
+    if (abortControllerRef.current) {
+      try {
+        abortControllerRef.current.abort();
+      } catch {}
+      abortControllerRef.current = null;
+    }
+
+    // reset any pending raf-flush
+    if (rafIdRef.current != null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    pendingTextRef.current = '';
+
     setIsLoading(true);
     setError(null);
+    setToolStatus(null);
 
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
@@ -190,6 +211,9 @@ export function Chat({
     setMessages((prev) => [...prev, userMsg]);
 
     try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const res = await fetch('/api/octra-agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,6 +222,7 @@ export function Chat({
           fileContent,
           textFromEditor,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok || !res.body) {
@@ -226,6 +251,7 @@ export function Chat({
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: normalized } : m))
         );
+        if (shouldStickToBottomRef.current) scrollToBottom();
       };
 
       const handleEdits = (edits: Array<{ startLine: number; originalLineCount: number; newText: string; explanation?: string }>) => {
@@ -282,12 +308,20 @@ export function Chat({
             const chunk = String(payload.text)
               .replace(/\r\n/g, '\n')
               .replace(/\r/g, '\n');
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, content: (m.content || '') + chunk } : m
-              )
-            );
-            lastAssistantText += chunk;
+            pendingTextRef.current += chunk;
+            if (rafIdRef.current == null) {
+              rafIdRef.current = requestAnimationFrame(() => {
+                const toFlush = pendingTextRef.current;
+                pendingTextRef.current = '';
+                rafIdRef.current = null;
+                const merged = (lastAssistantText || '') + toFlush;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantId ? { ...m, content: merged } : m))
+                );
+                lastAssistantText = merged;
+                if (shouldStickToBottomRef.current) scrollToBottom();
+              });
+            }
             // Do not surface suggestions during partial stream to avoid random popups
           } else if (eventName === 'assistant_message' && payload?.text) {
             const full = String(payload.text);
@@ -296,6 +330,15 @@ export function Chat({
             // Defer suggestion surfacing to result/done for stable UX
           } else if (eventName === 'edits' && Array.isArray(payload)) {
             handleEdits(payload);
+          } else if (eventName === 'status') {
+            // started/finished
+            if (payload?.state === 'started') setIsLoading(true);
+          } else if (eventName === 'tool') {
+            const name = payload?.name ? String(payload.name) : 'tool';
+            const count = typeof payload?.count === 'number' ? ` (${payload.count})` : '';
+            setToolStatus(`${name}${count}`);
+          } else if (eventName === 'error') {
+            if (payload?.message) setError(new Error(String(payload.message)));
           } else if (eventName === 'result' && payload?.text) {
             const full = String(payload.text);
             flushAssistant(full);
@@ -320,10 +363,20 @@ export function Chat({
       }
     } catch (err) {
       console.error('Octra Agent API error:', err);
-      setError(err);
+      // Swallow AbortErrors gracefully
+      if ((err as any)?.name !== 'AbortError') setError(err);
     } finally {
       setIsLoading(false);
       setInput('');
+      setToolStatus(null);
+      if (rafIdRef.current != null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingTextRef.current = '';
+      try {
+        abortControllerRef.current = null;
+      } catch {}
     }
   };
 
@@ -341,8 +394,21 @@ export function Chat({
   }, [textFromEditor]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (shouldStickToBottomRef.current) scrollToBottom();
   }, [messages, isLoading]);
+
+  // Track whether user is near the bottom to decide auto-scroll behavior
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const { scrollTop, clientHeight, scrollHeight } = el;
+      shouldStickToBottomRef.current = scrollTop + clientHeight >= scrollHeight - 80;
+    };
+    el.addEventListener('scroll', onScroll);
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -407,7 +473,9 @@ export function Chat({
           </div>
           <div>
             <h3 className="font-semibold text-blue-800">Octra</h3>
-            <p className="text-xs text-slate-500">LaTeX Assistant</p>
+              <p className="text-xs text-slate-500">
+                LaTeX Assistant{toolStatus ? ` · ${toolStatus}` : ''}
+              </p>
           </div>
         </div>
 
@@ -535,6 +603,18 @@ export function Chat({
                   }}
                   className="scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent relative h-[70px] resize-none border-none px-1 shadow-none focus-visible:ring-0"
                 />
+                {isLoading && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    onClick={() => abortControllerRef.current?.abort()}
+                    className="mr-2 size-6 rounded-full"
+                    aria-label="Stop streaming"
+                  >
+                    <StopCircle className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   size="icon"
