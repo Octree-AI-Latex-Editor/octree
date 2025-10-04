@@ -30,6 +30,12 @@ function getSuggestedText(suggestion: EditSuggestion): string {
   if (isLegacyEditSuggestion(suggestion)) {
     return suggestion.suggested;
   }
+  
+  // For delete operations, return empty string to show deletion
+  if (suggestion.editType === 'delete') {
+    return '';
+  }
+  
   return suggestion.content || '';
 }
 
@@ -56,6 +62,9 @@ export function SuggestionActions({
               Lines {getStartLine(suggestion)}
               {getOriginalLineCount(suggestion) > 1 &&
                 `-${getStartLine(suggestion) + getOriginalLineCount(suggestion) - 1}`}
+              {!isLegacyEditSuggestion(suggestion) && suggestion.editType === 'delete' && (
+                <span className="ml-2 text-red-600 text-xs">(DELETE)</span>
+              )}
             </div>
             <div className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">
               AI Suggestion
