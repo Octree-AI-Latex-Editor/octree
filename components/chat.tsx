@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, X, Maximize2, Minimize2, ArrowUp, StopCircle } from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -473,9 +474,14 @@ export function Chat({
           </div>
           <div>
             <h3 className="font-semibold text-blue-800">Octra</h3>
-              <p className="text-xs text-slate-500">
-                LaTeX Assistant{toolStatus ? ` · ${toolStatus}` : ''}
-              </p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-500">LaTeX Assistant</p>
+              {toolStatus && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {toolStatus}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
