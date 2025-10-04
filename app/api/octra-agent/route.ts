@@ -308,11 +308,34 @@ export async function POST(request: Request) {
       permissionMode: 'bypassPermissions',
     };
 
-    // Only add CLI path if we're not in a serverless environment or if we found a valid path
-    if (!isServerless && pathToClaudeCodeExecutable) {
+    // Handle CLI path configuration for different environments
+    if (isServerless) {
+      console.log('Serverless environment detected - attempting to use bundled CLI');
+      // Try multiple possible CLI paths in serverless environment
+      const possibleCliPaths = [
+        join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'cli.js'),
+        join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'dist', 'cli.js'),
+        join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'bin', 'claude-code'),
+        '/vercel/path0/node_modules/@anthropic-ai/claude-agent-sdk/cli.js', // Vercel-specific path
+      ];
+      
+      let foundCliPath = null;
+      for (const cliPath of possibleCliPaths) {
+        if (existsSync(cliPath)) {
+          foundCliPath = cliPath;
+          break;
+        }
+      }
+      
+      if (foundCliPath) {
+        queryOptions.pathToClaudeCodeExecutable = foundCliPath;
+        console.log('Using bundled CLI at:', foundCliPath);
+      } else {
+        console.log('No bundled CLI found - attempting to run without CLI');
+        // Don't set pathToClaudeCodeExecutable at all
+      }
+    } else if (pathToClaudeCodeExecutable) {
       queryOptions.pathToClaudeCodeExecutable = pathToClaudeCodeExecutable;
-    } else if (isServerless) {
-      console.log('Serverless environment detected - skipping CLI path configuration');
     }
 
     let gen;
@@ -323,7 +346,22 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       console.error('Failed to initialize Claude Agent SDK:', error);
-      // If SDK initialization fails, return an error response
+      
+      // In serverless environments, provide a more specific error message
+      if (isServerless) {
+        return NextResponse.json(
+          { 
+            error: 'Claude Agent SDK not compatible with serverless environment', 
+            details: error instanceof Error ? error.message : 'Unknown initialization error',
+            suggestion: 'The Claude Agent SDK requires CLI access which is not available in serverless environments. Consider using a different AI service or deploying to a non-serverless environment.',
+            environment: 'serverless',
+            cliPath: queryOptions.pathToClaudeCodeExecutable || 'not set'
+          },
+          { status: 503 }
+        );
+      }
+      
+      // For non-serverless environments, return generic error
       return NextResponse.json(
         { 
           error: 'Failed to initialize AI agent', 
