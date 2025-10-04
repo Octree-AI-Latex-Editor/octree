@@ -129,6 +129,36 @@ export type Database = {
           },
         ];
       };
+      knowledge_base_entries: {
+        Row: {
+          content: string;
+          created_at: string;
+          embedding: number[];
+          id: string;
+          metadata: Json;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          content: string;
+          created_at?: string;
+          embedding: number[];
+          id?: string;
+          metadata?: Json;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          content?: string;
+          created_at?: string;
+          embedding?: number[];
+          id?: string;
+          metadata?: Json;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       projects: {
         Row: {
           created_at: string | null;

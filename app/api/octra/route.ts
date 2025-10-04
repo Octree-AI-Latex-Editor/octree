@@ -3,6 +3,8 @@ import { streamText } from 'ai';
 import type { LanguageModelV1 } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 
+import { formatKnowledgeBaseContext } from '@/lib/octra-knowledge-base';
+
 export const runtime = 'edge';
 export const preferredRegion = 'auto';
 
@@ -67,6 +69,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const userMessage = messages[messages.length - 1]?.content || '';
+
+    const knowledgeBaseContext = await formatKnowledgeBaseContext([
+      userMessage,
+      changeType ? `Requested change type: ${changeType}` : '',
+      textFromEditor ? `Selected text: ${textFromEditor}` : '',
+    ]);
+
+    if (knowledgeBaseContext) {
+      console.log('Octra API: Knowledge base context attached.');
+    } else {
+      console.log('Octra API: No knowledge base context found.');
+    }
+
     // --- Add Line Numbers to Content ---
     // Optimize for large files: only include relevant context if file is very large
     const lines = fileContent.split('\n');
@@ -110,6 +126,10 @@ export async function POST(request: Request) {
     console.log('Octra API: Selected text length:', selectedTextLength);
 
     // Build the input for GPT-5 Responses API
+    const knowledgeBaseSection = knowledgeBaseContext
+      ? `\nKnowledge base references:\n---\n${knowledgeBaseContext}\n---\n`
+      : '';
+
     const systemPrompt = `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and suggest precise code edits.
 
 The user's current file content will be provided with line numbers prepended, like "1: \\documentclass...".
@@ -154,13 +174,13 @@ Correct Output Diff Block:
 \`\`\`
 *Explanation:* The change only affects the line numbered '17'. The header correctly reflects \`-17,1 +17,1\`. The diff body lines do NOT repeat the '17:'.
 
-Current numbered file content:
+Use the knowledge base references when they are relevant to the user's request. If they are not applicable, proceed with your own reasoning.
+
+${knowledgeBaseSection}Current numbered file content:
 ---
 ${numberedContent}
 ---
 ${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEditor}\n---\n\nThe user has selected this specific text and may be asking about improvements or changes to it.` : ''}`;
-
-    const userMessage = messages[messages.length - 1]?.content || '';
 
     try {
       const result = await streamText({
