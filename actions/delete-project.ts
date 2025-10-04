@@ -51,6 +51,16 @@ export async function deleteProject(prevState: State, formData: FormData) {
       );
     }
 
+    const { error: documentsError } = await supabase
+      .from('documents')
+      .delete()
+      .eq('project_id', projectId);
+
+    if (documentsError) {
+      console.error('Error deleting project documents:', documentsError);
+      throw new Error('Failed to delete project documents');
+    }
+
     const { error: filesError } = await supabase
       .from('files')
       .delete()
