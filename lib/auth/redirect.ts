@@ -31,9 +31,9 @@ function parseHeaderList(value: string | undefined): string[] {
  * When the editor is launched from the Tools hub the request is proxied through
  * `tools.useoctree.com`, which populates `x-forwarded-host` with the Tools domain.
  * If we redirect to that forwarded host the browser stays on the Tools origin and
- * the Supabase session cookie never reaches the editor domain. By preferring the
- * actual request host we land back on the ai-latex-editor origin and the session
- * becomes visible to the app.
+ * the Supabase session cookie never reaches the editor domain. By preferring whichever
+ * header matches the origin host we land back on the editor origin and the session
+ * becomes visible to the app, even when the proxy swaps the header roles.
  */
 export function resolveRedirectBase(
   headersInput: Headers | HeaderRecord,
@@ -54,16 +54,25 @@ export function resolveRedirectBase(
     }
   }
 
-  const candidates = [
-    ...parseHeaderList(headers['host']),
-    ...parseHeaderList(headers['x-forwarded-host']),
-    origin.host,
-  ].filter(Boolean);
-
-  const host = candidates.find((candidate) => allowList.has(candidate)) ?? fallbackHost;
+  const hostHeaders = parseHeaderList(headers['host']);
+  const forwardedHosts = parseHeaderList(headers['x-forwarded-host']);
 
   const protoCandidates = parseHeaderList(headers['x-forwarded-proto']);
   const protocol = protoCandidates[0] ?? origin.protocol.replace(':', '');
+
+  if (allowList.has(origin.host)) {
+    if (hostHeaders.includes(origin.host)) {
+      return new URL(`${protocol}://${origin.host}`);
+    }
+
+    if (forwardedHosts.includes(origin.host)) {
+      return new URL(`${protocol}://${origin.host}`);
+    }
+  }
+
+  const candidates = [...hostHeaders, ...forwardedHosts, origin.host].filter(Boolean);
+
+  const host = candidates.find((candidate) => allowList.has(candidate)) ?? fallbackHost;
 
   return new URL(`${protocol}://${host}`);
 }

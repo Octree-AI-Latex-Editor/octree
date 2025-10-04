@@ -16,6 +16,20 @@ test('prefers the direct host header over forwarded host', () => {
   assert.equal(redirect, 'https://ai-latex-editor.useoctree.com/projects/123');
 });
 
+test('falls back to origin host when proxy host differs', () => {
+  const headers = new Headers({
+    host: 'tools.useoctree.com',
+    'x-forwarded-host': 'app.useoctree.com',
+    'x-forwarded-proto': 'https',
+  });
+
+  const base = resolveRedirectBase(headers, new URL('https://app.useoctree.com/auth/oauth'));
+  assert.equal(base.origin, 'https://app.useoctree.com');
+
+  const redirect = buildRedirectUrl(headers, 'https://app.useoctree.com', '/projects/123');
+  assert.equal(redirect, 'https://app.useoctree.com/projects/123');
+});
+
 test('falls back to forwarded host when allow-listed', () => {
   const headers = new Headers({
     'x-forwarded-host': 'preview.ai-latex-editor.vercel.app',
