@@ -85,6 +85,15 @@
   [role='button']:not(:disabled) {
     cursor: pointer;
   }
+
+  /* Ensure consistent spacing for main content areas */
+  .container {
+    @apply mx-auto px-4;
+  }
+  
+  main {
+    @apply min-h-screen;
+  }
 }
 
 @layer components {

@@ -71,7 +71,7 @@ export default async function Dashboard() {
       </div>
     </nav>
 
-    <main className="container mx-auto px-4 py-8">
+    <main className="container mx-auto px-6 py-8 max-w-7xl">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-neutral-900">
