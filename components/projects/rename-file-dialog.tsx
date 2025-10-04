@@ -71,8 +71,10 @@ export function RenameFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const { error: updateFileError } = await supabase
-        .from('files')
+      const { error: updateFileError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('files') as any
+      )
         .update({ name: trimmedName })
         .eq('id', fileId)
         .eq('project_id', projectId);
@@ -81,8 +83,10 @@ export function RenameFileDialog({
         throw new Error('Failed to rename file');
       }
 
-      const { error: updateDocumentError } = await supabase
-        .from('documents')
+      const { error: updateDocumentError } = await (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('documents') as any
+      )
         .update({
           title: trimmedName,
           filename: trimmedName,
