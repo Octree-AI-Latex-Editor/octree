@@ -118,48 +118,6 @@ export async function POST(request: Request) {
 
     const numberedContent = buildNumberedContent(fileContent, textFromEditor);
 
-    // Resolve Claude Code CLI path for production (serverless bundlers may not include it unless referenced)
-    let pathToClaudeCodeExecutable: string | undefined = process.env.CLAUDE_CODE_EXECUTABLE;
-    if (!pathToClaudeCodeExecutable) {
-      // Fallback: try to construct path manually for serverless environments
-      try {
-        const possiblePaths = [
-          // Standard node_modules locations
-          join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'cli.js'),
-          join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'dist', 'cli.js'),
-          join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'bin', 'cli.js'),
-          
-          // Vercel-specific paths
-          join('/vercel/path0', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'cli.js'),
-          join('/vercel/path0', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'dist', 'cli.js'),
-          join('/vercel/path0', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'bin', 'cli.js'),
-          
-          // Next.js build paths
-          join(process.cwd(), '.next', 'server', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'cli.js'),
-          join(process.cwd(), '.next', 'server', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'dist', 'cli.js'),
-          
-          // Alternative Vercel paths
-          join('/var/task', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'cli.js'),
-          join('/var/task', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'dist', 'cli.js'),
-        ];
-        
-        // Check if any of these paths exist
-        for (const possiblePath of possiblePaths) {
-          if (existsSync(possiblePath)) {
-            pathToClaudeCodeExecutable = possiblePath;
-            console.log(`Found Claude Code CLI at: ${possiblePath}`);
-            break;
-          }
-        }
-        
-        if (!pathToClaudeCodeExecutable) {
-          console.warn('Claude Code CLI not found in any expected location. Available paths checked:', possiblePaths);
-        }
-      } catch (error) {
-        console.error('Error resolving Claude Code CLI path:', error);
-      }
-    }
-
     // Determine user intent up-front for server-side validation
     const lastUser = messages[messages.length - 1];
     const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
@@ -308,6 +266,25 @@ export async function POST(request: Request) {
     const systemPrompt = `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and propose precise, minimal edits that match the user's intent.\n\nNever ask the user for permission to run tools; assume permission is granted and call tools directly.\n\nHARD CONSTRAINTS:\n- Preserve all LaTeX packages, macros, colors, spacing, and structure unless explicitly asked to change them.\n- Understand the user's intent and choose the correct operation: INSERT, DELETE, or REPLACE.\n  * INSERT: Use { originalLineCount: 0, newText: '...'} and anchor at an exact line. Avoid duplicates by checking for similar content in the local context.\n  * DELETE: Use { originalLineCount: N, newText: '' } for the exact contiguous block to remove.\n  * REPLACE: Use { originalLineCount: N, newText: '...'} to swap a precise range.\n- For multiple, non-adjacent changes, propose multiple edits rather than one giant edit.\n- If a selectionRange is provided, prioritize edits within that range.\n- Do not introduce duplicate headers/sections; when appropriate, replace/update the existing section instead of inserting a new one.\n\nSpecial cases:\n- Grammar/cleanup requests: perform targeted REPLACEs to fix typos, punctuation, hyphenation (e.g., 'problem-solving'), capitalization, and style consistency.\n- Deduplication: when duplicate bullets/sections are detected, DELETE the redundant copy and keep one canonical version.\n\nWhen ready, you MUST call the tool 'propose_edits' with a JSON array of edits. Each edit must include: { startLine, originalLineCount, newText, explanation? }. If you need more context at any time, call 'get_context'.\n\nThe user's current file content will be provided with line numbers prepended, like "1: \\documentclass...".\n\nGuidance for accuracy:\n1. Line Number Accuracy: 'startLine' and 'originalLineCount' must match the prepended line numbers.\n2. Diff Minimality: Only change what is necessary to satisfy the request; preserve surrounding structure.\n3. Multiple Edits: Use separate edits for distant regions.\n4. Idempotency: Avoid duplicating content. Prefer REPLACE or DELETE to remove duplicates.\n\nCurrent numbered file content:\n---\n${numberedContent}\n---\n${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEditor}\n---\n` : ''}\n${selectionRange ? `\nSelection range (line numbers refer to the numbered content above): ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}` : ''}`;
 
     const fullPrompt = `${systemPrompt}\n\nUser request:\n${userText}`;
+
+    // Resolve Claude Code CLI executable path
+    const pathToClaudeCodeExecutable = process.env.CLAUDE_CODE_EXECUTABLE || 
+      (() => {
+        // Try common installation paths
+        const possiblePaths = [
+          join(process.cwd(), 'node_modules', '.bin', 'claude-code'),
+          join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude-code'),
+          '/usr/local/bin/claude-code',
+          '/opt/homebrew/bin/claude-code',
+        ];
+        
+        for (const path of possiblePaths) {
+          if (existsSync(path)) {
+            return path;
+          }
+        }
+        return null;
+      })();
 
     // Debug logging for CLI path resolution
     const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.FUNCTIONS_EMULATOR;
