@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server';
 import { streamText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 
 export const runtime = 'edge';
 export const preferredRegion = 'auto';
 
 // Validate required environment variables
 function validateApiKeys(): { isValid: boolean; error?: string } {
-  const hasOpenAI = !!process.env.OPENAI_API_KEY;
-  
-  if (!hasOpenAI) {
+  const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+
+  if (!hasAnthropic) {
     return {
       isValid: false,
-      error: 'No OpenAI API key configured. Please set OPENAI_API_KEY.'
+      error: 'No Anthropic API key configured. Please set ANTHROPIC_API_KEY.'
     };
   }
-  
+
   return { isValid: true };
 }
 
@@ -24,18 +24,18 @@ const LARGE_FILE_THRESHOLD = 10000; // characters (increased - most LaTeX files 
 const LARGE_SELECTION_THRESHOLD = 2000; // characters (only selected text, not message)
 
 // Smart model selection based on file size and selection complexity
-function chooseModel(fileContentLength: number, selectedTextLength: number): string {
+function chooseModel(fileContentLength: number, selectedTextLength: number): 'claude-3-5-sonnet-latest' | 'claude-3-5-haiku-latest' {
   // Use GPT-5 (full) for:
   // 1. Very large files (>10k chars) - complex documents
   // 2. Large text selections (>2k chars) - complex edits
   if (fileContentLength > LARGE_FILE_THRESHOLD || selectedTextLength > LARGE_SELECTION_THRESHOLD) {
-    console.log('Using GPT-5 (full) for large/complex request');
-    return 'gpt-5-2025-08-07';
+    console.log('Using Claude 3.5 Sonnet for large/complex request');
+    return 'claude-3-5-sonnet-latest';
   }
   
   // Use GPT-5 mini for smaller, well-defined tasks
-  console.log('Using GPT-5 mini for standard request');
-  return 'gpt-5-mini';
+  console.log('Using Claude 3.5 Haiku for standard request');
+  return 'claude-3-5-haiku-latest';
 }
 
 export async function POST(request: Request) {
@@ -162,9 +162,8 @@ ${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEdi
     const userMessage = messages[messages.length - 1]?.content || '';
 
     try {
-      // Use GPT-4o-mini for now (GPT-5 requires organization verification)
       const result = await streamText({
-        model: openai('gpt-4o-mini'),
+        model: anthropic(selectedModel),
         messages: [
           {
             role: 'system',

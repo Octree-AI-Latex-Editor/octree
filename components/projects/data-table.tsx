@@ -78,7 +78,7 @@ export function DataTable<TData extends { id: string }, TValue>({
       {loadingProjectId && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm font-medium text-slate-700">Opening project...</p>
           </div>
         </div>

@@ -57,6 +57,12 @@ export default async function Dashboard() {
                 Octree
               </span>
             </Link>
+            <Link
+              href="/tools"
+              className="ml-6 text-sm font-medium text-neutral-600 hover:text-neutral-900"
+            >
+              Tools
+            </Link>
           </div>
           <div className="flex items-center">
             <UserProfileDropdown userName={userName} />
