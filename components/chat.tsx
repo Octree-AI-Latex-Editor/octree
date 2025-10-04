@@ -24,6 +24,12 @@ interface ChatProps {
   fileContent: string;
   textFromEditor: string | null;
   setTextFromEditor: (text: string | null) => void;
+  selectionRange?: {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  } | null;
   isMinimized: boolean;
   setIsMinimized: React.Dispatch<React.SetStateAction<boolean>>;
   isOpen: boolean;
@@ -39,6 +45,7 @@ export function Chat({
   fileContent,
   textFromEditor,
   setTextFromEditor,
+  selectionRange,
 }: ChatProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -222,6 +229,7 @@ export function Chat({
           messages: [...messages, userMsg],
           fileContent,
           textFromEditor,
+          selectionRange,
         }),
         signal: controller.signal,
       });

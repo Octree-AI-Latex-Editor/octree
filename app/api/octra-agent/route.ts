@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { messages, fileContent, textFromEditor } = body || {};
+    const { messages, fileContent, textFromEditor, selectionRange } = body || {};
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -129,6 +129,9 @@ export async function POST(request: Request) {
         if (args.includeSelection !== false && textFromEditor) {
           payload.selection = textFromEditor;
         }
+        if (selectionRange) {
+          payload.selectionRange = selectionRange;
+        }
         writeEvent('tool', { name: 'get_context' });
         return {
           content: [
@@ -180,7 +183,7 @@ export async function POST(request: Request) {
       tools: [getContextTool, proposeEditsTool],
     });
 
-    const systemPrompt = `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and suggest precise code edits.\n\nNever ask the user for permission to run tools; assume permission is granted and call tools directly.\n\nWhen you are ready to suggest changes, you MUST call the tool 'propose_edits' with a JSON array of edits. Each edit must include: { startLine, originalLineCount, newText, explanation? }. If you need more context at any time, call the tool 'get_context'.\n\nThe user's current file content will be provided with line numbers prepended, like "1: \\documentclass...".\n\nWhen suggesting edits based on the user's request and the provided numbered file content:\n1.  Format edits strictly as latex-diff code blocks:\n\n\`\`\`latex-diff\n@@ -startLine,originalLineCount +newStartLine,newLineCount @@\n-old line 1 content (NO line number prefix!)\n-old line 2 content (NO line number prefix!)\n+new line 1 content (NO line number prefix!)\n+new line 2 content (NO line number prefix!)\n\`\`\`\n\n2. Line Number Accuracy: The startLine and originalLineCount in the header must reflect the prepended line numbers.\n3. Diff Body Content: Do not include the prepended line numbers in '-' or '+' lines.\n4. Minimal edits; preserve structure.\n5. Use multiple hunks for distant changes.\n6. Always include a short explanation outside the code block.\n\nCurrent numbered file content:\n---\n${numberedContent}\n---\n${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEditor}\n---\n` : ''}`;
+    const systemPrompt = `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and suggest precise code edits.\n\nNever ask the user for permission to run tools; assume permission is granted and call tools directly.\n\nWhen you are ready to suggest changes, you MUST call the tool 'propose_edits' with a JSON array of edits. Each edit must include: { startLine, originalLineCount, newText, explanation? }. If you need more context at any time, call the tool 'get_context'.\n\nThe user's current file content will be provided with line numbers prepended, like "1: \\documentclass...".\n\nPRIORITIZE EDITS WITHIN THE SELECTED RANGE IF PROVIDED. If selectionRange is present, focus your edits on lines between selectionRange.startLineNumber and selectionRange.endLineNumber. Only go beyond this range if absolutely necessary to keep the document consistent.\n\nWhen suggesting edits based on the user's request and the provided numbered file content:\n1.  Format edits strictly as latex-diff code blocks:\n\n\`\`\`latex-diff\n@@ -startLine,originalLineCount +newStartLine,newLineCount @@\n-old line 1 content (NO line number prefix!)\n-old line 2 content (NO line number prefix!)\n+new line 1 content (NO line number prefix!)\n+new line 2 content (NO line number prefix!)\n\`\`\`\n\n2. Line Number Accuracy: The startLine and originalLineCount in the header must reflect the prepended line numbers.\n3. Diff Body Content: Do not include the prepended line numbers in '-' or '+' lines.\n4. Minimal edits; preserve structure.\n5. Use multiple hunks for distant changes.\n6. Always include a short explanation outside the code block.\n\nCurrent numbered file content:\n---\n${numberedContent}\n---\n${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEditor}\n---\n` : ''}\n${selectionRange ? `\nSelection range (line numbers refer to the numbered content above): ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}` : ''}`;
 
     const lastUser = messages[messages.length - 1];
     const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
