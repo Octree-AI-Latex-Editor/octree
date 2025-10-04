@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/database.types';
 import { z } from 'zod';
 
 const RenameProject = z.object({
@@ -59,7 +61,8 @@ export async function renameProject(
       throw new Error('Project not found or unauthorized');
     }
 
-    const { error: updateError } = await supabase
+    const typedSupabase = supabase as unknown as SupabaseClient<Database>;
+    const { error: updateError } = await typedSupabase
       .from('projects')
       .update({ title })
       .eq('id', projectId)

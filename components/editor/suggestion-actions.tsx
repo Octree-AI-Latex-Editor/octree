@@ -41,7 +41,7 @@ export function SuggestionActions({
           </div>
 
           <DiffViewer
-            original={suggestion.original}
+            original={suggestion.original ?? ''}
             suggested={suggestion.suggested}
             className="max-w-full"
           />
