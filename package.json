@@ -73,6 +73,8 @@
     "@eslint/eslintrc": "^3",
     "@shadcn/ui": "^0.0.4",
     "@tailwindcss/postcss": "^4",
+    "critters": "^0.0.24",
+    "lightningcss": "^1.25.0",
     "@types/markdown-it": "^14.1.2",
     "@types/markdown-it-container": "^2.0.10",
     "@types/node": "^20",
