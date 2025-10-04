@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { query, tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 export const runtime = 'nodejs';
 
@@ -53,11 +55,19 @@ function inferIntent(userText: string) {
   const wantsDedupe = /(dedup|de-dup|duplicate|remove\s+duplicates|duplicates)/.test(t);
   const wantsMulti = /(multi|multiple|several|batch)/.test(t);
   const wantsFull = /(complete\s+revamp|rewrite\s+everything|from\s+scratch)/.test(t);
+  
+  // Broader vocabulary for common editing requests
+  const wantsImprove = /(improve|enhance|polish|refine|better|strengthen|clarify|expand|elaborate|develop)/.test(t);
+  const wantsModify = /(modify|change|adjust|tweak|revise|amend|correct|improve|polish)/.test(t);
+  
+  // Default to permissive when intent is unclear - allow edits unless explicitly restrictive
+  const hasExplicitRestriction = /(only|just|merely|simply)\s+(read|view|check|examine|review)/.test(t);
+  
   return {
-    allowInsert: wantsInsert || wantsReplace || wantsGrammar || wantsCleanup || wantsFull,
-    allowDelete: wantsDelete || wantsReplace || wantsGrammar || wantsCleanup || wantsDedupe || wantsFull,
-    allowReplace: wantsReplace || wantsGrammar || wantsCleanup || wantsFull,
-    multiEdit: wantsMulti || wantsReplace || wantsFull,
+    allowInsert: wantsInsert || wantsReplace || wantsGrammar || wantsCleanup || wantsFull || wantsImprove || wantsModify || !hasExplicitRestriction,
+    allowDelete: wantsDelete || wantsReplace || wantsGrammar || wantsCleanup || wantsDedupe || wantsFull || wantsImprove || wantsModify || !hasExplicitRestriction,
+    allowReplace: wantsReplace || wantsGrammar || wantsCleanup || wantsFull || wantsImprove || wantsModify || !hasExplicitRestriction,
+    multiEdit: wantsMulti || wantsReplace || wantsFull || wantsImprove,
     fullRevamp: wantsFull,
     wantsDedupe,
     wantsGrammar: wantsGrammar || wantsCleanup,
@@ -257,19 +267,72 @@ export async function POST(request: Request) {
 
     const fullPrompt = `${systemPrompt}\n\nUser request:\n${userText}`;
 
-    const gen = query({
-      prompt: fullPrompt,
-      options: {
-        includePartialMessages: true,
-        // Expose our in-process MCP server to the Agent SDK
-        mcpServers: {
-          'octra-tools': sdkServer,
-        },
-        allowedTools: ['get_context', 'propose_edits'],
-        // Fully bypass permission prompts so tools run without asking
-        permissionMode: 'bypassPermissions',
-      },
+    // Resolve Claude Code CLI executable path
+    const pathToClaudeCodeExecutable = process.env.CLAUDE_CODE_EXECUTABLE || 
+      (() => {
+        // Try common installation paths
+        const possiblePaths = [
+          join(process.cwd(), 'node_modules', '.bin', 'claude-code'),
+          join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude-code'),
+          '/usr/local/bin/claude-code',
+          '/opt/homebrew/bin/claude-code',
+        ];
+        
+        for (const path of possiblePaths) {
+          if (existsSync(path)) {
+            return path;
+          }
+        }
+        return null;
+      })();
+
+    // Debug logging for CLI path resolution
+    const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.FUNCTIONS_EMULATOR;
+    console.log('Claude Code CLI path resolution:', {
+      envVar: process.env.CLAUDE_CODE_EXECUTABLE,
+      resolved: pathToClaudeCodeExecutable,
+      cwd: process.cwd(),
+      vercelEnv: process.env.VERCEL,
+      isServerless,
     });
+
+    // In serverless environments, we might need to disable CLI entirely
+    const queryOptions: any = {
+      includePartialMessages: true,
+      // Expose our in-process MCP server to the Agent SDK
+      mcpServers: {
+        'octra-tools': sdkServer,
+      },
+      allowedTools: ['get_context', 'propose_edits'],
+      // Fully bypass permission prompts so tools run without asking
+      permissionMode: 'bypassPermissions',
+    };
+
+    // Only add CLI path if we're not in a serverless environment or if we found a valid path
+    if (!isServerless && pathToClaudeCodeExecutable) {
+      queryOptions.pathToClaudeCodeExecutable = pathToClaudeCodeExecutable;
+    } else if (isServerless) {
+      console.log('Serverless environment detected - skipping CLI path configuration');
+    }
+
+    let gen;
+    try {
+      gen = query({
+        prompt: fullPrompt,
+        options: queryOptions,
+      });
+    } catch (error) {
+      console.error('Failed to initialize Claude Agent SDK:', error);
+      // If SDK initialization fails, return an error response
+      return NextResponse.json(
+        { 
+          error: 'Failed to initialize AI agent', 
+          details: error instanceof Error ? error.message : 'Unknown initialization error',
+          suggestion: 'The Claude Code CLI may not be available in this environment. Please try again or contact support.'
+        },
+        { status: 503 }
+      );
+    }
 
     let finalText = '';
     // Immediately send a started status
@@ -340,5 +403,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
-
