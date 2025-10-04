@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { streamText } from 'ai';
+import type { LanguageModelV1 } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 
 export const runtime = 'edge';
@@ -163,7 +164,7 @@ ${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEdi
 
     try {
       const result = await streamText({
-        model: anthropic(selectedModel),
+        model: anthropic(selectedModel) as unknown as LanguageModelV1,
         messages: [
           {
             role: 'system',

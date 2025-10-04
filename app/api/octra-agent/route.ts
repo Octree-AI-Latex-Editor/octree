@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import { query, tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
@@ -41,6 +42,43 @@ function buildNumberedContent(fileContent: string, textFromEditor?: string | nul
   return numbered;
 }
 
+// Heuristic intent inference from the latest user message
+function inferIntent(userText: string) {
+  const t = (userText || '').toLowerCase();
+  const wantsInsert = /(insert|add|append|create)/.test(t);
+  const wantsDelete = /(delete|remove|strip|drop)/.test(t);
+  const wantsReplace = /(replace|edit|update|revamp|rewrite|overhaul|refactor|fix)/.test(t);
+  const wantsGrammar = /(grammar|proofread|typo|spelling|punctuation|hyphen|capitalize|formatting)/.test(t);
+  const wantsCleanup = /(cleanup|clean\s*up|tidy|normalize|standardize|consistency|consistent)/.test(t);
+  const wantsDedupe = /(dedup|de-dup|duplicate|remove\s+duplicates|duplicates)/.test(t);
+  const wantsMulti = /(multi|multiple|several|batch)/.test(t);
+  const wantsFull = /(complete\s+revamp|rewrite\s+everything|from\s+scratch)/.test(t);
+  return {
+    allowInsert: wantsInsert || wantsReplace || wantsGrammar || wantsCleanup || wantsFull,
+    allowDelete: wantsDelete || wantsReplace || wantsGrammar || wantsCleanup || wantsDedupe || wantsFull,
+    allowReplace: wantsReplace || wantsGrammar || wantsCleanup || wantsFull,
+    multiEdit: wantsMulti || wantsReplace || wantsFull,
+    fullRevamp: wantsFull,
+    wantsDedupe,
+    wantsGrammar: wantsGrammar || wantsCleanup,
+  };
+}
+
+function classifyEdit(originalLineCount: number, newText: string) {
+  if (originalLineCount === 0 && newText.length > 0) return 'insert';
+  if (originalLineCount > 0 && newText.length === 0) return 'delete';
+  if (originalLineCount > 0 && newText.length > 0) return 'replace';
+  return 'unknown';
+}
+
+function getLocalWindow(fileContent: string, startLine: number, radius: number = 25) {
+  const lines = fileContent.split('\n');
+  const idx = Math.max(0, Math.min(lines.length - 1, startLine - 1));
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(lines.length, idx + radius + 1);
+  return lines.slice(start, end).join('\n');
+}
+
 export async function POST(request: Request) {
   try {
     const keyValidation = validateApiKeys();
@@ -69,6 +107,11 @@ export async function POST(request: Request) {
     }
 
     const numberedContent = buildNumberedContent(fileContent, textFromEditor);
+
+    // Determine user intent up-front for server-side validation
+    const lastUser = messages[messages.length - 1];
+    const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
+    const intent = inferIntent(userText);
 
     // Collect edits proposed via tool calls for returning to client as JSON
     const collectedEdits: Array<{
@@ -160,17 +203,44 @@ export async function POST(request: Request) {
           .min(1),
       },
       async (args) => {
+        const violations: Array<string> = [];
+        const accepted: typeof collectedEdits = [];
         for (const e of args.edits) {
+          const kind = classifyEdit(e.originalLineCount, e.newText);
+          // Enforce intent-based permissions
+          if (kind === 'insert' && !intent.allowInsert) {
+            violations.push(`Insertion not allowed by inferred intent at startLine ${e.startLine}.`);
+            continue;
+          }
+          if (kind === 'delete' && !intent.allowDelete) {
+            violations.push(`Deletion not allowed by inferred intent at startLine ${e.startLine}.`);
+            continue;
+          }
+          if (kind === 'replace' && !intent.allowReplace) {
+            violations.push(`Replacement not allowed by inferred intent at startLine ${e.startLine}.`);
+            continue;
+          }
+          // Idempotency guard: only for insertions, and scoped locally to avoid blocking legitimate grammar fixes
+          if (kind === 'insert') {
+            const trimmed = e.newText.trim();
+            if (trimmed.length > 0) {
+              const local = getLocalWindow(fileContent, e.startLine, 40);
+              if (local.includes(trimmed)) {
+                violations.push(`Duplicate insertion avoided near line ${e.startLine}. Similar content already present locally.`);
+                continue;
+              }
+            }
+          }
           collectedEdits.push(e);
+          accepted.push(e);
         }
-        // Stream edits incrementally to the client
-        writeEvent('tool', { name: 'propose_edits', count: args.edits.length });
-        writeEvent('edits', args.edits);
+        writeEvent('tool', { name: 'propose_edits', count: accepted.length, violations });
+        if (accepted.length) writeEvent('edits', accepted);
         return {
           content: [
             {
               type: 'text',
-              text: `Recorded ${args.edits.length} edit(s) as JSON.`,
+              text: `Accepted ${accepted.length} edit(s). ${violations.length ? 'Blocked ' + violations.length + ' edit(s) due to intent/duplication guards.' : ''}`,
             },
           ],
         };
@@ -183,10 +253,8 @@ export async function POST(request: Request) {
       tools: [getContextTool, proposeEditsTool],
     });
 
-    const systemPrompt = `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and suggest precise code edits.\n\nNever ask the user for permission to run tools; assume permission is granted and call tools directly.\n\nHARD CONSTRAINTS:\n- Do not delete or reorder any existing sections or bullets.\n- Only INSERT the following new sections immediately AFTER the contact block (name, email, phone, links):\n  1) \\header{{\\faUser} \\textcolor{red}{Professional Summary}} with a concise paragraph.\n  2) \\header{{\\faLineChart} \\textcolor{red}{Technical Skills \\& Competencies}} with categorized skills.\n- Preserve all LaTeX packages, macros, colors, spacing, and structure.\n- If a selectionRange is provided, prioritize edits strictly within that range unless necessary for consistency.\n\nWhen you are ready to suggest changes, you MUST call the tool 'propose_edits' with a JSON array of edits. Each edit must include: { startLine, originalLineCount, newText, explanation? }. If you need more context at any time, call the tool 'get_context'.\n\nThe user's current file content will be provided with line numbers prepended, like "1: \\documentclass...".\n\nWhen suggesting edits based on the user's request and the provided numbered file content:\n1.  Format edits strictly as latex-diff code blocks:\n\n\`\`\`latex-diff\n@@ -startLine,originalLineCount +newStartLine,newLineCount @@\n-old line 1 content (NO line number prefix!)\n-old line 2 content (NO line number prefix!)\n+new line 1 content (NO line number prefix!)\n+new line 2 content (NO line number prefix!)\n\`\`\`\n\n2. Line Number Accuracy: The startLine and originalLineCount in the header must reflect the prepended line numbers.\n3. Diff Body Content: Do not include the prepended line numbers in '-' or '+' lines.\n4. Minimal edits; preserve structure.\n5. Use multiple hunks for distant changes.\n6. Always include a short explanation outside the code block.\n\nCurrent numbered file content:\n---\n${numberedContent}\n---\n${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEditor}\n---\n` : ''}\n${selectionRange ? `\nSelection range (line numbers refer to the numbered content above): ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}` : ''}`;
+    const systemPrompt = `You are Octra, a LaTeX expert AI assistant. Your goal is to provide helpful explanations and propose precise, minimal edits that match the user's intent.\n\nNever ask the user for permission to run tools; assume permission is granted and call tools directly.\n\nHARD CONSTRAINTS:\n- Preserve all LaTeX packages, macros, colors, spacing, and structure unless explicitly asked to change them.\n- Understand the user's intent and choose the correct operation: INSERT, DELETE, or REPLACE.\n  * INSERT: Use { originalLineCount: 0, newText: '...'} and anchor at an exact line. Avoid duplicates by checking for similar content in the local context.\n  * DELETE: Use { originalLineCount: N, newText: '' } for the exact contiguous block to remove.\n  * REPLACE: Use { originalLineCount: N, newText: '...'} to swap a precise range.\n- For multiple, non-adjacent changes, propose multiple edits rather than one giant edit.\n- If a selectionRange is provided, prioritize edits within that range.\n- Do not introduce duplicate headers/sections; when appropriate, replace/update the existing section instead of inserting a new one.\n\nSpecial cases:\n- Grammar/cleanup requests: perform targeted REPLACEs to fix typos, punctuation, hyphenation (e.g., 'problem-solving'), capitalization, and style consistency.\n- Deduplication: when duplicate bullets/sections are detected, DELETE the redundant copy and keep one canonical version.\n\nWhen ready, you MUST call the tool 'propose_edits' with a JSON array of edits. Each edit must include: { startLine, originalLineCount, newText, explanation? }. If you need more context at any time, call 'get_context'.\n\nThe user's current file content will be provided with line numbers prepended, like "1: \\documentclass...".\n\nGuidance for accuracy:\n1. Line Number Accuracy: 'startLine' and 'originalLineCount' must match the prepended line numbers.\n2. Diff Minimality: Only change what is necessary to satisfy the request; preserve surrounding structure.\n3. Multiple Edits: Use separate edits for distant regions.\n4. Idempotency: Avoid duplicating content. Prefer REPLACE or DELETE to remove duplicates.\n\nCurrent numbered file content:\n---\n${numberedContent}\n---\n${textFromEditor ? `\nSelected text from editor for context:\n---\n${textFromEditor}\n---\n` : ''}\n${selectionRange ? `\nSelection range (line numbers refer to the numbered content above): ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}` : ''}`;
 
-    const lastUser = messages[messages.length - 1];
-    const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
     const fullPrompt = `${systemPrompt}\n\nUser request:\n${userText}`;
 
     const gen = query({
