@@ -67,6 +67,7 @@ export function Chat({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const dispatchedForMessageRef = useRef<Set<string>>(new Set());
+  const processedEditsRef = useRef<Set<string>>(new Set());
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -208,6 +209,9 @@ export function Chat({
       rafIdRef.current = null;
     }
     pendingTextRef.current = '';
+    
+    // Clear processed edits for new request
+    processedEditsRef.current.clear();
 
     setIsLoading(true);
     setError(null);
@@ -265,6 +269,17 @@ export function Chat({
       };
 
       const handleEdits = (edits: ASTEdit[]) => {
+        // Create a unique key for this set of edits to prevent duplicates
+        const editsKey = JSON.stringify(edits.map(e => ({ 
+          type: e.editType, 
+          line: e.position?.line, 
+          content: e.content?.substring(0, 50) // First 50 chars for key
+        })));
+        
+        // Skip if we've already processed these exact edits
+        if (processedEditsRef.current.has(editsKey)) return;
+        processedEditsRef.current.add(editsKey);
+        
         const mapped: EditSuggestion[] = edits.map((edit, idx) => {
           // For delete operations, we need to populate the original field
           // by extracting the content that's being deleted from the file
