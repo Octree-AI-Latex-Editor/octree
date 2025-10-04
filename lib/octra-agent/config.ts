@@ -1,4 +1,3 @@
-import path from 'path';
 /**
  * Configuration utilities for the Octra Agent
  * Centralizes configuration management and external server setup
@@ -16,11 +15,8 @@ export function getExternalServerConfig() {
       permissionMode: 'bypassPermissions' as const,
       // Prefer explicit path via env var, else fall back to bundled dummy stub in prod
       // to prevent the SDK from throwing when it probes for a CLI.
-      pathToClaudeCodeExecutable:
-        process.env.CLAUDE_CODE_PATH ||
-        (process.env.NODE_ENV === 'production'
-          ? path.join(process.cwd(), 'lib', 'octra-agent', 'claude-code-dummy.js')
-          : undefined),
+      // Do not spawn Claude Code unless explicitly provided via env.
+      pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_PATH || undefined,
     }
   };
 }
