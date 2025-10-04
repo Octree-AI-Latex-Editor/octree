@@ -19,6 +19,28 @@ import {
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
+    // If a remote Agent Service URL is configured, proxy the request and stream SSE
+    const remoteUrl = process.env.CLAUDE_AGENT_SERVICE_URL;
+    if (remoteUrl) {
+      const body = await request.json();
+      const res = await fetch(remoteUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'accept': 'text/event-stream',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok || !res.body) {
+        return NextResponse.json(
+          { error: 'Remote agent service failed', status: res.status },
+          { status: 502 }
+        );
+      }
+      // Pass-through SSE stream
+      return new Response(res.body, { headers: createSSEHeaders() });
+    }
+
     // Validate API keys
     const keyValidation = validateApiKeys();
     if (!keyValidation.isValid) {
