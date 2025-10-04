@@ -2,7 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import dayjs from 'dayjs';
-import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -18,8 +18,10 @@ type Project = Database['public']['Tables']['projects']['Row'];
 
 export const columns = ({
   onDelete,
+  onRename,
 }: {
   onDelete: (projectId: string, projectTitle: string) => void;
+  onRename: (projectId: string, projectTitle: string) => void;
 }): ColumnDef<Project>[] => [
   {
     accessorKey: 'title',
@@ -58,6 +60,15 @@ export const columns = ({
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
 
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => {
+                  onRename(project.id, project.title);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Rename
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer"
                 variant="destructive"

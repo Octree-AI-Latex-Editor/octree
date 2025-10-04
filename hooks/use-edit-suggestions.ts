@@ -20,11 +20,54 @@ export interface EditSuggestionsState {
 interface UseEditSuggestionsProps {
   editor: Monaco.editor.IStandaloneCodeEditor | null;
   monacoInstance: typeof Monaco | null;
+  showInlinePreview?: boolean; // controls inline 'after' preview decoration
+}
+
+// ---------------------- Helpers (pure) ----------------------
+
+function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n?/g, '\n');
+}
+
+function countLines(text: string): number {
+  if (!text) return 0;
+  const norm = normalizeNewlines(text);
+  return norm === '' ? 0 : norm.split('\n').length;
+}
+
+function getOriginalTextFromModel(
+  model: Monaco.editor.ITextModel,
+  startLine: number,
+  originalLineCount: number
+): string {
+  if (originalLineCount === 0) return '';
+  const endLine = startLine + originalLineCount - 1;
+  if (
+    startLine <= 0 ||
+    endLine <= 0 ||
+    startLine > model.getLineCount() ||
+    endLine > model.getLineCount()
+  ) {
+    return '';
+  }
+  const lines: string[] = [];
+  for (let ln = startLine; ln <= endLine; ln++) lines.push(model.getLineContent(ln));
+  return lines.join('\n');
+}
+
+function computeDeltaLines(suggested: string, originalLineCount: number): number {
+  const suggestedLines = countLines(suggested);
+  return suggestedLines - originalLineCount;
+}
+
+function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return !(aEnd < bStart || aStart > bEnd);
 }
 
 export function useEditSuggestions({
   editor,
   monacoInstance,
+  showInlinePreview = true,
 }: UseEditSuggestionsProps): EditSuggestionsState {
   const [editSuggestions, setEditSuggestions] = useState<EditSuggestion[]>([]);
   const [decorationIds, setDecorationIds] = useState<string[]>([]);
@@ -54,7 +97,18 @@ export function useEditSuggestions({
       incoming: EditSuggestion[],
       options: { suppressLimitNotice?: boolean } = {}
     ) => {
-      const normalized = normalizeSuggestions(incoming);
+      // Enrich suggestions with original text from the current model when missing
+      let model: Monaco.editor.ITextModel | null = editor ? editor.getModel() : null;
+
+      const withOriginals = incoming.map((s) => {
+        if (s.original !== undefined || !model) return s;
+        return {
+          ...s,
+          original: getOriginalTextFromModel(model, s.startLine, s.originalLineCount),
+        };
+      });
+
+      const normalized = normalizeSuggestions(withOriginals);
       const firstBatch = normalized.slice(0, 5).map((suggestion) => ({
         ...suggestion,
       }));
@@ -182,7 +236,47 @@ export function useEditSuggestions({
       // Track edit in background (non-blocking)
       trackEdit();
 
-      setEditSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
+      // Rebase remaining suggestions to account for line shifts
+      const deltaLines = computeDeltaLines(suggestion.suggested || '', suggestion.originalLineCount);
+      const acceptedStart = startLineNumber;
+      const acceptedEnd = endLineNumber;
+
+      setEditSuggestions((prev) => {
+        const remaining = prev.filter((s) => s.id !== suggestionId);
+        const adjusted: EditSuggestion[] = [];
+        for (const s of remaining) {
+          const sStart = s.startLine;
+          const sEnd = s.originalLineCount > 0 ? s.startLine + s.originalLineCount - 1 : s.startLine;
+
+          // If suggestion overlaps the accepted region, drop it (conflict)
+          if (rangesOverlap(sStart, sEnd, acceptedStart, acceptedEnd)) {
+            // Tie-aware insert: if both are pure insertions on the same line, shift instead of drop
+            const acceptedIsInsert = suggestion.originalLineCount === 0;
+            const currentIsInsert = s.originalLineCount === 0;
+            if (
+              acceptedIsInsert &&
+              currentIsInsert &&
+              sStart === acceptedStart &&
+              deltaLines !== 0
+            ) {
+              adjusted.push({ ...s, startLine: s.startLine + deltaLines });
+            }
+            // Otherwise skip conflicting suggestion
+            continue;
+          }
+
+          // If suggestion is after the accepted region, shift by deltaLines
+          if (sStart > acceptedEnd && deltaLines !== 0) {
+            adjusted.push({
+              ...s,
+              startLine: s.startLine + deltaLines,
+            });
+          } else {
+            adjusted.push(s);
+          }
+        }
+        return adjusted;
+      });
       
       // Show success feedback
       toast.success('Edit applied', { duration: 1000 });
@@ -330,8 +424,8 @@ export function useEditSuggestions({
         });
       }
 
-      // --- Decoration 2: Show suggested text inline (if any) ---
-      if (suggestion.suggested && suggestion.suggested.trim().length > 0) {
+      // --- Decoration 2: Show suggested text inline (if any and allowed) ---
+      if (showInlinePreview && suggestion.suggested && suggestion.suggested.trim().length > 0) {
         // Use 'after' content widget placed at the end of the original range
         // The range for the 'after' widget itself should be zero-length
         const afterWidgetRange = new monacoInstance.Range(

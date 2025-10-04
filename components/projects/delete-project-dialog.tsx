@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -37,8 +37,22 @@ export function DeleteProjectDialog({
     setIsLoading(false);
   };
 
+  useEffect(() => {
+    if (open) {
+      setError(null);
+    }
+  }, [open]);
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          setError(null);
+        }
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete Project</DialogTitle>

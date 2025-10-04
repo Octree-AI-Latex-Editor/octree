@@ -82,6 +82,7 @@ export default function FileEditorPage() {
     buttonPos,
     selectedText,
     textFromEditor,
+    selectionRange,
     chatOpen,
     setChatOpen,
     chatMinimized,
@@ -205,6 +206,7 @@ export default function FileEditorPage() {
         fileContent={content}
         textFromEditor={textFromEditor}
         setTextFromEditor={setTextFromEditor}
+        selectionRange={selectionRange}
       />
 
       {compilationError && (

@@ -58,14 +58,6 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     setPageLoading(false);
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="text-primary h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
-
   if (!pdfData) {
     return (
       <p className="flex h-full items-center justify-center text-sm whitespace-pre text-slate-600">
@@ -80,6 +72,11 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
 
   return (
     <div className="relative flex h-full w-full flex-col">
+      {isLoading && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/50">
+          <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+        </div>
+      )}
       {/* Main PDF viewer area with scrolling */}
       <div className="flex flex-1 justify-center overflow-auto">
         {pageLoading && (

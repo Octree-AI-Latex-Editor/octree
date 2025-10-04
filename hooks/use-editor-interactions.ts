@@ -9,6 +9,12 @@ export interface EditorInteractionsState {
   buttonPos: { top: number; left: number };
   selectedText: string;
   textFromEditor: string | null;
+  selectionRange: {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  } | null;
   chatOpen: boolean;
   setChatOpen: React.Dispatch<React.SetStateAction<boolean>>;
   chatMinimized: boolean;
@@ -23,6 +29,12 @@ export function useEditorInteractions(): EditorInteractionsState {
   const [buttonPos, setButtonPos] = useState({ top: 0, left: 0 });
   const [selectedText, setSelectedText] = useState('');
   const [textFromEditor, setTextFromEditor] = useState<string | null>(null);
+  const [selectionRange, setSelectionRange] = useState<{
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  } | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMinimized, setChatMinimized] = useState(false);
 
@@ -63,11 +75,13 @@ export function useEditorInteractions(): EditorInteractionsState {
             left: startCoords.left,
           });
           setSelectedText(text);
+          setSelectionRange(range);
           setShowButton(true);
         }
       } else {
         setShowButton(false);
         setSelectedText('');
+        setSelectionRange(null);
       }
     },
     200
@@ -88,6 +102,7 @@ export function useEditorInteractions(): EditorInteractionsState {
     buttonPos,
     selectedText,
     textFromEditor,
+    selectionRange,
     chatOpen,
     setChatOpen,
     chatMinimized,

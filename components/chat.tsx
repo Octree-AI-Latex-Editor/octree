@@ -1,10 +1,10 @@
 'use client';
 
-import { useChat } from 'ai/react';
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
-import { Loader2, X, Maximize2, Minimize2, ArrowUp } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, X, Maximize2, Minimize2, ArrowUp, StopCircle } from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EditSuggestion } from '@/types/edit';
@@ -24,6 +24,12 @@ interface ChatProps {
   fileContent: string;
   textFromEditor: string | null;
   setTextFromEditor: (text: string | null) => void;
+  selectionRange?: {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  } | null;
   isMinimized: boolean;
   setIsMinimized: React.Dispatch<React.SetStateAction<boolean>>;
   isOpen: boolean;
@@ -39,9 +45,27 @@ export function Chat({
   fileContent,
   textFromEditor,
   setTextFromEditor,
+  selectionRange,
 }: ChatProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const pendingTextRef = useRef<string>('');
+  const shouldStickToBottomRef = useRef<boolean>(true);
+  
+  interface ChatMessage {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+  }
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const dispatchedForMessageRef = useRef<Set<string>>(new Set());
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -61,7 +85,7 @@ export function Chat({
 
     if (!hasLatexDiff) {
       return (
-        <div className="whitespace-pre-wrap">
+        <div className="whitespace-pre-wrap break-words">
           <ReactMarkdown>{content}</ReactMarkdown>
         </div>
       );
@@ -154,34 +178,216 @@ export function Chat({
   const parseEditSuggestions = (content: string): EditSuggestion[] =>
     parseLatexDiff(content);
 
-  const {
-    messages,
-    input,
-    handleInputChange,
-    handleSubmit,
-    isLoading,
-    error,
-  } = useChat({
-    api: '/api/octra',
-    body: {
-      fileContent: fileContent,
-      textFromEditor: textFromEditor,
-    },
-    onResponse(response) {
-      console.log('Octra API response received:', response.status);
-    },
-    onFinish(message) {
-      console.log('Octra AI message finished:', message);
-      const allSuggestions = parseEditSuggestions(message.content);
-      // Do not clear the message content so the AI response remains visible
-      if (allSuggestions.length > 0) {
-        onEditSuggestion(allSuggestions);
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement> | Event) => {
+    // Prevent default form submission if available
+    if ((e as any)?.preventDefault) (e as any).preventDefault();
+
+    const trimmed = input.trim();
+    if (!trimmed || isLoading) return;
+
+    // Clear input immediately so text doesn't linger while streaming
+    setInput('');
+
+    // Cancel any existing stream before starting a new one
+    if (abortControllerRef.current) {
+      try {
+        abortControllerRef.current.abort();
+      } catch {}
+      abortControllerRef.current = null;
+    }
+
+    // reset any pending raf-flush
+    if (rafIdRef.current != null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    pendingTextRef.current = '';
+
+    setIsLoading(true);
+    setError(null);
+    setToolStatus(null);
+
+    const userMsg: ChatMessage = {
+      id: `${Date.now()}-user`,
+      role: 'user',
+      content: trimmed,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const res = await fetch('/api/octra-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...messages, userMsg],
+          fileContent,
+          textFromEditor,
+          selectionRange,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        try {
+          const data = await res.json();
+          throw new Error(data.error || `Request failed with ${res.status}`);
+        } catch {
+          throw new Error(`Request failed with ${res.status}`);
+        }
       }
-    },
-    onError(error) {
-      console.error('Octra API error:', error);
-    },
-  });
+
+      // Add a placeholder assistant message to stream into
+      const assistantId = `${Date.now()}-assistant`;
+      setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let lastAssistantText = '';
+
+      const flushAssistant = (text: string) => {
+        // Normalize newlines so streaming chunks display as paragraphs
+        const normalized = text
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n');
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: normalized } : m))
+        );
+        if (shouldStickToBottomRef.current) scrollToBottom();
+      };
+
+      const handleEdits = (edits: Array<{ startLine: number; originalLineCount: number; newText: string; explanation?: string }>) => {
+        const mapped = edits.map((e, idx) => ({
+          id: `${Date.now()}-${idx}`,
+          startLine: e.startLine,
+          originalLineCount: e.originalLineCount,
+          suggested: e.newText,
+          explanation: e.explanation,
+          status: 'pending' as const,
+        }));
+        if (mapped.length > 0) onEditSuggestion(mapped);
+      };
+
+      const maybeEmitDiffSuggestions = (text: string) => {
+        if (dispatchedForMessageRef.current.has(assistantId)) return;
+        const suggestions = parseLatexDiff(text);
+        if (suggestions.length > 0) {
+          onEditSuggestion(suggestions);
+          dispatchedForMessageRef.current.add(assistantId);
+        }
+      };
+
+      // Minimal SSE parser
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let sepIndex;
+        // Process complete events separated by double newlines
+        while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+          const rawEvent = buffer.slice(0, sepIndex);
+          buffer = buffer.slice(sepIndex + 2);
+
+          const lines = rawEvent.split('\n');
+          let eventName = 'message';
+          const dataLines: string[] = [];
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              dataLines.push(line.slice(5).trim());
+            }
+          }
+
+          const dataText = dataLines.join('\n');
+          let payload: any = dataText;
+          try {
+            payload = JSON.parse(dataText);
+          } catch {}
+
+          if (eventName === 'assistant_partial' && payload?.text) {
+            const chunk = String(payload.text)
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n');
+            pendingTextRef.current += chunk;
+            if (rafIdRef.current == null) {
+              rafIdRef.current = requestAnimationFrame(() => {
+                const toFlush = pendingTextRef.current;
+                pendingTextRef.current = '';
+                rafIdRef.current = null;
+                const merged = (lastAssistantText || '') + toFlush;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantId ? { ...m, content: merged } : m))
+                );
+                lastAssistantText = merged;
+                if (shouldStickToBottomRef.current) scrollToBottom();
+              });
+            }
+            // Do not surface suggestions during partial stream to avoid random popups
+          } else if (eventName === 'assistant_message' && payload?.text) {
+            const full = String(payload.text);
+            flushAssistant(full);
+            lastAssistantText = full;
+            // Defer suggestion surfacing to result/done for stable UX
+          } else if (eventName === 'edits' && Array.isArray(payload)) {
+            handleEdits(payload);
+          } else if (eventName === 'status') {
+            // started/finished
+            if (payload?.state === 'started') setIsLoading(true);
+          } else if (eventName === 'tool') {
+            const name = payload?.name ? String(payload.name) : 'tool';
+            const count = typeof payload?.count === 'number' ? ` (${payload.count})` : '';
+            setToolStatus(`${name}${count}`);
+          } else if (eventName === 'error') {
+            if (payload?.message) setError(new Error(String(payload.message)));
+          } else if (eventName === 'result' && payload?.text) {
+            const full = String(payload.text);
+            flushAssistant(full);
+            lastAssistantText = full;
+            if (Array.isArray(payload.edits)) handleEdits(payload.edits);
+            else maybeEmitDiffSuggestions(full);
+          } else if (eventName === 'done') {
+            if (payload?.text && typeof payload.text === 'string') {
+              flushAssistant(payload.text);
+              lastAssistantText = payload.text;
+            }
+            if (Array.isArray(payload?.edits) && payload.edits.length > 0) {
+              handleEdits(payload.edits);
+            } else if (lastAssistantText) {
+              // Fallback: parse latex-diff in final assistant text
+              const suggs = parseEditSuggestions(lastAssistantText);
+              if (suggs.length > 0) onEditSuggestion(suggs);
+              else maybeEmitDiffSuggestions(lastAssistantText);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Octra Agent API error:', err);
+      // Swallow AbortErrors gracefully
+      if ((err as any)?.name !== 'AbortError') setError(err);
+    } finally {
+      setIsLoading(false);
+      setInput('');
+      setToolStatus(null);
+      if (rafIdRef.current != null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingTextRef.current = '';
+      try {
+        abortControllerRef.current = null;
+      } catch {}
+    }
+  };
 
   // Log any errors
   useEffect(() => {
@@ -197,8 +403,21 @@ export function Chat({
   }, [textFromEditor]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (shouldStickToBottomRef.current) scrollToBottom();
   }, [messages, isLoading]);
+
+  // Track whether user is near the bottom to decide auto-scroll behavior
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const { scrollTop, clientHeight, scrollHeight } = el;
+      shouldStickToBottomRef.current = scrollTop + clientHeight >= scrollHeight - 80;
+    };
+    el.addEventListener('scroll', onScroll);
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -263,7 +482,14 @@ export function Chat({
           </div>
           <div>
             <h3 className="font-semibold text-blue-800">Octra</h3>
-            <p className="text-xs text-slate-500">LaTeX Assistant</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-500">LaTeX Assistant</p>
+              {toolStatus && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {toolStatus}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
@@ -342,7 +568,7 @@ export function Chat({
                   <div className="mb-1 text-sm font-semibold text-blue-800">
                     {message.role === 'assistant' ? 'Octra' : 'You'}
                   </div>
-                  <div className="min-w-0 overflow-hidden text-sm text-slate-800">
+                  <div className="min-w-0 overflow-hidden text-sm text-slate-800 whitespace-pre-wrap break-words">
                     {renderMessageContent(message.content)}
                   </div>
                 </div>
@@ -371,7 +597,7 @@ export function Chat({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  handleSubmit(e);
+                  void handleSubmit(e);
                   setTextFromEditor(null);
                 }}
                 className="relative flex w-full flex-col items-end rounded-md border p-1"
@@ -385,12 +611,24 @@ export function Chat({
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       const formEvent = new Event('submit', { bubbles: true, cancelable: true });
-                      handleSubmit(formEvent as unknown as React.FormEvent<HTMLFormElement>);
+                      void handleSubmit(formEvent as unknown as React.FormEvent<HTMLFormElement>);
                       setTextFromEditor(null);
                     }
                   }}
                   className="scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent relative h-[70px] resize-none border-none px-1 shadow-none focus-visible:ring-0"
                 />
+                {isLoading && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    onClick={() => abortControllerRef.current?.abort()}
+                    className="mr-2 size-6 rounded-full"
+                    aria-label="Stop streaming"
+                  >
+                    <StopCircle className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   size="icon"
