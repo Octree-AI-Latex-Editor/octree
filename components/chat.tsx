@@ -583,7 +583,11 @@ export function Chat({
                     {message.role === 'assistant' ? 'Octra' : 'You'}
                   </div>
                   <div className="min-w-0 overflow-hidden text-sm text-slate-800 whitespace-pre-wrap break-words">
-                    {renderMessageContent(message.content)}
+                    {message.role === 'assistant' && !message.content && isLoading ? (
+                      <span className="italic text-slate-500">thinking...</span>
+                    ) : (
+                      renderMessageContent(message.content)
+                    )}
                   </div>
                 </div>
               ))}
