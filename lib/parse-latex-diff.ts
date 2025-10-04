@@ -63,10 +63,14 @@ export function parseLatexDiff(content: string): EditSuggestion[] {
     if (originalContent || suggestedContent) {
       suggestions.push({
         id: uuidv4(),
+        editType: 'replace' as const,
+        content: suggestedContent,
+        position: {
+          line: correctedStartLine,
+        },
+        explanation: undefined,
+        metadata: undefined,
         original: originalContent,
-        suggested: suggestedContent,
-        startLine: correctedStartLine,
-        originalLineCount: actualOriginalLineCount,
         status: 'pending',
       });
     }
