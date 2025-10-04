@@ -356,16 +356,21 @@ export function Chat({
             if (payload?.state === 'started') setIsLoading(true);
           } else if (eventName === 'tool') {
             const name = payload?.name ? String(payload.name) : 'tool';
-            const count = typeof payload?.count === 'number' ? ` (${payload.count} edits)` : '';
+            const count = typeof payload?.count === 'number' ? payload.count : 0;
             const violations = payload?.violations ? ` - ${payload.violations.length} blocked` : '';
             
-            // Add tool usage message to chat instead of top status
-            const toolMessage: ChatMessage = {
-              id: `tool-${Date.now()}`,
-              role: 'assistant',
-              content: `🔧 ${name}${count}${violations}`
-            };
-            setMessages((prev) => [...prev, toolMessage]);
+            // Append tool usage to assistant message
+            const toolText = name === 'propose_edits' 
+              ? `\n\n✨ Proposed ${count} edit${count !== 1 ? 's' : ''}${violations}`
+              : `\n\n🔧 Used ${name}`;
+            
+            setMessages((prev) =>
+              prev.map((m) => 
+                m.id === assistantId 
+                  ? { ...m, content: (m.content || '') + toolText }
+                  : m
+              )
+            );
           } else if (eventName === 'error') {
             if (payload?.message) setError(new Error(String(payload.message)));
           } else if (eventName === 'result' && payload?.text) {
