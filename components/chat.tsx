@@ -4,11 +4,19 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, X, Maximize2, Minimize2, ArrowUp, StopCircle } from 'lucide-react';
+import {
+  Loader2,
+  X,
+  Maximize2,
+  Minimize2,
+  ArrowUp,
+  StopCircle,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EditSuggestion, isLegacyEditSuggestion } from '@/types/edit';
+import { EditSuggestion } from '@/types/edit';
 import { ASTEdit } from '@/lib/octra-agent/ast-edits';
 import { cn } from '@/lib/utils';
 import { parseLatexDiff } from '@/lib/parse-latex-diff';
@@ -68,6 +76,17 @@ export function Chat({
   const [error, setError] = useState<unknown>(null);
   const dispatchedForMessageRef = useRef<Set<string>>(new Set());
   const processedEditsRef = useRef<Set<string>>(new Set());
+
+  type ProposalState = 'pending' | 'success' | 'error';
+  interface ProposalIndicator {
+    state: ProposalState;
+    count?: number;
+    violations?: number;
+  }
+
+  const [proposalIndicators, setProposalIndicators] = useState<
+    Record<string, ProposalIndicator>
+  >({});
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -212,6 +231,7 @@ export function Chat({
     
     // Clear processed edits for new request
     processedEditsRef.current.clear();
+    setProposalIndicators({});
 
     setIsLoading(true);
     setError(null);
@@ -299,7 +319,16 @@ export function Chat({
             original: originalContent,
           };
         });
-        if (mapped.length > 0) onEditSuggestion(mapped);
+        if (mapped.length > 0) {
+          onEditSuggestion(mapped);
+          setProposalIndicators((prev) => ({
+            ...prev,
+            [assistantId]: {
+              state: 'success',
+              count: (prev[assistantId]?.count ?? 0) + mapped.length,
+            },
+          }));
+        }
       };
 
       const maybeEmitDiffSuggestions = (text: string) => {
@@ -375,19 +404,26 @@ export function Chat({
             const violations = payload?.violations ? ` - ${payload.violations.length} blocked` : '';
             
             // Append tool usage to assistant message
-            const toolText = name === 'propose_edits' 
-              ? `\n\n✨ Proposed ${count} edit${count !== 1 ? 's' : ''}${violations}`
-              : `\n\n🔧 Used ${name}`;
-            
-            setMessages((prev) =>
-              prev.map((m) => 
-                m.id === assistantId 
-                  ? { ...m, content: (m.content || '') + toolText }
-                  : m
-              )
-            );
+        if (name === 'propose_edits') {
+          setProposalIndicators((prev) => ({
+            ...prev,
+            [assistantId]: {
+              state: 'pending',
+              count,
+              violations: Array.isArray(payload?.violations)
+                ? payload.violations.length
+                : undefined,
+            },
+          }));
+        }
           } else if (eventName === 'error') {
             if (payload?.message) setError(new Error(String(payload.message)));
+            setProposalIndicators((prev) => ({
+              ...prev,
+              [assistantId]: {
+                state: 'error',
+              },
+            }));
           } else if (eventName === 'result' && payload?.text) {
             const full = String(payload.text);
             flushAssistant(full);
@@ -404,8 +440,18 @@ export function Chat({
             } else if (lastAssistantText) {
               // Fallback: parse latex-diff in final assistant text
               const suggs = parseEditSuggestions(lastAssistantText);
-              if (suggs.length > 0) onEditSuggestion(suggs);
-              else maybeEmitDiffSuggestions(lastAssistantText);
+              if (suggs.length > 0) {
+                onEditSuggestion(suggs);
+                setProposalIndicators((prev) => ({
+                  ...prev,
+                  [assistantId]: {
+                    state: 'success',
+                    count: (prev[assistantId]?.count ?? 0) + suggs.length,
+                  },
+                }));
+              } else {
+                maybeEmitDiffSuggestions(lastAssistantText);
+              }
             }
           }
         }
@@ -522,7 +568,7 @@ export function Chat({
           <div>
             <h3 className="font-semibold text-blue-800">Octra</h3>
             <div className="flex items-center gap-2">
-              <p className="text-xs text-slate-500">LaTeX Assistant</p>
+            <p className="text-xs text-slate-500">LaTeX Assistant</p>
             </div>
           </div>
         </div>
@@ -593,16 +639,47 @@ export function Chat({
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`mb-4 min-w-0 break-words ${
+                  className={cn(
+                    'mb-4 min-w-0 break-words rounded-lg border shadow-xs',
                     message.role === 'assistant'
-                      ? 'rounded-lg border border-slate-200 bg-gradient-to-br from-blue-50 to-blue-50/50 p-3 shadow-xs'
-                      : 'rounded-lg border border-slate-200 bg-white p-3 shadow-xs'
-                  }`}
+                      ? 'border-slate-200 bg-gradient-to-br from-blue-50 to-blue-50/50 p-3'
+                      : 'border-slate-200 bg-white p-3'
+                  )}
                 >
                   <div className="mb-1 text-sm font-semibold text-blue-800">
                     {message.role === 'assistant' ? 'Octra' : 'You'}
                   </div>
-                  <div className="min-w-0 overflow-hidden text-sm text-slate-800 whitespace-pre-wrap break-words">
+                  {message.role === 'assistant' && proposalIndicators[message.id] && (
+                    <div className="mb-2 flex items-center gap-2 text-xs">
+                      {proposalIndicators[message.id].state === 'pending' && (
+                        <>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-2 py-1 text-blue-700">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Proposing edits{typeof proposalIndicators[message.id].count === 'number' && ` (${proposalIndicators[message.id].count})`}
+                          </span>
+                          {proposalIndicators[message.id].violations ? (
+                            <span className="inline-flex items-center gap-1 text-[0.7rem] text-amber-600">
+                              <AlertCircle className="h-3 w-3" />
+                              {proposalIndicators[message.id].violations} blocked
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                      {proposalIndicators[message.id].state === 'success' && (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Proposed {proposalIndicators[message.id].count ?? 0} edit{proposalIndicators[message.id].count !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {proposalIndicators[message.id].state === 'error' && (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-rose-100 px-2 py-1 text-rose-700">
+                          <AlertCircle className="h-3 w-3" />
+                          Failed to propose edits
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <div className="min-w-0 overflow-hidden whitespace-pre-wrap break-words text-sm text-slate-800">
                     {message.role === 'assistant' && !message.content && isLoading ? (
                       <span className="italic text-slate-500">thinking...</span>
                     ) : (

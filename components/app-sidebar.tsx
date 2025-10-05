@@ -7,6 +7,7 @@ import {
   DonutIcon as DocumentIcon,
   FolderOpen,
   MoreHorizontal,
+  X,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -20,6 +21,7 @@ import {
   SidebarMenuSubButton,
   SidebarFooter,
   SidebarHeader,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import {
   Collapsible,
@@ -73,6 +75,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isProjectOpen, setIsProjectOpen] = useState(true);
   const { refreshTrigger } = useProjectRefresh();
+  const { toggleSidebar } = useSidebar();
 
   const pathname = usePathname();
 
@@ -152,10 +155,19 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
   };
 
   return (
-    <Sidebar className="border-r border-gray-200">
+    <Sidebar collapsible="offcanvas">
+      <SidebarHeader className="flex-row items-center justify-between border-b border-gray-200">
+        <p className="px-3 text-sm font-medium">Files</p>
+        <button
+          onClick={toggleSidebar}
+          className="rounded-md p-1.5 hover:bg-gray-100 transition-colors"
+          aria-label="Close sidebar"
+        >
+          <X className="h-4 w-4 text-gray-500" />
+        </button>
+      </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarGroup>
-          <p className="px-3 pb-1 text-sm font-medium">Files</p>
           <SidebarGroupContent>
             <SidebarMenu>
               {isLoading ? (
