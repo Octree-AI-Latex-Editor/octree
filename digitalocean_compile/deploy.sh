@@ -22,6 +22,7 @@ SERVER_USER="root"
 SERVER_DIR="/opt/latex-service"
 SERVICE_NAME="latex-compile"
 PORT=3001
+HISTORY_DIR="/var/log/latex-service/history"
 
 # Colors for output
 RED='\033[0;31m'
@@ -209,6 +210,8 @@ After=network.target
 [Service]
 Type=simple
 User=root
+Environment=PORT=$PORT
+Environment=HISTORY_DIR=$HISTORY_DIR
 WorkingDirectory=$SERVER_DIR
 ExecStart=/usr/bin/node $SERVER_DIR/server.js
 Restart=always
@@ -410,6 +413,6 @@ case "${1:-help}" in
         echo "  $0 analyze    # First, analyze the current setup"
         echo "  $0 deploy     # Then, deploy the service"
         echo "  $0 test       # Finally, test that it works"
-        exit 1
+    exit 1
         ;;
 esac 

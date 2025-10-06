@@ -74,16 +74,19 @@ export async function POST(request: Request) {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Remote server error response:', errorText);
-          
-          // Try to parse error response as JSON
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { error: errorText };
-          }
+        const errorText = await response.text();
+        console.error('Remote server error response:', errorText);
+        
+        // Try to parse error response as JSON
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
+        }
+        const requestId = response.headers.get('x-compile-request-id') || errorData.requestId || null;
+        const durationMs = response.headers.get('x-compile-duration-ms');
+        const queueMs = response.headers.get('x-compile-queue-ms');
           
           return NextResponse.json(
             {
@@ -93,11 +96,19 @@ export async function POST(request: Request) {
               stdout: errorData.stdout,
               stderr: errorData.stderr,
               code: errorData.code,
+            requestId,
+            queueMs: queueMs ? Number(queueMs) : errorData.queueMs,
+            durationMs: durationMs ? Number(durationMs) : errorData.durationMs,
               suggestion: 'Check your LaTeX syntax and try again'
             },
             { status: response.status }
           );
         }
+
+        const requestId = response.headers.get('x-compile-request-id') || null;
+        const durationMs = response.headers.get('x-compile-duration-ms');
+        const queueMs = response.headers.get('x-compile-queue-ms');
+        const sha256 = response.headers.get('x-compile-sha256');
 
         const pdfArrayBuffer = await response.arrayBuffer();
 
@@ -130,6 +141,10 @@ export async function POST(request: Request) {
             firstBytesHex: firstBytes,
             contentLength: pdfArrayBuffer.byteLength,
             base64Length: base64PDF.length,
+            requestId,
+            durationMs: durationMs ? Number(durationMs) : null,
+            queueMs: queueMs ? Number(queueMs) : null,
+            sha256,
           },
         });
       } catch (error) {
@@ -183,6 +198,9 @@ export async function POST(request: Request) {
         } catch {
           errorData = { error: errorText };
         }
+        const requestId = response.headers.get('x-compile-request-id') || errorData.requestId || null;
+        const durationMs = response.headers.get('x-compile-duration-ms');
+        const queueMs = response.headers.get('x-compile-queue-ms');
         
         return NextResponse.json(
           {
@@ -191,6 +209,9 @@ export async function POST(request: Request) {
             log: errorData.log,
             stdout: errorData.stdout,
             stderr: errorData.stderr,
+            requestId,
+            queueMs: queueMs ? Number(queueMs) : errorData.queueMs,
+            durationMs: durationMs ? Number(durationMs) : errorData.durationMs,
             suggestion: 'Check your LaTeX syntax and try again'
           },
           { status: response.status }
@@ -216,15 +237,24 @@ export async function POST(request: Request) {
         method: 'remote-development'
       });
 
-      return NextResponse.json({
-        pdf: base64PDF,
-        size: pdfBuffer.length,
-        mimeType: 'application/pdf',
-        debugInfo: {
+        const requestId = response.headers.get('x-compile-request-id') || null;
+        const durationMs = response.headers.get('x-compile-duration-ms');
+        const queueMs = response.headers.get('x-compile-queue-ms');
+        const sha256 = response.headers.get('x-compile-sha256');
+
+        return NextResponse.json({
+          pdf: base64PDF,
+          size: pdfBuffer.length,
+          mimeType: 'application/pdf',
+          debugInfo: {
             method: 'remote-development',
-          contentLength: pdfArrayBuffer.byteLength,
-        },
-      });
+            contentLength: pdfArrayBuffer.byteLength,
+            requestId,
+            durationMs: durationMs ? Number(durationMs) : null,
+            queueMs: queueMs ? Number(queueMs) : null,
+            sha256,
+          },
+        });
     } catch (remoteError) {
       console.error('Remote compilation failed:', remoteError);
       

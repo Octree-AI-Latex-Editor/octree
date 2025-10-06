@@ -12,6 +12,10 @@ interface CompilationErrorProps {
     stdout?: string;
     stderr?: string;
     code?: number;
+    requestId?: string | null;
+    queueMs?: number | null;
+    durationMs?: number | null;
+    summary?: string;
   };
   onRetry?: () => void;
   onDismiss?: () => void;
@@ -51,14 +55,34 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
             {error.details && (
               <p className="text-red-600 text-sm">{error.details}</p>
             )}
+            {error.summary && (
+              <p className="text-red-600 text-xs whitespace-pre-wrap bg-red-100/60 border border-red-200 rounded p-2">
+                {error.summary}
+              </p>
+            )}
           </div>
 
           {/* Error Code */}
           {error.code !== undefined && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant="destructive" className="text-xs">
                 Exit Code: {error.code}
               </Badge>
+              {typeof error.queueMs === 'number' && (
+                <Badge variant="secondary" className="text-xs text-red-700">
+                  Queue: {error.queueMs}ms
+                </Badge>
+              )}
+              {typeof error.durationMs === 'number' && (
+                <Badge variant="outline" className="text-xs border-red-300 text-red-700">
+                  Duration: {error.durationMs}ms
+                </Badge>
+              )}
+              {error.requestId && (
+                <Badge variant="outline" className="text-xs border-red-300 text-red-700">
+                  Request: {error.requestId}
+                </Badge>
+              )}
             </div>
           )}
 
@@ -128,6 +152,10 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
                 const errorText = [
                   `Error: ${error.message}`,
                   error.details && `Details: ${error.details}`,
+                  error.requestId && `Request ID: ${error.requestId}`,
+                  typeof error.queueMs === 'number' && `Queue: ${error.queueMs}ms`,
+                  typeof error.durationMs === 'number' && `Duration: ${error.durationMs}ms`,
+                  error.summary && `Summary:\n${error.summary}`,
                   error.log && `Log:\n${error.log}`,
                   error.stdout && `Output:\n${error.stdout}`,
                   error.stderr && `Errors:\n${error.stderr}`

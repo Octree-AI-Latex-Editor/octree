@@ -11,6 +11,10 @@ export interface CompilationError {
   stdout?: string;
   stderr?: string;
   code?: number;
+  requestId?: string | null;
+  queueMs?: number | null;
+  durationMs?: number | null;
+  summary?: string;
 }
 
 export interface CompilationState {
@@ -32,6 +36,13 @@ interface UseEditorCompilationProps {
   fileName?: string;
 }
 
+function summarizeLog(log?: string) {
+  if (!log) return undefined;
+  const lines = log.split('\n').filter((line) => line.trim().length > 0);
+  const lastLines = lines.slice(-5);
+  return lastLines.join('\n');
+}
+
 export function useEditorCompilation({
   content,
   saveDocument,
@@ -40,15 +51,16 @@ export function useEditorCompilation({
 }: UseEditorCompilationProps): CompilationState {
   const [compiling, setCompiling] = useState(false);
   const [pdfData, setPdfData] = useState<string | null>(null);
-  const [compilationError, setCompilationError] =
-    useState<CompilationError | null>(null);
+  const [compilationError, setCompilationError] = useState<CompilationError | null>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
 
   const handleCompile = useCallback(async () => {
     if (compiling) return;
 
     setCompiling(true);
+    setCompilationError(null);
 
+    let handled = false;
     try {
       // Get the current content from the editor
       const currentContent = editorRef.current?.getValue() || content;
@@ -65,14 +77,32 @@ export function useEditorCompilation({
         body: JSON.stringify({ content: currentContent }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || `Compilation failed with status ${response.status}`
-        );
+      const raw = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(raw);
+      } catch (parseError) {
+        throw new Error('Unexpected response from compilation service');
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = data?.error || `Compilation failed with status ${response.status}`;
+        const structuredError = {
+          message: errorMessage,
+          details: data?.details,
+          log: data?.log,
+          stdout: data?.stdout,
+          stderr: data?.stderr,
+          code: data?.code,
+          requestId: data?.requestId,
+          queueMs: data?.queueMs,
+          durationMs: data?.durationMs,
+          summary: summarizeLog(data?.log || data?.stderr || data?.stdout),
+        };
+        setCompilationError(structuredError);
+        handled = true;
+        throw new Error(errorMessage);
+      }
 
       if (data.pdf) {
         console.log('PDF generated successfully, size:', data.size);
@@ -85,12 +115,14 @@ export function useEditorCompilation({
       console.error('Compilation error:', error);
 
       // Set compilation error for display
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown compilation error';
-      setCompilationError({
-        message: errorMessage,
-        details: error instanceof Error ? error.stack : undefined,
-      });
+      if (!handled) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown compilation error';
+        setCompilationError({
+          message: errorMessage,
+          details: error instanceof Error ? error.stack : undefined,
+        });
+      }
     } finally {
       setCompiling(false);
     }
@@ -108,15 +140,18 @@ export function useEditorCompilation({
         body: JSON.stringify({ content: currentContent }),
       });
 
-      if (!response.ok) throw new Error('PDF compilation failed');
-
       const rawText = await response.text();
-      let data;
+      let data: any;
       try {
         data = JSON.parse(rawText);
       } catch (e) {
         console.error('Failed to parse JSON:', e);
         throw new Error('Failed to parse server response');
+      }
+
+      if (!response.ok) {
+        const errorMessage = data?.error || 'PDF compilation failed';
+        throw new Error(errorMessage);
       }
 
       if (data.pdf) {
