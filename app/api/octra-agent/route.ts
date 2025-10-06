@@ -23,6 +23,8 @@ export async function POST(request: Request) {
     const remoteUrl = process.env.CLAUDE_AGENT_SERVICE_URL;
     if (remoteUrl) {
       const body = await request.json();
+      console.log('[Octra Proxy] Forwarding request to remote Claude Code server:', remoteUrl);
+      
       const res = await fetch(remoteUrl, {
         method: 'POST',
         headers: {
@@ -31,14 +33,69 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify(body),
       });
+      
       if (!res.ok || !res.body) {
+        console.error('[Octra Proxy] Remote server failed:', res.status, res.statusText);
         return NextResponse.json(
           { error: 'Remote agent service failed', status: res.status },
           { status: 502 }
         );
       }
-      // Pass-through SSE stream
-      return new Response(res.body, { headers: createSSEHeaders() });
+      
+      console.log('[Octra Proxy] Streaming response from remote server...');
+      
+      // Create a transform stream to log events as they pass through
+      const { readable, writable } = new TransformStream();
+      const reader = res.body.getReader();
+      const writer = writable.getWriter();
+      const decoder = new TextDecoder();
+      
+      // Stream and log events
+      (async () => {
+        try {
+          let buffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            // Pass through immediately
+            writer.write(value);
+            
+            // Log events for debugging
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
+            
+            // Parse complete events (separated by \n\n)
+            let sepIndex;
+            while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+              const event = buffer.slice(0, sepIndex);
+              buffer = buffer.slice(sepIndex + 2);
+              
+              // Log the event type
+              const eventMatch = event.match(/event:\s*(\S+)/);
+              const dataMatch = event.match(/data:\s*([\s\S]+)/);
+              if (eventMatch) {
+                const eventType = eventMatch[1];
+                console.log(`[Octra Proxy] Event received: ${eventType}`);
+                
+                // Log tool events in detail
+                if (eventType === 'tool' && dataMatch) {
+                  try {
+                    const data = JSON.parse(dataMatch[1]);
+                    console.log(`[Octra Proxy] Tool called: ${data.name}, count: ${data.count || 0}`);
+                  } catch {}
+                }
+              }
+            }
+          }
+          writer.close();
+        } catch (err) {
+          console.error('[Octra Proxy] Stream error:', err);
+          writer.abort(err);
+        }
+      })();
+      
+      return new Response(readable, { headers: createSSEHeaders() });
     }
 
     // Validate API keys

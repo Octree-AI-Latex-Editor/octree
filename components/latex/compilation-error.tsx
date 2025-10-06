@@ -19,20 +19,23 @@ interface CompilationErrorProps {
   };
   onRetry?: () => void;
   onDismiss?: () => void;
+  onFixWithAI?: () => void;
 }
 
-export function CompilationError({ error, onRetry, onDismiss }: CompilationErrorProps) {
+export function CompilationError({ error, onRetry, onDismiss, onFixWithAI }: CompilationErrorProps) {
   const [showDetails, setShowDetails] = React.useState(false);
 
   return (
     <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-4xl px-4">
-      <Card className="border-red-200 bg-red-50 shadow-lg">
-        <CardHeader className="pb-3">
+      <Card className="border-red-500/20 bg-white shadow-2xl backdrop-blur-sm">
+        <CardHeader className="border-b border-red-500/10 pb-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <CardTitle className="text-red-800 text-lg">
-                LaTeX Compilation Failed
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500">
+                <AlertCircle className="h-5 w-5 text-white" />
+              </div>
+              <CardTitle className="text-slate-900 text-lg font-semibold">
+                Compilation Failed
               </CardTitle>
             </div>
             {onDismiss && (
@@ -40,7 +43,7 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
                 variant="ghost"
                 size="sm"
                 onClick={onDismiss}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-100"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -48,39 +51,41 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6 pt-6">
           {/* Main Error Message */}
-          <div className="space-y-2">
-            <p className="text-red-700 font-medium">{error.message}</p>
+          <div className="space-y-3">
+            <p className="text-slate-900 font-medium leading-relaxed">{error.message}</p>
             {error.details && (
-              <p className="text-red-600 text-sm">{error.details}</p>
+              <p className="text-slate-600 text-sm leading-relaxed">{error.details}</p>
             )}
             {error.summary && (
-              <p className="text-red-600 text-xs whitespace-pre-wrap bg-red-100/60 border border-red-200 rounded p-2">
-                {error.summary}
-              </p>
+              <div className="bg-slate-50 border-l-2 border-red-500 rounded-r p-4">
+                <pre className="text-slate-700 text-xs leading-relaxed whitespace-pre-wrap font-mono">
+                  {error.summary}
+                </pre>
+              </div>
             )}
           </div>
 
-          {/* Error Code */}
+          {/* Error Metadata */}
           {error.code !== undefined && (
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="destructive" className="text-xs">
-                Exit Code: {error.code}
+              <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-xs font-mono">
+                Exit: {error.code}
               </Badge>
               {typeof error.queueMs === 'number' && (
-                <Badge variant="secondary" className="text-xs text-red-700">
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-xs font-mono">
                   Queue: {error.queueMs}ms
                 </Badge>
               )}
               {typeof error.durationMs === 'number' && (
-                <Badge variant="outline" className="text-xs border-red-300 text-red-700">
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-xs font-mono">
                   Duration: {error.durationMs}ms
                 </Badge>
               )}
               {error.requestId && (
-                <Badge variant="outline" className="text-xs border-red-300 text-red-700">
-                  Request: {error.requestId}
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-xs font-mono truncate max-w-[200px]">
+                  {error.requestId}
                 </Badge>
               )}
             </div>
@@ -89,24 +94,24 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
           {/* Toggle Details Button */}
           {(error.log || error.stdout || error.stderr) && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => setShowDetails(!showDetails)}
-              className="text-red-700 border-red-300 hover:bg-red-100"
+              className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 -ml-2"
             >
               <FileText className="h-4 w-4 mr-2" />
-              {showDetails ? 'Hide' : 'Show'} Details
+              {showDetails ? 'Hide' : 'Show'} Technical Details
             </Button>
           )}
 
           {/* Detailed Error Information */}
           {showDetails && (
-            <div className="space-y-3">
+            <div className="space-y-4 border-t border-slate-100 pt-4">
               {/* LaTeX Log */}
               {error.log && (
-                <div>
-                  <h4 className="font-medium text-red-800 mb-2">LaTeX Log:</h4>
-                  <pre className="bg-red-100 border border-red-200 rounded p-3 text-xs overflow-x-auto max-h-40">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">LaTeX Log</h4>
+                  <pre className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto max-h-40 font-mono leading-relaxed">
                     {error.log}
                   </pre>
                 </div>
@@ -114,9 +119,9 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
 
               {/* Standard Output */}
               {error.stdout && (
-                <div>
-                  <h4 className="font-medium text-red-800 mb-2">Output:</h4>
-                  <pre className="bg-red-100 border border-red-200 rounded p-3 text-xs overflow-x-auto max-h-40">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">Output</h4>
+                  <pre className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto max-h-40 font-mono leading-relaxed">
                     {error.stdout}
                   </pre>
                 </div>
@@ -124,9 +129,9 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
 
               {/* Standard Error */}
               {error.stderr && (
-                <div>
-                  <h4 className="font-medium text-red-800 mb-2">Errors:</h4>
-                  <pre className="bg-red-100 border border-red-200 rounded p-3 text-xs overflow-x-auto max-h-40">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-slate-900 uppercase tracking-wide">Error Stream</h4>
+                  <pre className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto max-h-40 font-mono leading-relaxed">
                     {error.stderr}
                   </pre>
                 </div>
@@ -135,11 +140,21 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-3 pt-4 border-t border-slate-100">
+            {onFixWithAI && (
+              <Button
+                onClick={onFixWithAI}
+                className="bg-red-500 hover:bg-red-600 text-white shadow-sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Fix with AI
+              </Button>
+            )}
             {onRetry && (
               <Button
                 onClick={onRetry}
-                className="bg-red-600 hover:bg-red-700 text-white"
+                variant="outline"
+                className="text-slate-700 border-slate-200 hover:bg-slate-50"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Try Again
@@ -163,21 +178,10 @@ export function CompilationError({ error, onRetry, onDismiss }: CompilationError
                 
                 navigator.clipboard.writeText(errorText);
               }}
-              className="text-red-700 border-red-300 hover:bg-red-100"
+              className="text-slate-700 border-slate-200 hover:bg-slate-50"
             >
-              Copy Error Details
+              Copy Details
             </Button>
-          </div>
-
-          {/* Common Solutions */}
-          <div className="bg-red-100 border border-red-200 rounded p-3">
-            <h4 className="font-medium text-red-800 mb-2">Common Solutions:</h4>
-            <ul className="text-sm text-red-700 space-y-1">
-              <li>• Check for missing packages or commands</li>
-              <li>• Verify LaTeX syntax (missing braces, incorrect commands)</li>
-              <li>• Ensure all required packages are included</li>
-              <li>• Check for special characters that need escaping</li>
-            </ul>
           </div>
         </CardContent>
       </Card>

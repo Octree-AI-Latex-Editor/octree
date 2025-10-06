@@ -214,6 +214,21 @@ export default function FileEditorPage() {
           error={compilationError}
           onRetry={handleCompile}
           onDismiss={() => setCompilationError(null)}
+          onFixWithAI={() => {
+            // Format error details for AI
+            const errorContext = [
+              `LaTeX Compilation Error:`,
+              `${compilationError.message}`,
+              compilationError.details && `\nDetails: ${compilationError.details}`,
+              compilationError.summary && `\nError Summary:\n${compilationError.summary}`,
+              compilationError.log && `\nLog (last lines):\n${compilationError.log.split('\n').slice(-20).join('\n')}`,
+            ].filter(Boolean).join('\n');
+            
+            setTextFromEditor(errorContext);
+            setChatOpen(true);
+            setChatMinimized(false);
+            setCompilationError(null);
+          }}
         />
       )}
     </div>

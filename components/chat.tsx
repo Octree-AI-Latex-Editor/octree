@@ -76,6 +76,7 @@ export function Chat({
   const [error, setError] = useState<unknown>(null);
   const dispatchedForMessageRef = useRef<Set<string>>(new Set());
   const processedEditsRef = useRef<Set<string>>(new Set());
+  const pendingTimestampRef = useRef<Record<string, number>>({});
 
   type ProposalState = 'pending' | 'success' | 'error';
   interface ProposalIndicator {
@@ -321,13 +322,37 @@ export function Chat({
         });
         if (mapped.length > 0) {
           onEditSuggestion(mapped);
-          setProposalIndicators((prev) => ({
-            ...prev,
-            [assistantId]: {
-              state: 'success',
-              count: (prev[assistantId]?.count ?? 0) + mapped.length,
-            },
-          }));
+          
+          // Add a minimum display time for the pending state so users can see it
+          const minDisplayTime = 800; // ms
+          const pendingStartTime = pendingTimestampRef.current[assistantId];
+          
+          if (pendingStartTime) {
+            const elapsed = Date.now() - pendingStartTime;
+            const remainingTime = Math.max(0, minDisplayTime - elapsed);
+            
+            console.log(`[Chat] Pending elapsed: ${elapsed}ms, waiting ${remainingTime}ms more before showing success`);
+            
+            setTimeout(() => {
+              setProposalIndicators((prev) => ({
+                ...prev,
+                [assistantId]: {
+                  state: 'success',
+                  count: mapped.length,
+                },
+              }));
+              delete pendingTimestampRef.current[assistantId];
+            }, remainingTime);
+          } else {
+            // No pending state was shown, update immediately
+            setProposalIndicators((prev) => ({
+              ...prev,
+              [assistantId]: {
+                state: 'success',
+                count: mapped.length,
+              },
+            }));
+          }
         }
       };
 
@@ -394,6 +419,7 @@ export function Chat({
             lastAssistantText = full;
             // Defer suggestion surfacing to result/done for stable UX
           } else if (eventName === 'edits' && Array.isArray(payload)) {
+            console.log(`[Chat] Edits event received: ${payload.length} edits`);
             handleEdits(payload);
           } else if (eventName === 'status') {
             // started/finished
@@ -403,8 +429,12 @@ export function Chat({
             const count = typeof payload?.count === 'number' ? payload.count : 0;
             const violations = payload?.violations ? ` - ${payload.violations.length} blocked` : '';
             
+            console.log(`[Chat] Tool event received:`, { name, count, violations: payload?.violations });
+            
             // Append tool usage to assistant message
         if (name === 'propose_edits') {
+          console.log(`[Chat] Setting proposal indicator to pending, count: ${count}`);
+          pendingTimestampRef.current[assistantId] = Date.now();
           setProposalIndicators((prev) => ({
             ...prev,
             [assistantId]: {
@@ -431,16 +461,19 @@ export function Chat({
             if (Array.isArray(payload.edits)) handleEdits(payload.edits);
             else maybeEmitDiffSuggestions(full);
           } else if (eventName === 'done') {
+            console.log(`[Chat] Done event received, edits: ${Array.isArray(payload?.edits) ? payload.edits.length : 0}`);
             if (payload?.text && typeof payload.text === 'string') {
               flushAssistant(payload.text);
               lastAssistantText = payload.text;
             }
             if (Array.isArray(payload?.edits) && payload.edits.length > 0) {
+              console.log(`[Chat] Processing ${payload.edits.length} edits from done event`);
               handleEdits(payload.edits);
             } else if (lastAssistantText) {
               // Fallback: parse latex-diff in final assistant text
               const suggs = parseEditSuggestions(lastAssistantText);
               if (suggs.length > 0) {
+                console.log(`[Chat] Parsed ${suggs.length} suggestions from latex-diff`);
                 onEditSuggestion(suggs);
                 setProposalIndicators((prev) => ({
                   ...prev,
@@ -681,7 +714,16 @@ export function Chat({
                   )}
                   <div className="min-w-0 overflow-hidden whitespace-pre-wrap break-words text-sm text-slate-800">
                     {message.role === 'assistant' && !message.content && isLoading ? (
-                      <span className="italic text-slate-500">thinking...</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="animate-pulse text-sm italic text-slate-500">
+                          thinking
+                        </span>
+                        <div className="flex items-center space-x-0.5">
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]"></div>
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]"></div>
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-slate-400"></div>
+                        </div>
+                      </div>
                     ) : (
                       renderMessageContent(message.content)
                     )}
