@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
         
-        const response = await fetch('http://142.93.195.236:3001/compile', {
+        const response = await fetch(`${process.env.COMPILE_SERVICE_URL}/compile`, {
           method: 'POST',
           headers: {
             'Content-Type': 'text/plain',
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
       
-      const response = await fetch('http://142.93.195.236:3001/compile', {
+      const response = await fetch(`${process.env.COMPILE_SERVICE_URL}/compile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'text/plain',
