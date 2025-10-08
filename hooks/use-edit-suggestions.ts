@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { EditSuggestion, isLegacyEditSuggestion, LegacyEditSuggestion } from '@/types/edit';
+import { EditSuggestion } from '@/types/edit';
 import { parseLatexDiff } from '@/lib/parse-latex-diff';
 import type * as Monaco from 'monaco-editor';
 import { toast } from 'sonner';
@@ -25,20 +25,13 @@ interface UseEditSuggestionsProps {
 
 // ---------------------- Helpers (pure) ----------------------
 
-// Helper functions to extract legacy format data from AST edits
+// Helper functions to extract line-based edit data
 function getStartLine(suggestion: EditSuggestion): number {
-  if (isLegacyEditSuggestion(suggestion)) {
-    return suggestion.startLine;
-  }
   return suggestion.position?.line || 1;
 }
 
 function getOriginalLineCount(suggestion: EditSuggestion): number {
-  if (isLegacyEditSuggestion(suggestion)) {
-    return suggestion.originalLineCount;
-  }
-  
-  // For AST edits, use the originalLineCount field if provided
+  // Use the originalLineCount field if provided
   if (suggestion.originalLineCount !== undefined) {
     return suggestion.originalLineCount;
   }
@@ -61,9 +54,6 @@ function getOriginalLineCount(suggestion: EditSuggestion): number {
 }
 
 function getSuggestedText(suggestion: EditSuggestion): string {
-  if (isLegacyEditSuggestion(suggestion)) {
-    return suggestion.suggested;
-  }
   return suggestion.content || '';
 }
 
@@ -305,28 +295,14 @@ export function useEditSuggestions({
               sStart === acceptedStart &&
               deltaLines !== 0
             ) {
-              // For AST edits, we need to update the position
-              if (isLegacyEditSuggestion(s)) {
-                // Convert legacy to AST format for consistency
-                const astSuggestion: EditSuggestion = {
-                  id: s.id,
-                  editType: 'replace',
-                  content: s.suggested,
-                  position: { line: s.startLine + deltaLines },
-                  explanation: s.explanation,
-                  status: s.status,
-                  original: s.original,
-                };
-                adjusted.push(astSuggestion);
-              } else {
-                adjusted.push({ 
-                  ...s, 
-                  position: { 
-                    ...s.position, 
-                    line: (s.position?.line || 1) + deltaLines 
-                  } 
-                });
-              }
+              // Update the position to account for line shifts
+              adjusted.push({ 
+                ...s, 
+                position: { 
+                  ...s.position, 
+                  line: (s.position?.line || 1) + deltaLines 
+                } 
+              });
             }
             // Otherwise skip conflicting suggestion
             continue;
@@ -334,27 +310,13 @@ export function useEditSuggestions({
 
           // If suggestion is after the accepted region, shift by deltaLines
           if (sStart > acceptedEnd && deltaLines !== 0) {
-            if (isLegacyEditSuggestion(s)) {
-              // Convert legacy to AST format for consistency
-              const astSuggestion: EditSuggestion = {
-                id: s.id,
-                editType: 'replace',
-                content: s.suggested,
-                position: { line: s.startLine + deltaLines },
-                explanation: s.explanation,
-                status: s.status,
-                original: s.original,
-              };
-              adjusted.push(astSuggestion);
-            } else {
-              adjusted.push({
-                ...s,
-                position: { 
-                  ...s.position, 
-                  line: (s.position?.line || 1) + deltaLines 
-                },
-              });
-            }
+            adjusted.push({
+              ...s,
+              position: { 
+                ...s.position, 
+                line: (s.position?.line || 1) + deltaLines 
+              },
+            });
           } else {
             adjusted.push(s);
           }

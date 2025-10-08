@@ -17,7 +17,7 @@ import {
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EditSuggestion } from '@/types/edit';
-import { ASTEdit } from '@/lib/octra-agent/ast-edits';
+import { LineEdit } from '@/lib/octra-agent/line-edits';
 import { cn } from '@/lib/utils';
 import { parseLatexDiff } from '@/lib/parse-latex-diff';
 import { Textarea } from './ui/textarea';
@@ -289,7 +289,7 @@ export function Chat({
         if (shouldStickToBottomRef.current) scrollToBottom();
       };
 
-      const handleEdits = (edits: ASTEdit[]) => {
+      const handleEdits = (edits: LineEdit[]) => {
         // Create a unique key for this set of edits to prevent duplicates
         const editsKey = JSON.stringify(edits.map(e => ({ 
           type: e.editType, 

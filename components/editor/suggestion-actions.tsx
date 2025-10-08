@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { DiffViewer } from '@/components/ui/diff-viewer';
 import { Check, X } from 'lucide-react';
-import { EditSuggestion, isLegacyEditSuggestion } from '@/types/edit';
+import { EditSuggestion } from '@/types/edit';
 
 interface SuggestionActionsProps {
   suggestions: EditSuggestion[];
@@ -13,24 +13,14 @@ interface SuggestionActionsProps {
 
 // Helper functions to access edit properties
 function getStartLine(suggestion: EditSuggestion): number {
-  if (isLegacyEditSuggestion(suggestion)) {
-    return suggestion.startLine;
-  }
   return suggestion.position?.line || 1;
 }
 
 function getOriginalLineCount(suggestion: EditSuggestion): number {
-  if (isLegacyEditSuggestion(suggestion)) {
-    return suggestion.originalLineCount;
-  }
   return suggestion.originalLineCount || 1;
 }
 
 function getSuggestedText(suggestion: EditSuggestion): string {
-  if (isLegacyEditSuggestion(suggestion)) {
-    return suggestion.suggested;
-  }
-  
   // For delete operations, return empty string to show deletion
   if (suggestion.editType === 'delete') {
     return '';
@@ -62,7 +52,7 @@ export function SuggestionActions({
               Lines {getStartLine(suggestion)}
               {getOriginalLineCount(suggestion) > 1 &&
                 `-${getStartLine(suggestion) + getOriginalLineCount(suggestion) - 1}`}
-              {!isLegacyEditSuggestion(suggestion) && suggestion.editType === 'delete' && (
+              {suggestion.editType === 'delete' && (
                 <span className="ml-2 text-red-600 text-xs">(DELETE)</span>
               )}
             </div>

@@ -5,7 +5,7 @@
 
 import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { ASTEdit, validateASTEdits } from './ast-edits';
+import { LineEdit, validateLineEdits } from './line-edits';
 import { IntentResult } from './intent-inference';
 
 export interface ToolContext {
@@ -13,7 +13,7 @@ export interface ToolContext {
   numberedContent: string;
   textFromEditor?: string | null;
   selectionRange?: { startLineNumber: number; endLineNumber: number } | null;
-  collectedEdits: ASTEdit[];
+  collectedEdits: LineEdit[];
   intent: IntentResult;
   writeEvent: (event: string, data: unknown) => void;
 }
@@ -58,36 +58,31 @@ export function createGetContextTool(context: ToolContext) {
 }
 
 /**
- * Create the propose_edits tool for suggesting AST-based edits
+ * Create the propose_edits tool for suggesting line-based edits
  * @param context - Tool context with file data, intent, and event writer
  * @returns Configured tool instance
  */
 export function createProposeEditsTool(context: ToolContext) {
   return tool(
     'propose_edits',
-    'Propose JSON-structured AST-based edits to the LaTeX document. Use when ready to suggest concrete changes.',
+    'Propose JSON-structured line-based edits to the LaTeX document. Each edit specifies a line number and the operation to perform (insert, delete, or replace).',
     {
       edits: z
         .array(
           z.object({
-            editType: z.enum(['insert', 'delete', 'replace', 'reorder', 'nest', 'unnest', 'style']),
-            nodeType: z.string().optional(), // e.g., 'section', 'paragraph', 'item', 'text'
-            nodePath: z.string().optional(), // AST path to the node
-            content: z.string().optional(), // New content for the node
+            editType: z.enum(['insert', 'delete', 'replace']),
+            content: z.string().optional(), // New content (for insert/replace)
             position: z.object({
-              line: z.number().int().min(1).optional(),
-              column: z.number().int().min(1).optional(),
-              astPath: z.string().optional(),
-            }).optional(),
-            originalLineCount: z.number().int().min(0).optional(), // How many lines to affect
-            explanation: z.string().optional(),
-            metadata: z.record(z.any()).optional(), // Additional AST metadata
+              line: z.number().int().min(1), // Line number (1-indexed)
+            }),
+            originalLineCount: z.number().int().min(0).optional(), // How many lines to affect (for delete/replace)
+            explanation: z.string().optional(), // Human-readable explanation of the edit
           })
         )
         .min(1),
     },
     async (args) => {
-      const validation = validateASTEdits(args.edits, context.intent, context.fileContent);
+      const validation = validateLineEdits(args.edits, context.intent, context.fileContent);
       
       // Add accepted edits to the collection
       context.collectedEdits.push(...validation.acceptedEdits);

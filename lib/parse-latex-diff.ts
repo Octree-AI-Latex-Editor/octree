@@ -69,7 +69,6 @@ export function parseLatexDiff(content: string): EditSuggestion[] {
           line: correctedStartLine,
         },
         explanation: undefined,
-        metadata: undefined,
         original: originalContent,
         status: 'pending',
       });

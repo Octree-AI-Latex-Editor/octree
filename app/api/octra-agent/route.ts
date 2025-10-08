@@ -7,7 +7,7 @@ import {
   buildNumberedContent, 
   buildSystemPrompt,
   inferIntent,
-  ASTEdit,
+  LineEdit,
   createOctraTools,
   createSSEStream, 
   processStreamMessages, 
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     const intent = inferIntent(userText);
 
     // Collect AST-based edits
-    const collectedEdits: ASTEdit[] = [];
+    const collectedEdits: LineEdit[] = [];
 
     // Create SSE stream
     const { stream, writeEvent, cleanup } = createSSEStream();
