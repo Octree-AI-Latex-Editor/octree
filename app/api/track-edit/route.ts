@@ -4,10 +4,14 @@ import { hasUnlimitedEdits } from '@/lib/paywall';
 import type { TablesInsert, TablesUpdate, Tables } from '@/database.types';
 import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
-type UsageSlice = Pick<
-  Tables<'user_usage'>,
-  'edit_count' | 'monthly_edit_count' | 'monthly_reset_date' | 'is_pro' | 'subscription_status'
->;
+type UsageSlice = {
+  edit_count: number;
+  monthly_edit_count: number;
+  daily_reset_date: string | null;
+  monthly_reset_date: string | null;
+  is_pro: boolean;
+  subscription_status: string | null;
+};
 
 // GET handler to check edit limits without incrementing
 export async function GET() {
@@ -31,7 +35,7 @@ export async function GET() {
     // Fetch user usage data
     const usageRes = await supabase
       .from('user_usage' as const)
-      .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+      .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
     const usageData = usageRes.data as UsageSlice | null;
@@ -87,8 +91,30 @@ export async function GET() {
       );
     }
 
-    // Check if monthly reset is needed
-    if (usageData && usageData.monthly_reset_date) {
+    // Check if daily reset is needed for free users
+    if (usageData && !usageData.is_pro && usageData.daily_reset_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dailyResetDate = new Date(usageData.daily_reset_date + 'T00:00:00');
+      
+      if (today > dailyResetDate) {
+        // Reset daily count
+        await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .update({
+            edit_count: 0,
+            daily_reset_date: new Date().toISOString().split('T')[0],
+          })
+          .eq('user_id', user.id);
+        
+        usageData.edit_count = 0;
+      }
+    }
+
+    // Check if monthly reset is needed for pro users
+    if (usageData && usageData.is_pro && usageData.monthly_reset_date) {
       const resetDate = new Date(usageData.monthly_reset_date);
       const currentDate = new Date();
       
@@ -156,7 +182,7 @@ export async function POST() {
     // First, ensure user has a usage record
     const initialRes = await supabase
       .from('user_usage' as const)
-      .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+      .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
     let usageData = initialRes.data as UsageSlice | null;
@@ -180,7 +206,7 @@ export async function POST() {
         supabase.from('user_usage') as any
       )
         .insert(newUsagePayload)
-        .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+        .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
         .single();
       const newUsageData = newUsageRes.data as UsageSlice | null;
       const createError = newUsageRes.error;
@@ -295,7 +321,7 @@ export async function POST() {
     // Get updated usage info
     const updatedRes = await supabase
       .from('user_usage' as const)
-      .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+      .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
     // Cast via unknown to satisfy TS when nullable responses occur

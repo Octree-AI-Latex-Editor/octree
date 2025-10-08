@@ -149,9 +149,12 @@ export async function POST(request: Request) {
         const monthlyEditCount = usageData.monthly_edit_count || 0;
 
         // Check if daily reset is needed for free users
-        const today = new Date().toISOString().split('T')[0];
-        const dailyResetDate = usageData.daily_reset_date;
-        const needsDailyReset = !isPro && dailyResetDate && dailyResetDate < today;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalize to start of day
+        const dailyResetDate = usageData.daily_reset_date 
+          ? new Date(usageData.daily_reset_date + 'T00:00:00')
+          : null;
+        const needsDailyReset = !isPro && dailyResetDate && today > dailyResetDate;
 
         // Check limits
         const hasReachedLimit = isPro
