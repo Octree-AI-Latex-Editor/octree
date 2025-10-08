@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CreditCard, Lock, CheckCircle } from 'lucide-react';
+import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 interface PaywallDialogProps {
   isOpen: boolean;
@@ -42,18 +43,18 @@ export function PaywallDialog({
   };
 
   const features = [
-    '50 AI-powered edits per month',
+    `${PRO_MONTHLY_EDIT_LIMIT} AI-powered edits per month`,
     'Advanced LaTeX compilation',
     'Priority support',
     'Early access to new features',
     'Export to multiple formats',
   ];
 
-  const limitType = isMonthly ? 'Monthly' : 'Free Trial';
-  const maxEdits = isMonthly ? 50 : 5;
+  const limitType = isMonthly ? 'Monthly' : 'Daily';
+  const maxEdits = isMonthly ? PRO_MONTHLY_EDIT_LIMIT : FREE_DAILY_EDIT_LIMIT;
   const limitText = isMonthly
-    ? `You've used ${editCount} out of 50 monthly AI edits. Upgrade to Pro for unlimited access!`
-    : `You've used ${editCount} out of 5 free AI edits. Upgrade to Pro for unlimited access!`;
+    ? `You've used ${editCount} out of ${PRO_MONTHLY_EDIT_LIMIT} monthly AI edits. Upgrade to Pro for more!`
+    : `You've used ${editCount} out of ${FREE_DAILY_EDIT_LIMIT} daily AI edits. Upgrade to Pro for ${PRO_MONTHLY_EDIT_LIMIT} edits per month!`;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

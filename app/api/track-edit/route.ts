@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasUnlimitedEdits } from '@/lib/paywall';
 import type { TablesInsert, TablesUpdate, Tables } from '@/database.types';
+import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 type UsageSlice = Pick<
   Tables<'user_usage'>,
@@ -69,8 +70,8 @@ export async function GET() {
         canEdit: true,
         editCount: 0,
         monthlyEditCount: 0,
-        limit: hasUnlimitedUser ? null : 5,
-        monthlyLimit: hasUnlimitedUser ? null : 50,
+        limit: hasUnlimitedUser ? null : FREE_DAILY_EDIT_LIMIT,
+        monthlyLimit: hasUnlimitedUser ? null : PRO_MONTHLY_EDIT_LIMIT,
         isPro: hasUnlimitedUser,
         subscriptionStatus: hasUnlimitedUser ? 'unlimited' : 'inactive',
         monthlyResetDate: newUsageData?.monthly_reset_date ?? null,
@@ -111,14 +112,14 @@ export async function GET() {
     const editCount = usageData?.edit_count ?? 0;
     const monthlyEditCount = usageData?.monthly_edit_count ?? 0;
     const isPro = usageData?.is_pro || hasUnlimitedUser;
-    const canEdit = hasUnlimitedUser || (isPro ? monthlyEditCount < 50 : editCount < 5);
+    const canEdit = hasUnlimitedUser || (isPro ? monthlyEditCount < PRO_MONTHLY_EDIT_LIMIT : editCount < FREE_DAILY_EDIT_LIMIT);
 
     return NextResponse.json({
       canEdit,
       editCount,
       monthlyEditCount,
-      limit: hasUnlimitedUser || isPro ? null : 5,
-      monthlyLimit: isPro ? 50 : null,
+      limit: hasUnlimitedUser || isPro ? null : FREE_DAILY_EDIT_LIMIT,
+      monthlyLimit: isPro ? PRO_MONTHLY_EDIT_LIMIT : null,
       isPro,
       subscriptionStatus: usageData?.subscription_status ?? (hasUnlimitedUser ? 'unlimited' : 'inactive'),
       monthlyResetDate: usageData?.monthly_reset_date ?? null,
@@ -301,8 +302,8 @@ export async function POST() {
     const updatedUsageData = (updatedRes.data as unknown) as UsageSlice;
 
     const canEdit = data as boolean;
-    const remainingEdits = Math.max(0, 5 - updatedUsageData.edit_count);
-    const remainingMonthlyEdits = Math.max(0, 50 - updatedUsageData.monthly_edit_count);
+    const remainingEdits = Math.max(0, FREE_DAILY_EDIT_LIMIT - updatedUsageData.edit_count);
+    const remainingMonthlyEdits = Math.max(0, PRO_MONTHLY_EDIT_LIMIT - updatedUsageData.monthly_edit_count);
 
     return NextResponse.json({
       success: true,
@@ -314,7 +315,7 @@ export async function POST() {
       isPro: updatedUsageData.is_pro,
       subscriptionStatus: updatedUsageData.subscription_status,
       limitReached: !canEdit,
-      monthlyLimitReached: updatedUsageData.is_pro && updatedUsageData.monthly_edit_count >= 50,
+      monthlyLimitReached: updatedUsageData.is_pro && updatedUsageData.monthly_edit_count >= PRO_MONTHLY_EDIT_LIMIT,
       monthlyResetDate: updatedUsageData.monthly_reset_date,
       hasUnlimitedEdits: false
     });

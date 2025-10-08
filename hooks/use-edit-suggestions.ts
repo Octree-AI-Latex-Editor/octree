@@ -222,7 +222,7 @@ export function useEditSuggestions({
     // Fast check using cached status
     if (!canEdit) {
       toast.error(
-        'You have reached your free edit limit. Please upgrade to Pro for unlimited edits.'
+        'You have reached your edit limit. Please upgrade to Pro for 200 edits per month.'
       );
       return;
     }

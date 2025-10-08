@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
+import { createClient } from '@/lib/supabase/server';
+import { hasUnlimitedEdits } from '@/lib/paywall';
 
 // Import helper modules
 import { 
@@ -15,6 +17,7 @@ import {
   getExternalServerConfig, 
   createMCPServerConfig
 } from '@/lib/octra-agent';
+import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
@@ -105,6 +108,67 @@ export async function POST(request: Request) {
         { error: keyValidation.error },
         { status: 503 }
       );
+    }
+
+    // Check user authentication and edit limits (server-side security)
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in to use AI features.' },
+        { status: 401 }
+      );
+    }
+
+    // Check if user has unlimited edits (whitelisted)
+    const hasUnlimited = hasUnlimitedEdits(user.email);
+
+    // If not unlimited, check usage limits
+    if (!hasUnlimited) {
+      const usageRes = await supabase
+        .from('user_usage')
+        .select('edit_count, monthly_edit_count, is_pro, daily_reset_date, monthly_reset_date')
+        .eq('user_id', user.id)
+        .single();
+      
+      const usageData = usageRes.data as {
+        edit_count: number;
+        monthly_edit_count: number;
+        is_pro: boolean;
+        daily_reset_date: string | null;
+        monthly_reset_date: string | null;
+      } | null;
+
+      if (usageData) {
+        const isPro = usageData.is_pro;
+        const editCount = usageData.edit_count || 0;
+        const monthlyEditCount = usageData.monthly_edit_count || 0;
+
+        // Check if daily reset is needed for free users
+        const today = new Date().toISOString().split('T')[0];
+        const dailyResetDate = usageData.daily_reset_date;
+        const needsDailyReset = !isPro && dailyResetDate && dailyResetDate < today;
+
+        // Check limits
+        const hasReachedLimit = isPro
+          ? monthlyEditCount >= PRO_MONTHLY_EDIT_LIMIT
+          : (!needsDailyReset && editCount >= FREE_DAILY_EDIT_LIMIT);
+
+        if (hasReachedLimit) {
+          const limitMessage = isPro
+            ? `You've reached your monthly limit of ${PRO_MONTHLY_EDIT_LIMIT} edits. Your limit will reset on your billing date.`
+            : `You've reached your daily limit of ${FREE_DAILY_EDIT_LIMIT} edits. Upgrade to Pro for ${PRO_MONTHLY_EDIT_LIMIT} edits per month!`;
+
+          return NextResponse.json(
+            { error: limitMessage, limitReached: true },
+            { status: 429 }
+          );
+        }
+      }
     }
 
     // Parse request body
