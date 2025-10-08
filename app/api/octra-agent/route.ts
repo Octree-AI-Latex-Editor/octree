@@ -22,11 +22,79 @@ import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants'
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
-    // If a remote Agent Service URL is configured, proxy the request and stream SSE
+    // ====================================================================
+    // SECURITY: Check authentication and usage limits BEFORE proxying
+    // ====================================================================
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in to use AI features.' },
+        { status: 401 }
+      );
+    }
+
+    // Check if user has unlimited edits (whitelisted)
+    const hasUnlimited = hasUnlimitedEdits(user.email);
+
+    // If not unlimited, check usage limits
+    if (!hasUnlimited) {
+      const usageRes = await supabase
+        .from('user_usage')
+        .select('edit_count, monthly_edit_count, is_pro, daily_reset_date, monthly_reset_date')
+        .eq('user_id', user.id)
+        .single();
+      
+      const usageData = usageRes.data as {
+        edit_count: number;
+        monthly_edit_count: number;
+        is_pro: boolean;
+        daily_reset_date: string | null;
+        monthly_reset_date: string | null;
+      } | null;
+
+      if (usageData) {
+        const isPro = usageData.is_pro;
+        const editCount = usageData.edit_count || 0;
+        const monthlyEditCount = usageData.monthly_edit_count || 0;
+
+        // Check if daily reset is needed for free users
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dailyResetDate = usageData.daily_reset_date 
+          ? new Date(usageData.daily_reset_date + 'T00:00:00')
+          : null;
+        const needsDailyReset = !isPro && dailyResetDate && today > dailyResetDate;
+
+        // Check limits
+        const hasReachedLimit = isPro
+          ? monthlyEditCount >= PRO_MONTHLY_EDIT_LIMIT
+          : (!needsDailyReset && editCount >= FREE_DAILY_EDIT_LIMIT);
+
+        if (hasReachedLimit) {
+          const limitMessage = isPro
+            ? `You've reached your monthly limit of ${PRO_MONTHLY_EDIT_LIMIT} edits. Your limit will reset on your billing date.`
+            : `You've reached your daily limit of ${FREE_DAILY_EDIT_LIMIT} edits. Upgrade to Pro for ${PRO_MONTHLY_EDIT_LIMIT} edits per month!`;
+
+          return NextResponse.json(
+            { error: limitMessage, limitReached: true },
+            { status: 429 }
+          );
+        }
+      }
+    }
+
+    // ====================================================================
+    // If a remote Agent Service URL is configured, proxy the request
+    // ====================================================================
     const remoteUrl = process.env.CLAUDE_AGENT_SERVICE_URL;
     if (remoteUrl) {
       const body = await request.json();
-      console.log('[Octra Proxy] Forwarding request to remote Claude Code server:', remoteUrl);
+      console.log('[Octra Proxy] Forwarding authenticated request to remote Claude Code server:', remoteUrl);
       
       const res = await fetch(remoteUrl, {
         method: 'POST',
@@ -101,77 +169,15 @@ export async function POST(request: Request) {
       return new Response(readable, { headers: createSSEHeaders() });
     }
 
-    // Validate API keys
+    // ====================================================================
+    // In-process mode: Validate API keys and parse request body
+    // ====================================================================
     const keyValidation = validateApiKeys();
     if (!keyValidation.isValid) {
       return NextResponse.json(
         { error: keyValidation.error },
         { status: 503 }
       );
-    }
-
-    // Check user authentication and edit limits (server-side security)
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized. Please log in to use AI features.' },
-        { status: 401 }
-      );
-    }
-
-    // Check if user has unlimited edits (whitelisted)
-    const hasUnlimited = hasUnlimitedEdits(user.email);
-
-    // If not unlimited, check usage limits
-    if (!hasUnlimited) {
-      const usageRes = await supabase
-        .from('user_usage')
-        .select('edit_count, monthly_edit_count, is_pro, daily_reset_date, monthly_reset_date')
-        .eq('user_id', user.id)
-        .single();
-      
-      const usageData = usageRes.data as {
-        edit_count: number;
-        monthly_edit_count: number;
-        is_pro: boolean;
-        daily_reset_date: string | null;
-        monthly_reset_date: string | null;
-      } | null;
-
-      if (usageData) {
-        const isPro = usageData.is_pro;
-        const editCount = usageData.edit_count || 0;
-        const monthlyEditCount = usageData.monthly_edit_count || 0;
-
-        // Check if daily reset is needed for free users
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize to start of day
-        const dailyResetDate = usageData.daily_reset_date 
-          ? new Date(usageData.daily_reset_date + 'T00:00:00')
-          : null;
-        const needsDailyReset = !isPro && dailyResetDate && today > dailyResetDate;
-
-        // Check limits
-        const hasReachedLimit = isPro
-          ? monthlyEditCount >= PRO_MONTHLY_EDIT_LIMIT
-          : (!needsDailyReset && editCount >= FREE_DAILY_EDIT_LIMIT);
-
-        if (hasReachedLimit) {
-          const limitMessage = isPro
-            ? `You've reached your monthly limit of ${PRO_MONTHLY_EDIT_LIMIT} edits. Your limit will reset on your billing date.`
-            : `You've reached your daily limit of ${FREE_DAILY_EDIT_LIMIT} edits. Upgrade to Pro for ${PRO_MONTHLY_EDIT_LIMIT} edits per month!`;
-
-          return NextResponse.json(
-            { error: limitMessage, limitReached: true },
-            { status: 429 }
-          );
-        }
-      }
     }
 
     // Parse request body
