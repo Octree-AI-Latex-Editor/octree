@@ -4,12 +4,12 @@
 
 SERVER_HOST="${CLAUDE_SERVER_HOST:-root@161.35.138.83}"
 
-echo "🔍 Checking Claude Server Status..."
+echo "🔍 Checking Octra Agent Server Status..."
 echo ""
 
 # Service status
 echo "=== Service Status ==="
-ssh $SERVER_HOST 'sudo systemctl status claude-server --no-pager' || true
+ssh $SERVER_HOST 'sudo systemctl status octra-agent --no-pager' || true
 
 echo ""
 echo "=== Process Info ==="
@@ -37,5 +37,5 @@ echo "$RESPONSE"
 
 echo ""
 echo "=== Recent Logs (last 10 lines) ==="
-ssh $SERVER_HOST 'sudo journalctl -u claude-server -n 10 --no-pager'
+ssh $SERVER_HOST 'sudo journalctl -u octra-agent -n 10 --no-pager'
 

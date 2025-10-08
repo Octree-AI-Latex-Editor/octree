@@ -11,8 +11,8 @@ CLAUDE_SERVER_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Configuration
 SERVER_HOST="${CLAUDE_SERVER_HOST:-root@161.35.138.83}"
-SERVER_PATH="/srv/claude-server"
-BACKUP_PATH="/srv/claude-server-backup-$(date +%Y%m%d-%H%M%S)"
+SERVER_PATH="/srv/octra-agent"
+BACKUP_PATH="/srv/octra-agent-backup-$(date +%Y%m%d-%H%M%S)"
 
 # Colors for output
 RED='\033[0;31m'
@@ -63,12 +63,12 @@ ssh $SERVER_HOST "cd $SERVER_PATH && npm install --production"
 
 echo ""
 echo -e "${YELLOW}🔄 Step 4: Restarting service...${NC}"
-ssh $SERVER_HOST "sudo systemctl restart claude-server"
+ssh $SERVER_HOST "sudo systemctl restart octra-agent"
 
 echo ""
 echo -e "${YELLOW}⏳ Step 5: Checking service status...${NC}"
 sleep 2
-ssh $SERVER_HOST "sudo systemctl status claude-server --no-pager -l" || true
+ssh $SERVER_HOST "sudo systemctl status octra-agent --no-pager -l" || true
 
 echo ""
 echo -e "${YELLOW}🔍 Step 6: Testing endpoint...${NC}"
@@ -94,6 +94,6 @@ echo "To view logs, run:"
 echo "  cd claude_server/scripts && ./logs.sh"
 echo ""
 echo "To rollback, run:"
-echo "  ssh $SERVER_HOST 'sudo systemctl stop claude-server && sudo rm -rf $SERVER_PATH && sudo mv $BACKUP_PATH $SERVER_PATH && sudo systemctl start claude-server'"
+echo "  ssh $SERVER_HOST 'sudo systemctl stop octra-agent && sudo rm -rf $SERVER_PATH && sudo mv $BACKUP_PATH $SERVER_PATH && sudo systemctl start octra-agent'"
 echo ""
 
