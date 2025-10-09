@@ -140,13 +140,57 @@ export async function POST(request: Request) {
     // CRITICAL: Increment usage count now that quota check passed
     // Each AI suggestion generation counts as one edit, regardless of
     // whether the user accepts it. This prevents unlimited AI calls.
+    // 
+    // IMPORTANT: Check the RPC return value to prevent race conditions.
+    // If two requests arrive simultaneously, the RPC enforces atomicity
+    // and returns false if the limit was reached between check and increment.
     // ====================================================================
+    let incrementResult;
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await supabase.rpc('increment_edit_count', { p_user_id: user.id } as any);
+      const { data, error } = await supabase.rpc('increment_edit_count', { p_user_id: user.id } as any);
+      
+      if (error) {
+        console.error('Failed to increment edit count:', error);
+        return NextResponse.json(
+          { error: 'Failed to update usage tracking' },
+          { status: 500 }
+        );
+      }
+      
+      incrementResult = data as boolean;
     } catch (incrementError) {
-      console.error('Failed to increment edit count:', incrementError);
-      // Continue processing - don't fail the request if increment fails
+      console.error('Exception incrementing edit count:', incrementError);
+      return NextResponse.json(
+        { error: 'Failed to update usage tracking' },
+        { status: 500 }
+      );
+    }
+
+    // RACE CONDITION PROTECTION: If increment returned false, the limit
+    // was reached between our check and the increment (concurrent requests).
+    // Deny the request to prevent over-quota usage.
+    if (!incrementResult) {
+      console.warn(`[Security] Race condition detected: increment denied for user ${user.id}`);
+      
+      // Re-fetch current usage to provide accurate error message
+      const usageRes = await supabase
+        .from('user_usage')
+        .select('is_pro, edit_count, monthly_edit_count')
+        .eq('user_id', user.id)
+        .single();
+      
+      const usageData = usageRes.data as { is_pro: boolean; edit_count: number; monthly_edit_count: number } | null;
+      const isPro = usageData?.is_pro || false;
+      
+      const limitMessage = isPro
+        ? `You've reached your monthly limit of ${PRO_MONTHLY_EDIT_LIMIT} edits. Your limit will reset on your billing date.`
+        : `You've reached your daily limit of ${FREE_DAILY_EDIT_LIMIT} edits. Upgrade to Pro for ${PRO_MONTHLY_EDIT_LIMIT} edits per month!`;
+
+      return NextResponse.json(
+        { error: limitMessage, limitReached: true },
+        { status: 429 }
+      );
     }
 
     // ====================================================================
