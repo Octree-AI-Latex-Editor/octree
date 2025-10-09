@@ -137,15 +137,11 @@ export async function POST(request: Request) {
     }
 
     // ====================================================================
-    // CRITICAL: Increment usage count now that request is allowed
+    // NOTE: We do NOT increment usage count here. Quota is tracked when
+    // the user ACCEPTS an edit via trackEdit() → /api/track-edit
+    // This prevents double-counting and allows users to generate suggestions
+    // without consuming quota until they actually apply them.
     // ====================================================================
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await supabase.rpc('increment_edit_count', { p_user_id: user.id } as any);
-    } catch (incrementError) {
-      console.error('Failed to increment edit count:', incrementError);
-      // Continue processing - don't fail the request if increment fails
-    }
 
     // ====================================================================
     // If a remote Agent Service URL is configured, proxy the request
