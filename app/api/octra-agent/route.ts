@@ -89,6 +89,17 @@ export async function POST(request: Request) {
     }
 
     // ====================================================================
+    // CRITICAL: Increment usage count now that request is allowed
+    // ====================================================================
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await supabase.rpc('increment_edit_count', { p_user_id: user.id } as any);
+    } catch (incrementError) {
+      console.error('Failed to increment edit count:', incrementError);
+      // Continue processing - don't fail the request if increment fails
+    }
+
+    // ====================================================================
     // If a remote Agent Service URL is configured, proxy the request
     // ====================================================================
     const remoteUrl = process.env.CLAUDE_AGENT_SERVICE_URL;
