@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { query, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { hasUnlimitedEdits } from '@/lib/paywall';
+import type { TablesInsert } from '@/database.types';
 
 // Import helper modules
 import { 
@@ -49,14 +50,61 @@ export async function POST(request: Request) {
         .eq('user_id', user.id)
         .single();
       
-      const usageData = usageRes.data as {
+      let usageData = usageRes.data as {
         edit_count: number;
         monthly_edit_count: number;
         is_pro: boolean;
         daily_reset_date: string | null;
         monthly_reset_date: string | null;
       } | null;
+      const usageError = usageRes.error;
 
+      // SECURITY: If no usage record exists, create one with default free tier limits
+      // This prevents new users from bypassing quota checks entirely
+      if (usageError && usageError.code === 'PGRST116') {
+        console.log('[Security] Creating user_usage record for new user:', user.id);
+        
+        const newUsagePayload: TablesInsert<'user_usage'> = {
+          user_id: user.id,
+          edit_count: 0,
+          monthly_edit_count: 0,
+          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          is_pro: false,
+          subscription_status: 'inactive',
+        };
+
+        const newUsageRes = await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .insert(newUsagePayload)
+          .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro')
+          .single();
+        
+        if (newUsageRes.error) {
+          console.error('[Security] Failed to create usage record:', newUsageRes.error);
+          return NextResponse.json(
+            { error: 'Failed to initialize usage tracking' },
+            { status: 500 }
+          );
+        }
+        
+        usageData = newUsageRes.data as {
+          edit_count: number;
+          monthly_edit_count: number;
+          is_pro: boolean;
+          daily_reset_date: string | null;
+          monthly_reset_date: string | null;
+        } | null;
+      } else if (usageError) {
+        console.error('[Security] Failed to fetch usage data:', usageError);
+        return NextResponse.json(
+          { error: 'Failed to check usage limits' },
+          { status: 500 }
+        );
+      }
+
+      // Now usageData is guaranteed to exist, perform limit checks
       if (usageData) {
         const isPro = usageData.is_pro;
         const editCount = usageData.edit_count || 0;
