@@ -108,8 +108,9 @@ export function useEditSuggestions({
   const promptDisplayedRef = useRef(false);
   const hasActiveBatchRef = useRef(false);
   
-  // Use cached edit limit to avoid API calls on every accept
-  const { canEdit, trackEdit } = useEditLimitCache();
+  // Use cached edit limit to check before requesting AI suggestions
+  // Note: Quota is consumed on generation (in /api/octra-agent), not on accept
+  const { canEdit } = useEditLimitCache();
 
   const clearContinueToast = useCallback(() => {
     if (continueToastIdRef.current !== null) {
@@ -222,7 +223,7 @@ export function useEditSuggestions({
     // Fast check using cached status
     if (!canEdit) {
       toast.error(
-        'You have reached your free edit limit. Please upgrade to Pro for unlimited edits.'
+        'You have reached your edit limit. Please upgrade to Pro for 200 edits per month.'
       );
       return;
     }
@@ -268,8 +269,8 @@ export function useEditSuggestions({
         },
       ]);
 
-      // Track edit in background (non-blocking)
-      trackEdit();
+      // Note: Quota was already consumed when the suggestion was generated
+      // in /api/octra-agent, so we don't need to track it again here
 
       // Rebase remaining suggestions to account for line shifts
       const deltaLines = computeDeltaLines(suggestedText, originalLineCount);

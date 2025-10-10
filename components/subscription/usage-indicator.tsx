@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Info } from 'lucide-react';
 import { PaywallDialog } from './paywall-dialog';
+import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 interface UsageIndicatorProps {
   className?: string;
@@ -109,7 +110,7 @@ export function UsageIndicator({ className }: UsageIndicatorProps) {
           }
           className="text-xs"
         >
-          {usageData.isPro ? `${monthlyEditCount}/50` : `${editCount}/5`}
+          {usageData.isPro ? `${monthlyEditCount}/${PRO_MONTHLY_EDIT_LIMIT}` : `${editCount}/${FREE_DAILY_EDIT_LIMIT}`}
         </Badge>
 
         {(limitReached || monthlyLimitReached) && (

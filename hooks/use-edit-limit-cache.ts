@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { FREE_DAILY_EDIT_LIMIT } from '@/data/constants';
 
 interface EditLimitStatus {
   canEdit: boolean;
@@ -21,7 +22,7 @@ export function useEditLimitCache() {
   const [status, setStatus] = useState<EditLimitStatus>({
     canEdit: true,
     editCount: 0,
-    limit: 100,
+    limit: FREE_DAILY_EDIT_LIMIT, // Default to free user daily limit
     isLoading: false,
     lastChecked: null,
   });

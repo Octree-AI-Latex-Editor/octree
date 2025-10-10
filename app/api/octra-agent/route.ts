@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
+import { createClient } from '@/lib/supabase/server';
+import { hasUnlimitedEdits } from '@/lib/paywall';
+import type { TablesInsert } from '@/database.types';
 
 // Import helper modules
 import { 
@@ -15,15 +18,193 @@ import {
   getExternalServerConfig, 
   createMCPServerConfig
 } from '@/lib/octra-agent';
+import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
-    // If a remote Agent Service URL is configured, proxy the request and stream SSE
+    // ====================================================================
+    // SECURITY: Check authentication and usage limits BEFORE proxying
+    // ====================================================================
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in to use AI features.' },
+        { status: 401 }
+      );
+    }
+
+    // Check if user has unlimited edits (whitelisted)
+    const hasUnlimited = hasUnlimitedEdits(user.email);
+
+    // If not unlimited, check usage limits
+    if (!hasUnlimited) {
+      const usageRes = await supabase
+        .from('user_usage')
+        .select('edit_count, monthly_edit_count, is_pro, daily_reset_date, monthly_reset_date')
+        .eq('user_id', user.id)
+        .single();
+      
+      let usageData = usageRes.data as {
+        edit_count: number;
+        monthly_edit_count: number;
+        is_pro: boolean;
+        daily_reset_date: string | null;
+        monthly_reset_date: string | null;
+      } | null;
+      const usageError = usageRes.error;
+
+      // SECURITY: If no usage record exists, create one with default free tier limits
+      // This prevents new users from bypassing quota checks entirely
+      if (usageError && usageError.code === 'PGRST116') {
+        console.log('[Security] Creating user_usage record for new user:', user.id);
+        
+        const newUsagePayload: TablesInsert<'user_usage'> = {
+          user_id: user.id,
+          edit_count: 0,
+          monthly_edit_count: 0,
+          monthly_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          is_pro: false,
+          subscription_status: 'inactive',
+        };
+
+        const newUsageRes = await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .insert(newUsagePayload)
+          .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro')
+          .single();
+        
+        if (newUsageRes.error) {
+          console.error('[Security] Failed to create usage record:', newUsageRes.error);
+          return NextResponse.json(
+            { error: 'Failed to initialize usage tracking' },
+            { status: 500 }
+          );
+        }
+        
+        usageData = newUsageRes.data as {
+          edit_count: number;
+          monthly_edit_count: number;
+          is_pro: boolean;
+          daily_reset_date: string | null;
+          monthly_reset_date: string | null;
+        } | null;
+      } else if (usageError) {
+        console.error('[Security] Failed to fetch usage data:', usageError);
+        return NextResponse.json(
+          { error: 'Failed to check usage limits' },
+          { status: 500 }
+        );
+      }
+
+      // Now usageData is guaranteed to exist, perform limit checks
+      if (usageData) {
+        const isPro = usageData.is_pro;
+        const editCount = usageData.edit_count || 0;
+        const monthlyEditCount = usageData.monthly_edit_count || 0;
+
+        // Check if daily reset is needed for free users
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dailyResetDate = usageData.daily_reset_date 
+          ? new Date(usageData.daily_reset_date + 'T00:00:00')
+          : null;
+        const needsDailyReset = !isPro && dailyResetDate && today > dailyResetDate;
+
+        // Check limits
+        const hasReachedLimit = isPro
+          ? monthlyEditCount >= PRO_MONTHLY_EDIT_LIMIT
+          : (!needsDailyReset && editCount >= FREE_DAILY_EDIT_LIMIT);
+
+        if (hasReachedLimit) {
+          const limitMessage = isPro
+            ? `You've reached your monthly limit of ${PRO_MONTHLY_EDIT_LIMIT} edits. Your limit will reset on your billing date.`
+            : `You've reached your daily limit of ${FREE_DAILY_EDIT_LIMIT} edits. Upgrade to Pro for ${PRO_MONTHLY_EDIT_LIMIT} edits per month!`;
+
+          return NextResponse.json(
+            { error: limitMessage, limitReached: true },
+            { status: 429 }
+          );
+        }
+      }
+    }
+
+    // ====================================================================
+    // CRITICAL: Increment usage count for non-unlimited users
+    // Whitelisted (unlimited) users skip quota tracking entirely.
+    // ====================================================================
+    if (!hasUnlimited) {
+      // Each AI suggestion generation counts as one edit, regardless of
+      // whether the user accepts it. This prevents unlimited AI calls.
+      // 
+      // IMPORTANT: Check the RPC return value to prevent race conditions.
+      // If two requests arrive simultaneously, the RPC enforces atomicity
+      // and returns false if the limit was reached between check and increment.
+      let incrementResult;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await supabase.rpc('increment_edit_count', { p_user_id: user.id } as any);
+        
+        if (error) {
+          console.error('Failed to increment edit count:', error);
+          return NextResponse.json(
+            { error: 'Failed to update usage tracking' },
+            { status: 500 }
+          );
+        }
+        
+        incrementResult = data as boolean;
+      } catch (incrementError) {
+        console.error('Exception incrementing edit count:', incrementError);
+        return NextResponse.json(
+          { error: 'Failed to update usage tracking' },
+          { status: 500 }
+        );
+      }
+
+      // RACE CONDITION PROTECTION: If increment returned false, the limit
+      // was reached between our check and the increment (concurrent requests).
+      // Deny the request to prevent over-quota usage.
+      if (!incrementResult) {
+        console.warn(`[Security] Race condition detected: increment denied for user ${user.id}`);
+        
+        // Re-fetch current usage to provide accurate error message
+        const usageRes = await supabase
+          .from('user_usage')
+          .select('is_pro, edit_count, monthly_edit_count')
+          .eq('user_id', user.id)
+          .single();
+        
+        const usageData = usageRes.data as { is_pro: boolean; edit_count: number; monthly_edit_count: number } | null;
+        const isPro = usageData?.is_pro || false;
+        
+        const limitMessage = isPro
+          ? `You've reached your monthly limit of ${PRO_MONTHLY_EDIT_LIMIT} edits. Your limit will reset on your billing date.`
+          : `You've reached your daily limit of ${FREE_DAILY_EDIT_LIMIT} edits. Upgrade to Pro for ${PRO_MONTHLY_EDIT_LIMIT} edits per month!`;
+
+        return NextResponse.json(
+          { error: limitMessage, limitReached: true },
+          { status: 429 }
+        );
+      }
+    } else {
+      console.log(`[Unlimited] Skipping quota tracking for whitelisted user: ${user.email}`);
+    }
+
+    // ====================================================================
+    // If a remote Agent Service URL is configured, proxy the request
+    // ====================================================================
     const remoteUrl = process.env.CLAUDE_AGENT_SERVICE_URL;
     if (remoteUrl) {
       const body = await request.json();
-      console.log('[Octra Proxy] Forwarding request to remote Claude Code server:', remoteUrl);
+      console.log('[Octra Proxy] Forwarding authenticated request to remote Claude Code server:', remoteUrl);
       
       const res = await fetch(remoteUrl, {
         method: 'POST',
@@ -98,7 +279,9 @@ export async function POST(request: Request) {
       return new Response(readable, { headers: createSSEHeaders() });
     }
 
-    // Validate API keys
+    // ====================================================================
+    // In-process mode: Validate API keys and parse request body
+    // ====================================================================
     const keyValidation = validateApiKeys();
     if (!keyValidation.isValid) {
       return NextResponse.json(

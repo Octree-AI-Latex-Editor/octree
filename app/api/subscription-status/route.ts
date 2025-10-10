@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import Stripe from 'stripe';
 import { hasUnlimitedEdits } from '@/lib/paywall';
 import type { TablesInsert, TablesUpdate, Tables } from '@/database.types';
+import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 const stripe = new Stripe(process.env.STRIPE_PROD_SECRET_KEY!, {
   apiVersion: '2025-02-24.acacia',
@@ -158,7 +159,7 @@ export async function GET() {
     if (!customer) {
       const editCount = finalUsageData?.edit_count || 0;
       const monthlyEditCount = finalUsageData?.monthly_edit_count || 0;
-      const baseRemainingEdits = Math.max(0, 5 - editCount);
+      const baseRemainingEdits = Math.max(0, FREE_DAILY_EDIT_LIMIT - editCount);
 
       return NextResponse.json({
         hasSubscription: false,
@@ -200,7 +201,7 @@ export async function GET() {
     if (!subscription) {
       const editCount = finalUsageData?.edit_count || 0;
       const monthlyEditCount = finalUsageData?.monthly_edit_count || 0;
-      const baseRemainingEdits = Math.max(0, 5 - editCount);
+      const baseRemainingEdits = Math.max(0, FREE_DAILY_EDIT_LIMIT - editCount);
 
       return NextResponse.json({
         hasSubscription: false,
@@ -241,8 +242,8 @@ export async function GET() {
     const monthlyEditCount = finalUsageData?.monthly_edit_count || 0;
     const isActive = subscription.status === 'active';
     const baseRemainingEdits = isActive
-      ? Math.max(0, 50 - monthlyEditCount)
-      : Math.max(0, 5 - editCount);
+      ? Math.max(0, PRO_MONTHLY_EDIT_LIMIT - monthlyEditCount)
+      : Math.max(0, FREE_DAILY_EDIT_LIMIT - editCount);
 
     return NextResponse.json({
       hasSubscription: true,
@@ -273,11 +274,11 @@ export async function GET() {
         limitReached: hasUnlimitedUser
           ? false
           : (isActive
-            ? monthlyEditCount >= 50
-            : editCount >= 5),
+            ? monthlyEditCount >= PRO_MONTHLY_EDIT_LIMIT
+            : editCount >= FREE_DAILY_EDIT_LIMIT),
         monthlyLimitReached: hasUnlimitedUser
           ? false
-          : (isActive ? monthlyEditCount >= 50 : false),
+          : (isActive ? monthlyEditCount >= PRO_MONTHLY_EDIT_LIMIT : false),
         monthlyResetDate: finalUsageData?.monthly_reset_date || null,
         hasUnlimitedEdits: hasUnlimitedUser
       }

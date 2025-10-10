@@ -2,11 +2,16 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasUnlimitedEdits } from '@/lib/paywall';
 import type { TablesInsert, TablesUpdate, Tables } from '@/database.types';
+import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
-type UsageSlice = Pick<
-  Tables<'user_usage'>,
-  'edit_count' | 'monthly_edit_count' | 'monthly_reset_date' | 'is_pro' | 'subscription_status'
->;
+type UsageSlice = {
+  edit_count: number;
+  monthly_edit_count: number;
+  daily_reset_date: string | null;
+  monthly_reset_date: string | null;
+  is_pro: boolean;
+  subscription_status: string | null;
+};
 
 // GET handler to check edit limits without incrementing
 export async function GET() {
@@ -30,7 +35,7 @@ export async function GET() {
     // Fetch user usage data
     const usageRes = await supabase
       .from('user_usage' as const)
-      .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+      .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
     const usageData = usageRes.data as UsageSlice | null;
@@ -69,8 +74,8 @@ export async function GET() {
         canEdit: true,
         editCount: 0,
         monthlyEditCount: 0,
-        limit: hasUnlimitedUser ? null : 5,
-        monthlyLimit: hasUnlimitedUser ? null : 50,
+        limit: hasUnlimitedUser ? null : FREE_DAILY_EDIT_LIMIT,
+        monthlyLimit: hasUnlimitedUser ? null : PRO_MONTHLY_EDIT_LIMIT,
         isPro: hasUnlimitedUser,
         subscriptionStatus: hasUnlimitedUser ? 'unlimited' : 'inactive',
         monthlyResetDate: newUsageData?.monthly_reset_date ?? null,
@@ -86,8 +91,30 @@ export async function GET() {
       );
     }
 
-    // Check if monthly reset is needed
-    if (usageData && usageData.monthly_reset_date) {
+    // Check if daily reset is needed for free users
+    if (usageData && !usageData.is_pro && usageData.daily_reset_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dailyResetDate = new Date(usageData.daily_reset_date + 'T00:00:00');
+      
+      if (today > dailyResetDate) {
+        // Reset daily count
+        await (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabase.from('user_usage') as any
+        )
+          .update({
+            edit_count: 0,
+            daily_reset_date: new Date().toISOString().split('T')[0],
+          })
+          .eq('user_id', user.id);
+        
+        usageData.edit_count = 0;
+      }
+    }
+
+    // Check if monthly reset is needed for pro users
+    if (usageData && usageData.is_pro && usageData.monthly_reset_date) {
       const resetDate = new Date(usageData.monthly_reset_date);
       const currentDate = new Date();
       
@@ -111,14 +138,14 @@ export async function GET() {
     const editCount = usageData?.edit_count ?? 0;
     const monthlyEditCount = usageData?.monthly_edit_count ?? 0;
     const isPro = usageData?.is_pro || hasUnlimitedUser;
-    const canEdit = hasUnlimitedUser || (isPro ? monthlyEditCount < 50 : editCount < 5);
+    const canEdit = hasUnlimitedUser || (isPro ? monthlyEditCount < PRO_MONTHLY_EDIT_LIMIT : editCount < FREE_DAILY_EDIT_LIMIT);
 
     return NextResponse.json({
       canEdit,
       editCount,
       monthlyEditCount,
-      limit: hasUnlimitedUser || isPro ? null : 5,
-      monthlyLimit: isPro ? 50 : null,
+      limit: hasUnlimitedUser || isPro ? null : FREE_DAILY_EDIT_LIMIT,
+      monthlyLimit: isPro ? PRO_MONTHLY_EDIT_LIMIT : null,
       isPro,
       subscriptionStatus: usageData?.subscription_status ?? (hasUnlimitedUser ? 'unlimited' : 'inactive'),
       monthlyResetDate: usageData?.monthly_reset_date ?? null,
@@ -155,7 +182,7 @@ export async function POST() {
     // First, ensure user has a usage record
     const initialRes = await supabase
       .from('user_usage' as const)
-      .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+      .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
     let usageData = initialRes.data as UsageSlice | null;
@@ -179,7 +206,7 @@ export async function POST() {
         supabase.from('user_usage') as any
       )
         .insert(newUsagePayload)
-        .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+        .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
         .single();
       const newUsageData = newUsageRes.data as UsageSlice | null;
       const createError = newUsageRes.error;
@@ -294,15 +321,15 @@ export async function POST() {
     // Get updated usage info
     const updatedRes = await supabase
       .from('user_usage' as const)
-      .select('edit_count, monthly_edit_count, monthly_reset_date, is_pro, subscription_status')
+      .select('edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro, subscription_status')
       .eq('user_id', user.id)
       .single();
     // Cast via unknown to satisfy TS when nullable responses occur
     const updatedUsageData = (updatedRes.data as unknown) as UsageSlice;
 
     const canEdit = data as boolean;
-    const remainingEdits = Math.max(0, 5 - updatedUsageData.edit_count);
-    const remainingMonthlyEdits = Math.max(0, 50 - updatedUsageData.monthly_edit_count);
+    const remainingEdits = Math.max(0, FREE_DAILY_EDIT_LIMIT - updatedUsageData.edit_count);
+    const remainingMonthlyEdits = Math.max(0, PRO_MONTHLY_EDIT_LIMIT - updatedUsageData.monthly_edit_count);
 
     return NextResponse.json({
       success: true,
@@ -314,7 +341,7 @@ export async function POST() {
       isPro: updatedUsageData.is_pro,
       subscriptionStatus: updatedUsageData.subscription_status,
       limitReached: !canEdit,
-      monthlyLimitReached: updatedUsageData.is_pro && updatedUsageData.monthly_edit_count >= 50,
+      monthlyLimitReached: updatedUsageData.is_pro && updatedUsageData.monthly_edit_count >= PRO_MONTHLY_EDIT_LIMIT,
       monthlyResetDate: updatedUsageData.monthly_reset_date,
       hasUnlimitedEdits: false
     });
