@@ -83,6 +83,7 @@ export function Chat({
     state: ProposalState;
     count?: number;
     violations?: number;
+    errorMessage?: string;
   }
 
   const [proposalIndicators, setProposalIndicators] = useState<
@@ -260,17 +261,38 @@ export function Chat({
         signal: controller.signal,
       });
 
-      if (!res.ok || !res.body) {
-        try {
-          const data = await res.json();
-          throw new Error(data.error || `Request failed with ${res.status}`);
-        } catch {
-          throw new Error(`Request failed with ${res.status}`);
-        }
-      }
-
       // Add a placeholder assistant message to stream into
       const assistantId = `${Date.now()}-assistant`;
+
+      if (!res.ok || !res.body) {
+        let errorMessage = `Request failed with ${res.status}`;
+        try {
+          const data = await res.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // Use default error message
+        }
+        
+        // Add assistant message with error state
+        setMessages((prev) => [...prev, { 
+          id: assistantId, 
+          role: 'assistant', 
+          content: '' 
+        }]);
+        
+        // Set error indicator with the actual error message
+        setProposalIndicators((prev) => ({
+          ...prev,
+          [assistantId]: {
+            state: 'error',
+            errorMessage,
+          },
+        }));
+        
+        throw new Error(errorMessage);
+      }
+      
+      // Add placeholder assistant message for streaming
       setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
 
       const reader = res.body.getReader();
@@ -447,11 +469,13 @@ export function Chat({
           }));
         }
           } else if (eventName === 'error') {
-            if (payload?.message) setError(new Error(String(payload.message)));
+            const errorMsg = payload?.message ? String(payload.message) : 'An error occurred';
+            if (payload?.message) setError(new Error(errorMsg));
             setProposalIndicators((prev) => ({
               ...prev,
               [assistantId]: {
                 state: 'error',
+                errorMessage: errorMsg,
               },
             }));
           } else if (eventName === 'result' && payload?.text) {
@@ -709,10 +733,17 @@ export function Chat({
                         </span>
                       )}
                       {proposalIndicators[message.id].state === 'error' && (
-                        <span className="inline-flex items-center gap-2 rounded-full bg-rose-100 px-2 py-1 text-rose-700">
-                          <AlertCircle className="h-3 w-3" />
-                          Failed to propose edits
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-rose-100 px-2 py-1 text-rose-700">
+                            <AlertCircle className="h-3 w-3" />
+                            Error
+                          </span>
+                          {proposalIndicators[message.id].errorMessage && (
+                            <span className="text-xs text-rose-600">
+                              {proposalIndicators[message.id].errorMessage}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
