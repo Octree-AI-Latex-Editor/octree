@@ -35,12 +35,14 @@ function getFileIcon(attachment: FileAttachment) {
 }
 
 export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
-  if (attachments.length === 0) return null;
+  const readyAttachments = attachments.filter((attachment) => attachment.status === 'ready');
+
+  if (readyAttachments.length === 0) return null;
 
   return (
     <div className="scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent max-h-14 w-full overflow-y-auto overflow-x-hidden border-b border-slate-200 px-2 py-0.5">
       <div className="flex flex-wrap gap-1">
-        {attachments.map((attachment) => (
+        {readyAttachments.map((attachment) => (
         <div
           key={attachment.id}
           className={cn(
@@ -60,14 +62,6 @@ export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
           )}
           {attachment.status === 'ready' && !attachment.preview && (
             <div className="flex-shrink-0 scale-75">{getFileIcon(attachment)}</div>
-          )}
-          
-          {attachment.preview && attachment.type.startsWith('image/') && (
-            <img
-              src={attachment.preview}
-              alt={attachment.name}
-              className="h-4 w-4 flex-shrink-0 rounded object-cover"
-            />
           )}
           
           <div className="flex min-w-0 flex-1 flex-col">

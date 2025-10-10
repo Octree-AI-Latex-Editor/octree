@@ -8,12 +8,14 @@ interface AttachmentUploadProps {
   onFilesSelected: (files: File[]) => void;
   disabled?: boolean;
   canAddMore: boolean;
+  isProcessing?: boolean;
 }
 
 export function AttachmentUpload({
   onFilesSelected,
   disabled,
   canAddMore,
+  isProcessing = false,
 }: AttachmentUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -96,12 +98,14 @@ export function AttachmentUpload({
           variant="ghost"
           size="icon"
           onClick={handleClick}
-          disabled={disabled || !canAddMore}
+          disabled={disabled || !canAddMore || isProcessing}
           className="size-6 rounded-full"
           title={
             !canAddMore
               ? `Maximum ${MAX_ATTACHMENTS} attachments`
-              : `Attach files (max ${MAX_FILE_SIZE / 1024 / 1024}MB each)`
+              : isProcessing
+                ? 'Processing attachments...'
+                : `Attach files (max ${MAX_FILE_SIZE / 1024 / 1024}MB each)`
           }
         >
           <Paperclip className="h-4 w-4" />

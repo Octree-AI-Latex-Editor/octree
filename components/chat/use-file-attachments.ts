@@ -7,9 +7,9 @@ const buildImageContext = (dataUrl: string, fileName: string, mimeType: string) 
   const intro = [
     `Image Attachment: ${fileName} (${mimeType})`,
     'The next block contains the base64 encoding of the image. '
-    + 'Decode and inspect it carefully. '
-    + 'If it contains mathematics (equations, integrals, limits, etc.), read and transcribe them exactly. '
-    + 'Then respond to the user\'s question using those expressions.',
+    + 'Carefully decode the image contents. '
+    + 'If the image includes mathematics (equations, integrals, limits, handwriting), transcribe the expressions faithfully '
+    + 'and solve or explain them as requested.',
   ].join('\n');
   return `${intro}\n\n\`\`\`base64\n${base64}\n\`\`\``;
 };
@@ -159,6 +159,7 @@ export function useFileAttachments() {
     getAttachmentContext,
     hasAttachments: attachments.length > 0,
     canAddMore: attachments.length < MAX_ATTACHMENTS,
+    isProcessing: attachments.some((a) => a.status === 'uploading'),
   };
 }
 

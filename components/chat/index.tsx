@@ -79,6 +79,7 @@ export function Chat({
     clearAttachments,
     getAttachmentContext,
     canAddMore: canAddMoreAttachments,
+    isProcessing: isProcessingAttachments,
   } = useFileAttachments();
 
   const scrollToBottom = () => {
