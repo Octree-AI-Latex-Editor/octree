@@ -1,5 +1,18 @@
 import { useState, useCallback } from 'react';
+import { v4 as uuid } from 'uuid';
 import { FileAttachment, MAX_FILE_SIZE, MAX_ATTACHMENTS } from '@/types/attachment';
+
+const buildImageContext = (dataUrl: string, fileName: string, mimeType: string) => {
+  const base64 = dataUrl.startsWith('data:') ? dataUrl.split(',')[1] ?? '' : dataUrl;
+  const intro = [
+    `Image Attachment: ${fileName} (${mimeType})`,
+    'The next block contains the base64 encoding of the image. '
+    + 'Decode and inspect it carefully. '
+    + 'If it contains mathematics (equations, integrals, limits, etc.), read and transcribe them exactly. '
+    + 'Then respond to the user\'s question using those expressions.',
+  ].join('\n');
+  return `${intro}\n\n\`\`\`base64\n${base64}\n\`\`\``;
+};
 
 export function useFileAttachments() {
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
@@ -47,7 +60,7 @@ export function useFileAttachments() {
       // Check file size
       if (file.size > MAX_FILE_SIZE) {
         newAttachments.push({
-          id: `${Date.now()}-${file.name}`,
+          id: uuid(),
           file,
           name: file.name,
           size: file.size,
@@ -60,7 +73,7 @@ export function useFileAttachments() {
       
       // Add file with uploading status
       const attachment: FileAttachment = {
-        id: `${Date.now()}-${file.name}`,
+        id: uuid(),
         file,
         name: file.name,
         size: file.size,
@@ -129,7 +142,7 @@ export function useFileAttachments() {
       if (attachment.content) {
         context += `Content:\n\`\`\`\n${attachment.content}\n\`\`\`\n`;
       } else if (attachment.preview) {
-        context += `[Image attachment: ${attachment.name}]\n`;
+        context += `${buildImageContext(attachment.preview, attachment.name, attachment.type)}\n`;
       } else {
         context += `[Binary file: ${attachment.name}]\n`;
       }
