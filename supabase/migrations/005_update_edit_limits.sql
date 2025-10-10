@@ -15,7 +15,7 @@ DECLARE
   current_daily_reset DATE;
   user_monthly_reset DATE;
   is_pro_user BOOLEAN;
-  max_free_daily_edits INTEGER := 100;
+  max_free_daily_edits INTEGER := 15;
   max_pro_monthly_edits INTEGER := 200;
 BEGIN
   -- Get current usage
