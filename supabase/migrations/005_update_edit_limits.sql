@@ -13,21 +13,21 @@ DECLARE
   current_edit_count INTEGER;
   current_monthly_count INTEGER;
   current_daily_reset DATE;
-  monthly_reset_date DATE;
+  user_monthly_reset DATE;
   is_pro_user BOOLEAN;
   max_free_daily_edits INTEGER := 5;
   max_pro_monthly_edits INTEGER := 200;
 BEGIN
   -- Get current usage
   SELECT edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro 
-  INTO current_edit_count, current_monthly_count, current_daily_reset, monthly_reset_date, is_pro_user
+  INTO current_edit_count, current_monthly_count, current_daily_reset, user_monthly_reset, is_pro_user
   FROM public.user_usage
   WHERE user_id = p_user_id;
   
   -- If user is pro, check monthly reset and limit
   IF is_pro_user THEN
     -- Check if monthly reset is needed
-    IF CURRENT_DATE >= monthly_reset_date THEN
+    IF CURRENT_DATE >= user_monthly_reset THEN
       UPDATE public.user_usage
       SET 
         monthly_edit_count = 0,
