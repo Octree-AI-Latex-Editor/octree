@@ -1,17 +1,36 @@
 import { useState, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
 import { FileAttachment, MAX_FILE_SIZE, MAX_ATTACHMENTS } from '@/types/attachment';
+import { convertImageToLatex } from '@/lib/image-to-latex';
 
-const buildImageContext = (dataUrl: string, fileName: string, mimeType: string) => {
+export interface ImageContent {
+  type: 'image';
+  source: {
+    type: 'base64';
+    media_type: string;
+    data: string;
+  };
+}
+
+export interface TextContent {
+  type: 'text';
+  text: string;
+}
+
+export type ContentBlock = TextContent | ImageContent;
+
+const buildImageContent = (dataUrl: string, fileName: string, mimeType: string): ImageContent => {
+  // Extract base64 data from data URL
   const base64 = dataUrl.startsWith('data:') ? dataUrl.split(',')[1] ?? '' : dataUrl;
-  const intro = [
-    `Image Attachment: ${fileName} (${mimeType})`,
-    'The next block contains the base64 encoding of the image. '
-    + 'Carefully decode the image contents. '
-    + 'If the image includes mathematics (equations, integrals, limits, handwriting), transcribe the expressions faithfully '
-    + 'and solve or explain them as requested.',
-  ].join('\n');
-  return `${intro}\n\n\`\`\`base64\n${base64}\n\`\`\``;
+  
+  return {
+    type: 'image',
+    source: {
+      type: 'base64',
+      media_type: mimeType,
+      data: base64,
+    },
+  };
 };
 
 export function useFileAttachments() {
@@ -129,7 +148,9 @@ export function useFileAttachments() {
     setAttachments([]);
   }, []);
 
-  const getAttachmentContext = useCallback(() => {
+  const getAttachmentContext = useCallback(async (
+    onProgress?: (message: string) => void
+  ): Promise<string | null> => {
     const readyAttachments = attachments.filter((a) => a.status === 'ready');
     
     if (readyAttachments.length === 0) return null;
@@ -137,19 +158,37 @@ export function useFileAttachments() {
     let context = '\n\n--- Attached Files ---\n';
     
     for (const attachment of readyAttachments) {
-      context += `\nFile: ${attachment.name} (${attachment.type})\n`;
-      
+      // For text files, add as text content
       if (attachment.content) {
-        context += `Content:\n\`\`\`\n${attachment.content}\n\`\`\`\n`;
-      } else if (attachment.preview) {
-        context += `${buildImageContext(attachment.preview, attachment.name, attachment.type)}\n`;
-      } else {
-        context += `[Binary file: ${attachment.name}]\n`;
+        context += `\nFile: ${attachment.name} (${attachment.type})\nContent:\n\`\`\`\n${attachment.content}\n\`\`\`\n`;
+      } 
+      // For images, extract content using GPT-4o-mini first
+      else if (attachment.preview && attachment.file.type.startsWith('image/')) {
+        // Notify progress
+        if (onProgress) {
+          onProgress(`Analyzing ${attachment.name}...`);
+        }
+        
+        context += `\n[Image: ${attachment.name}]\n`;
+        
+        // Extract content from image using GPT-4o-mini
+        const result = await convertImageToLatex(attachment.preview, attachment.name);
+        
+        if (result.success && result.latex) {
+          context += `Content from image:\n${result.latex}\n`;
+        } else {
+          context += `Could not analyze image: ${result.error || 'Unknown error'}\n`;
+        }
+      } 
+      // For other binary files
+      else {
+        context += `\n[Binary file: ${attachment.name}]\n`;
       }
     }
     
     return context;
   }, [attachments]);
+
 
   return {
     attachments,

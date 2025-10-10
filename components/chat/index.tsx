@@ -58,6 +58,7 @@ export function Chat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [conversionStatus, setConversionStatus] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -95,30 +96,52 @@ export function Chat({
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
-    // Get attachment context before clearing
-    const attachmentContext = getAttachmentContext();
-    const userContent = attachmentContext 
-      ? `${trimmed}${attachmentContext}`
-      : trimmed;
-
-    setInput('');
-    clearProposals();
-    clearAttachments(); // Clear attachments after sending
-    setIsLoading(true);
     setError(null);
-
+    
+    // Store user input for display
+    const userDisplayContent = trimmed;
+    
+    // Show user message immediately (just the text, not the extracted image content)
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
       role: 'user',
-      content: userContent,
+      content: userDisplayContent,
     };
     setMessages((prev) => [...prev, userMsg]);
+
+    setInput('');
+    clearAttachments(); // Clear attachments after sending
+    
+    // Now start processing (shows conversion status if images)
+    setIsLoading(true);
+    setConversionStatus(null);
+
+    // Get attachment context (this extracts content from images using GPT-4o-mini)
+    const attachmentContext = await getAttachmentContext((message) => {
+      setConversionStatus(message);
+    });
+    
+    // Clear conversion status - now Claude takes over
+    setConversionStatus(null);
+    
+    // Build the actual content for Claude (with extracted image content)
+    const userContentForClaude = attachmentContext 
+      ? `${trimmed}${attachmentContext}`
+      : trimmed;
+
+    clearProposals();
 
     const assistantId = `${Date.now()}-assistant`;
 
     try {
+      // Create messages array with the actual content for Claude (including image analysis)
+      const messagesForClaude = [
+        ...messages, // All previous messages
+        { ...userMsg, content: userContentForClaude } // User message with enhanced content
+      ];
+      
       const { response, controller } = await startStream(
-        [...messages, userMsg],
+        messagesForClaude,
         fileContent,
         textFromEditor,
         selectionRange,
@@ -229,7 +252,7 @@ export function Chat({
 
   useEffect(() => {
     if (shouldStickToBottomRef.current) scrollToBottom();
-  }, [messages, isLoading]);
+  }, [messages, isLoading, conversionStatus]);
 
   useEffect(() => {
     const el = chatContainerRef.current;
@@ -350,7 +373,7 @@ export function Chat({
                 textFromEditor && 'pb-24'
               )}
             >
-              {messages.length === 0 && !isLoading && <EmptyState />}
+              {messages.length === 0 && !isLoading && !conversionStatus && <EmptyState />}
               {messages.map((message) => (
                 <ChatMessageComponent
                   key={message.id}
@@ -359,6 +382,16 @@ export function Chat({
                   proposalIndicator={proposalIndicators[message.id]}
                 />
               ))}
+              
+              {/* Image Analysis Status Indicator (like propose_edits) */}
+              {conversionStatus && (
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2">
+                  <div className="flex items-center gap-2 text-sm text-blue-700">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span className="font-medium">{conversionStatus}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <ChatInput
