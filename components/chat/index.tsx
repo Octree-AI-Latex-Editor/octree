@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { parseLatexDiff } from '@/lib/parse-latex-diff';
 import { useChatStream } from './use-chat-stream';
 import { useEditProposals } from './use-edit-proposals';
+import { useFileAttachments } from './use-file-attachments';
 import { ChatMessageComponent } from './chat-message';
 import { ChatInput } from './chat-input';
 import { EmptyState } from './empty-state';
@@ -71,6 +72,14 @@ export function Chat({
     setError: setProposalError,
     convertEditsToSuggestions,
   } = useEditProposals(fileContent);
+  const {
+    attachments,
+    addFiles,
+    removeAttachment,
+    clearAttachments,
+    getAttachmentContext,
+    canAddMore: canAddMoreAttachments,
+  } = useFileAttachments();
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -85,15 +94,22 @@ export function Chat({
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
+    // Get attachment context before clearing
+    const attachmentContext = getAttachmentContext();
+    const userContent = attachmentContext 
+      ? `${trimmed}${attachmentContext}`
+      : trimmed;
+
     setInput('');
     clearProposals();
+    clearAttachments(); // Clear attachments after sending
     setIsLoading(true);
     setError(null);
 
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
       role: 'user',
-      content: trimmed,
+      content: userContent,
     };
     setMessages((prev) => [...prev, userMsg]);
 
@@ -348,10 +364,14 @@ export function Chat({
               input={input}
               isLoading={isLoading}
               textFromEditor={textFromEditor}
+              attachments={attachments}
+              canAddMoreAttachments={canAddMoreAttachments}
               onInputChange={setInput}
               onSubmit={handleSubmit}
               onClearEditor={() => setTextFromEditor(null)}
               onStop={stopStream}
+              onFilesSelected={addFiles}
+              onRemoveAttachment={removeAttachment}
             />
           </motion.div>
         )}
