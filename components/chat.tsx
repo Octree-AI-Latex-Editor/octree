@@ -504,6 +504,10 @@ export function Chat({
       try {
         abortControllerRef.current = null;
       } catch {}
+      
+      // Trigger usage cache refresh after AI generation completes
+      // This ensures the quota check reflects the just-consumed generation
+      window.dispatchEvent(new Event('usage-update'));
     }
   };
 
