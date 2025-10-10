@@ -38,13 +38,13 @@ export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
   if (attachments.length === 0) return null;
 
   return (
-    <div className="scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent max-h-20 w-full overflow-y-auto overflow-x-hidden border-b border-slate-200 px-2 py-1">
-      <div className="flex flex-wrap gap-1.5">
+    <div className="scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent max-h-14 w-full overflow-y-auto overflow-x-hidden border-b border-slate-200 px-2 py-0.5">
+      <div className="flex flex-wrap gap-1">
         {attachments.map((attachment) => (
         <div
           key={attachment.id}
           className={cn(
-            'flex max-w-[180px] items-center gap-1.5 rounded-md border px-1.5 py-1 text-xs',
+            'flex max-w-[140px] items-center gap-1 rounded border px-1 py-0.5 text-xs',
             attachment.status === 'error'
               ? 'border-rose-200 bg-rose-50'
               : attachment.status === 'uploading'
@@ -53,27 +53,27 @@ export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
           )}
         >
           {attachment.status === 'uploading' && (
-            <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin text-blue-600" />
+            <Loader2 className="h-2.5 w-2.5 flex-shrink-0 animate-spin text-blue-600" />
           )}
           {attachment.status === 'error' && (
-            <AlertCircle className="h-3 w-3 flex-shrink-0 text-rose-600" />
+            <AlertCircle className="h-2.5 w-2.5 flex-shrink-0 text-rose-600" />
           )}
           {attachment.status === 'ready' && !attachment.preview && (
-            <div className="flex-shrink-0">{getFileIcon(attachment)}</div>
+            <div className="flex-shrink-0 scale-75">{getFileIcon(attachment)}</div>
           )}
           
           {attachment.preview && attachment.type.startsWith('image/') && (
             <img
               src={attachment.preview}
               alt={attachment.name}
-              className="h-6 w-6 flex-shrink-0 rounded object-cover"
+              className="h-4 w-4 flex-shrink-0 rounded object-cover"
             />
           )}
           
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex min-w-0 flex-1 flex-col">
             <span
               className={cn(
-                'truncate text-[0.7rem] font-medium',
+                'truncate text-[0.625rem] font-medium leading-tight',
                 attachment.status === 'error'
                   ? 'text-rose-700'
                   : 'text-slate-700'
@@ -83,11 +83,11 @@ export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
               {attachment.name}
             </span>
             {attachment.error ? (
-              <span className="truncate text-[0.6rem] text-rose-600">
+              <span className="truncate text-[0.5rem] leading-tight text-rose-600">
                 {attachment.error}
               </span>
             ) : (
-              <span className="text-[0.6rem] text-slate-500">
+              <span className="text-[0.5rem] leading-tight text-slate-500">
                 {formatFileSize(attachment.size)}
               </span>
             )}
@@ -98,9 +98,9 @@ export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
             variant="ghost"
             size="icon"
             onClick={() => onRemove(attachment.id)}
-            className="h-4 w-4 flex-shrink-0 p-0 hover:bg-transparent"
+            className="h-3 w-3 flex-shrink-0 p-0 hover:bg-transparent"
           >
-            <X className="h-3 w-3" />
+            <X className="h-2.5 w-2.5" />
           </Button>
         </div>
         ))}

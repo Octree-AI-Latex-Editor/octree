@@ -106,7 +106,7 @@ export function ChatInput({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative flex w-full flex-col items-end rounded-md border p-1"
+        className="relative flex w-full flex-col gap-2 rounded-md border p-2"
       >
         {isDragging && (
           <div className="absolute inset-0 z-50 flex items-center justify-center rounded-md border-2 border-dashed border-blue-500 bg-blue-50/90 backdrop-blur-sm">
@@ -126,53 +126,55 @@ export function ChatInput({
           />
         )}
         
-        <Textarea
-          ref={inputRef}
-          value={input}
-          placeholder="Prompt to edit your document..."
-          onChange={(e) => onInputChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className={cn(
-            "scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent relative resize-none border-none px-1 shadow-none focus-visible:ring-0",
-            attachments.length > 0 ? "h-[45px]" : "h-[70px]"
-          )}
-        />
-        
-        <div className="flex items-center gap-1">
-          {onFilesSelected && (
-            <AttachmentUpload
-              onFilesSelected={onFilesSelected}
-              disabled={isLoading}
-              canAddMore={canAddMoreAttachments}
-            />
-          )}
-          
-          {isLoading && (
-            <Button
-              type="button"
-              size="icon"
-              variant="secondary"
-              onClick={onStop}
-              className="mr-2 size-6 rounded-full"
-              aria-label="Stop streaming"
-            >
-              <StopCircle className="h-4 w-4" />
-            </Button>
-          )}
-          
-          <Button
-            type="submit"
-            size="icon"
-            variant="default"
-            disabled={isLoading}
-            className="size-6 rounded-full"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ArrowUp />
+        <div className="flex w-full flex-wrap items-end gap-2">
+          <Textarea
+            ref={inputRef}
+            value={input}
+            placeholder="Prompt to edit your document..."
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={cn(
+              "scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent flex-1 resize-none border-none px-3 py-2 shadow-none focus-visible:ring-0",
+              attachments.length > 0 ? "min-h-[60px]" : "min-h-[72px]"
             )}
-          </Button>
+          />
+
+          <div className="flex items-end gap-1 self-end">
+            {onFilesSelected && (
+              <AttachmentUpload
+                onFilesSelected={onFilesSelected}
+                disabled={isLoading}
+                canAddMore={canAddMoreAttachments}
+              />
+            )}
+
+            {isLoading && (
+              <Button
+                type="button"
+                size="icon"
+                variant="secondary"
+                onClick={onStop}
+                className="size-6 rounded-full"
+                aria-label="Stop streaming"
+              >
+                <StopCircle className="h-4 w-4" />
+              </Button>
+            )}
+
+            <Button
+              type="submit"
+              size="icon"
+              variant="default"
+              disabled={isLoading}
+              className="size-6 rounded-full"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowUp />
+              )}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
