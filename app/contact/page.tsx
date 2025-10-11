@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Mail, Send, CheckCircle2 } from 'lucide-react';
+import { Mail, Send, CheckCircle2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ContactPage() {
@@ -71,9 +71,10 @@ export default function ContactPage() {
         <div className="container mx-auto px-4 py-4">
           <Link
             href="/"
-            className="text-sm text-neutral-600 hover:text-neutral-900"
+            className="flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900"
           >
-            ← Back to Dashboard
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
           </Link>
         </div>
       </header>
