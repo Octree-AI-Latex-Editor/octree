@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     // send email via resend
     const { data, error } = await resend.emails.send({
-      from: 'Octree Contact Form <onboarding@resend.dev>',
+      from: 'basil@useoctree.online',
       to: 'basil@useoctree.online',
       replyTo: email,
       subject: `Contact Form: ${subject}`,
