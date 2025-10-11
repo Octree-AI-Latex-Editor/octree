@@ -3,17 +3,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Loader2,
-  X,
-  Maximize2,
-  Minimize2,
-} from 'lucide-react';
+import { Loader2, X, Maximize2, Minimize2 } from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EditSuggestion } from '@/types/edit';
 import { cn } from '@/lib/utils';
-import { parseLatexDiff } from '@/lib/parse-latex-diff';
 import { useChatStream } from './use-chat-stream';
 import { useEditProposals } from './use-edit-proposals';
 import { useFileAttachments } from './use-file-attachments';
@@ -60,10 +54,9 @@ export function Chat({
   const [isLoading, setIsLoading] = useState(false);
   const [conversionStatus, setConversionStatus] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
-  
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef<boolean>(true);
-  const dispatchedForMessageRef = useRef<Set<string>>(new Set());
 
   const { startStream, parseStream, stopStream } = useChatStream();
   const {
@@ -97,10 +90,10 @@ export function Chat({
     if (!trimmed || isLoading) return;
 
     setError(null);
-    
+
     // Store user input for display
     const userDisplayContent = trimmed;
-    
+
     // Show user message immediately (just the text, not the extracted image content)
     const userMsg: ChatMessage = {
       id: `${Date.now()}-user`,
@@ -111,7 +104,7 @@ export function Chat({
 
     setInput('');
     clearAttachments(); // Clear attachments after sending
-    
+
     // Now start processing (shows conversion status if images)
     setIsLoading(true);
     setConversionStatus(null);
@@ -120,12 +113,12 @@ export function Chat({
     const attachmentContext = await getAttachmentContext((message) => {
       setConversionStatus(message);
     });
-    
+
     // Clear conversion status - now Claude takes over
     setConversionStatus(null);
-    
+
     // Build the actual content for Claude (with extracted image content)
-    const userContentForClaude = attachmentContext 
+    const userContentForClaude = attachmentContext
       ? `${trimmed}${attachmentContext}`
       : trimmed;
 
@@ -137,9 +130,9 @@ export function Chat({
       // Create messages array with the actual content for Claude (including image analysis)
       const messagesForClaude = [
         ...messages, // All previous messages
-        { ...userMsg, content: userContentForClaude } // User message with enhanced content
+        { ...userMsg, content: userContentForClaude }, // User message with enhanced content
       ];
-      
+
       const { response, controller } = await startStream(
         messagesForClaude,
         fileContent,
@@ -257,12 +250,13 @@ export function Chat({
   useEffect(() => {
     const el = chatContainerRef.current;
     if (!el) return;
-    
+
     const onScroll = () => {
       const { scrollTop, clientHeight, scrollHeight } = el;
-      shouldStickToBottomRef.current = scrollTop + clientHeight >= scrollHeight - 80;
+      shouldStickToBottomRef.current =
+        scrollTop + clientHeight >= scrollHeight - 80;
     };
-    
+
     el.addEventListener('scroll', onScroll);
     onScroll();
     return () => el.removeEventListener('scroll', onScroll);
@@ -289,10 +283,10 @@ export function Chat({
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="fixed right-4 bottom-4 z-20 flex cursor-pointer flex-col items-end space-y-2"
+        className="fixed bottom-4 right-4 z-20 flex cursor-pointer flex-col items-end space-y-2"
         onClick={() => setIsOpen(true)}
       >
-        <div className="text-foreground mb-2 rounded-md border border-blue-100 bg-white/80 px-3 py-1.5 text-sm shadow-sm backdrop-blur-sm">
+        <div className="mb-2 rounded-md border border-blue-100 bg-white/80 px-3 py-1.5 text-sm text-foreground shadow-sm backdrop-blur-sm">
           Press{' '}
           <kbd className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
             ⌘
@@ -313,7 +307,7 @@ export function Chat({
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 20, opacity: 0 }}
       className={cn(
-        'fixed right-4 bottom-4 z-20 w-96 rounded-md border border-blue-100 bg-white shadow-2xl transition-all duration-200',
+        'fixed bottom-4 right-4 z-20 w-96 rounded-md border border-blue-100 bg-white shadow-2xl transition-all duration-200',
         isMinimized ? 'h-15' : 'h-[610px]'
       )}
     >
@@ -369,11 +363,13 @@ export function Chat({
             <div
               ref={chatContainerRef}
               className={cn(
-                'scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent h-[440px] overflow-x-hidden overflow-y-auto p-4',
+                'h-[440px] overflow-y-auto overflow-x-hidden p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300',
                 textFromEditor && 'pb-24'
               )}
             >
-              {messages.length === 0 && !isLoading && !conversionStatus && <EmptyState />}
+              {messages.length === 0 && !isLoading && !conversionStatus && (
+                <EmptyState />
+              )}
               {messages.map((message) => (
                 <ChatMessageComponent
                   key={message.id}
@@ -382,7 +378,7 @@ export function Chat({
                   proposalIndicator={proposalIndicators[message.id]}
                 />
               ))}
-              
+
               {/* Image Analysis Status Indicator (like propose_edits) */}
               {conversionStatus && (
                 <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2">
@@ -413,4 +409,3 @@ export function Chat({
     </motion.div>
   );
 }
-

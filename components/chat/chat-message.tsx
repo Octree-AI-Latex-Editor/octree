@@ -50,9 +50,7 @@ function renderMessageContent(content: string): ReactNode {
           key={`text-before-${match.index}`}
           className="mb-2 whitespace-pre-wrap"
         >
-          <ReactMarkdown>
-            {content.slice(lastIndex, match.index)}
-          </ReactMarkdown>
+          <ReactMarkdown>{content.slice(lastIndex, match.index)}</ReactMarkdown>
         </div>
       );
     }
@@ -99,7 +97,7 @@ function renderMessageContent(content: string): ReactNode {
     parts.push(
       <div
         key="latex-incomplete"
-        className="animate-in fade-in-0 slide-in-from-bottom-2 my-2 flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-medium text-slate-600 duration-500"
+        className="my-2 flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-medium text-slate-600 duration-500 animate-in fade-in-0 slide-in-from-bottom-2"
       >
         <Loader2 className="h-3 w-3 animate-spin" />
         LaTeX Diff
@@ -111,10 +109,7 @@ function renderMessageContent(content: string): ReactNode {
 
   if (lastIndex < content.length) {
     parts.push(
-      <div
-        key={`text-after-${lastIndex}`}
-        className="mt-2 whitespace-pre-wrap"
-      >
+      <div key={`text-after-${lastIndex}`} className="mt-2 whitespace-pre-wrap">
         <ReactMarkdown>{content.slice(lastIndex)}</ReactMarkdown>
       </div>
     );
@@ -131,7 +126,7 @@ export function ChatMessageComponent({
   return (
     <div
       className={cn(
-        'mb-4 min-w-0 break-words rounded-lg border shadow-xs',
+        'shadow-xs mb-4 min-w-0 break-words rounded-lg border',
         message.role === 'assistant'
           ? 'border-slate-200 bg-gradient-to-br from-blue-50 to-blue-50/50 p-3'
           : 'border-slate-200 bg-white p-3'
@@ -149,7 +144,7 @@ export function ChatMessageComponent({
         {message.role === 'assistant' && !message.content && isLoading ? (
           <div className="flex items-center gap-1.5">
             <span className="animate-pulse text-sm italic text-slate-500">
-              thinking
+              Thinking
             </span>
             <div className="flex items-center space-x-0.5">
               <div className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]"></div>
@@ -164,4 +159,3 @@ export function ChatMessageComponent({
     </div>
   );
 }
-
