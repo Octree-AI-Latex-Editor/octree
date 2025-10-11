@@ -106,7 +106,7 @@ export default async function ProjectLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+        {children}
       </SidebarInset>
     </SidebarProvider>
   );

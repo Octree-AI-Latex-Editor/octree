@@ -128,13 +128,14 @@ export function ChatInput({
         
         <div className="flex w-full flex-wrap items-end gap-2">
           <Textarea
+          id='chat-input'
             ref={inputRef}
             value={input}
             placeholder="Prompt to edit your document..."
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             className={cn(
-              "scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent flex-1 resize-none border-none px-3 py-2 shadow-none focus-visible:ring-0",
+              "scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent flex-1 resize-none border-none p-1 shadow-none focus-visible:ring-0",
               attachments.length > 0 ? "min-h-[60px]" : "min-h-[72px]"
             )}
           />
