@@ -63,6 +63,7 @@ export function Chat({
     proposalIndicators,
     clearProposals,
     setPending,
+    incrementProgress,
     setError: setProposalError,
     convertEditsToSuggestions,
   } = useEditProposals(fileContent);
@@ -108,6 +109,9 @@ export function Chat({
     // Now start processing (shows conversion status if images)
     setIsLoading(true);
     setConversionStatus(null);
+    if (textFromEditor) {
+      setTextFromEditor(null);
+    }
 
     // Get attachment context (this extracts content from images using GPT-4o-mini)
     const attachmentContext = await getAttachmentContext((message) => {
@@ -153,12 +157,17 @@ export function Chat({
               onEditSuggestion(suggestions);
             }
           },
-          onToolCall: (name, count, violations) => {
+          onToolCall: (name, count, violations, progressIncrement) => {
             if (name === 'propose_edits') {
               const violationCount = Array.isArray(violations)
                 ? violations.length
                 : undefined;
-              setPending(assistantId, count, violationCount);
+              if (typeof count === 'number') {
+                setPending(assistantId, count, violationCount);
+              }
+              if (typeof progressIncrement === 'number') {
+                incrementProgress(assistantId, progressIncrement, true);
+              }
             }
           },
           onError: (errorMsg) => {
@@ -376,6 +385,7 @@ export function Chat({
                   message={message}
                   isLoading={isLoading}
                   proposalIndicator={proposalIndicators[message.id]}
+                  textFromEditor={textFromEditor}
                 />
               ))}
 
@@ -402,6 +412,7 @@ export function Chat({
               onStop={stopStream}
               onFilesSelected={addFiles}
               onRemoveAttachment={removeAttachment}
+              onResetError={() => setError(null)}
             />
           </motion.div>
         )}

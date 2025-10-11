@@ -19,6 +19,7 @@ interface ChatInputProps {
   onStop: () => void;
   onFilesSelected?: (files: File[]) => void;
   onRemoveAttachment?: (id: string) => void;
+  onResetError?: () => void;
 }
 
 export function ChatInput({
@@ -33,6 +34,7 @@ export function ChatInput({
   onStop,
   onFilesSelected,
   onRemoveAttachment,
+  onResetError,
 }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -102,7 +104,10 @@ export function ChatInput({
       )}
 
       <form
-        onSubmit={onSubmit}
+        onSubmit={(event) => {
+          onResetError?.();
+          onSubmit(event);
+        }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
