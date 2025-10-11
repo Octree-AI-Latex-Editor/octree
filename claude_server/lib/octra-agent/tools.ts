@@ -87,13 +87,23 @@ export function createProposeEditsTool(context: ToolContext) {
       // Add accepted edits to the collection
       context.collectedEdits.push(...validation.acceptedEdits);
       
-      context.writeEvent('tool', { 
-        name: 'propose_edits', 
-        count: validation.acceptedEdits.length, 
-        violations: validation.violations 
+      const totalEdits = validation.acceptedEdits.length;
+
+      context.writeEvent('tool', {
+        name: 'propose_edits',
+        count: totalEdits,
+        violations: validation.violations,
       });
-      
-      if (validation.acceptedEdits.length > 0) {
+
+      if (totalEdits > 0) {
+        validation.acceptedEdits.forEach((edit) => {
+          context.writeEvent('tool', {
+            name: 'propose_edits',
+            progress: 1,
+          });
+        });
+
+        // Emit the full batch of edits once all progress events are dispatched
         context.writeEvent('edits', validation.acceptedEdits);
       }
       

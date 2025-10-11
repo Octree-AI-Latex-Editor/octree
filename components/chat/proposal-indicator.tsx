@@ -1,5 +1,8 @@
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { ProposalIndicator as ProposalIndicatorType } from './use-edit-proposals';
+import {
+  ProposalIndicator as ProposalIndicatorType,
+  ProposalStepState,
+} from './use-edit-proposals';
 
 interface ProposalIndicatorProps {
   indicator: ProposalIndicatorType;
@@ -7,13 +10,43 @@ interface ProposalIndicatorProps {
 
 export function ProposalIndicator({ indicator }: ProposalIndicatorProps) {
   if (indicator.state === 'pending') {
+    const totalSteps = indicator.count ?? indicator.stepStates?.length ?? 1;
+    const steps: ProposalStepState[] = indicator.stepStates ?? [];
     return (
       <div className="mb-2 flex items-center gap-2 text-xs">
-        <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-2 py-1 text-blue-700">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Proposing edits
-          {typeof indicator.count === 'number' && ` (${indicator.count})`}
-        </span>
+        <div className="inline-flex items-center gap-3 rounded-full bg-blue-100/80 px-3 py-1 text-blue-700">
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>Proposing edits</span>
+            {totalSteps > 1 && indicator.progressCount !== undefined && (
+              <span className="text-[0.7rem] text-blue-600">
+              {Math.min(indicator.progressCount, totalSteps)}/{totalSteps}
+              </span>
+            )}
+          </div>
+          {totalSteps > 1 && (
+            <span className="flex items-center gap-1">
+              {Array.from({ length: totalSteps }, (_, idx) => {
+                const state = steps[idx] ?? 'queued';
+                const baseClass =
+                  'h-1.5 w-1.5 rounded-full transition-all duration-200';
+                const stateClass =
+                  state === 'success'
+                    ? 'bg-emerald-600'
+                    : state === 'pending'
+                      ? 'bg-blue-600 animate-pulse'
+                      : 'bg-blue-300/70';
+                return (
+                  <span
+                    key={`step-${idx}`}
+                    className={`${baseClass} ${stateClass}`}
+                    aria-hidden
+                  />
+                );
+              })}
+            </span>
+          )}
+        </div>
         {indicator.violations ? (
           <span className="inline-flex items-center gap-1 text-[0.7rem] text-amber-600">
             <AlertCircle className="h-3 w-3" />
@@ -25,12 +58,12 @@ export function ProposalIndicator({ indicator }: ProposalIndicatorProps) {
   }
 
   if (indicator.state === 'success') {
+    const total = indicator.count ?? indicator.progressCount ?? 0;
     return (
       <div className="mb-2 flex items-center gap-2 text-xs">
         <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
           <CheckCircle2 className="h-3 w-3" />
-          Proposed {indicator.count ?? 0} edit
-          {indicator.count !== 1 ? 's' : ''}
+          Proposed {total || 1} edit{total === 1 ? '' : 's'}
         </span>
       </div>
     );

@@ -22,6 +22,7 @@ interface ChatMessageProps {
   message: ChatMessage;
   isLoading?: boolean;
   proposalIndicator?: ProposalIndicatorType;
+  textFromEditor?: string | null;
 }
 
 function renderMessageContent(content: string): ReactNode {
@@ -122,6 +123,7 @@ export function ChatMessageComponent({
   message,
   isLoading,
   proposalIndicator,
+  textFromEditor,
 }: ChatMessageProps) {
   return (
     <div
@@ -135,10 +137,6 @@ export function ChatMessageComponent({
       <div className="mb-1 text-sm font-semibold text-blue-800">
         {message.role === 'assistant' ? 'Octra' : 'You'}
       </div>
-
-      {message.role === 'assistant' && proposalIndicator && (
-        <ProposalIndicator indicator={proposalIndicator} />
-      )}
 
       <div className="min-w-0 overflow-hidden whitespace-pre-wrap break-words text-sm text-slate-800">
         {message.role === 'assistant' && !message.content && isLoading ? (
@@ -156,6 +154,12 @@ export function ChatMessageComponent({
           renderMessageContent(message.content)
         )}
       </div>
+
+      {message.role === 'assistant' && !textFromEditor && proposalIndicator && (
+        <div className="mt-3 border-t border-blue-100 pt-3">
+          <ProposalIndicator indicator={proposalIndicator} />
+        </div>
+      )}
     </div>
   );
 }

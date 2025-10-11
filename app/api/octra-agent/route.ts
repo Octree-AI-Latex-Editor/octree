@@ -23,9 +23,6 @@ import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants'
 export const runtime = 'nodejs';
 export async function POST(request: Request) {
   try {
-    // ====================================================================
-    // SECURITY: Check authentication and usage limits BEFORE proxying
-    // ====================================================================
     const supabase = await createClient();
     const {
       data: { user },
@@ -59,7 +56,7 @@ export async function POST(request: Request) {
       } | null;
       const usageError = usageRes.error;
 
-      // SECURITY: If no usage record exists, create one with default free tier limits
+      // If no usage record exists, create one with default free tier limits
       // This prevents new users from bypassing quota checks entirely
       if (usageError && usageError.code === 'PGRST116') {
         console.log('[Security] Creating user_usage record for new user:', user.id);
@@ -136,17 +133,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // ====================================================================
-    // CRITICAL: Increment usage count for non-unlimited users
-    // Whitelisted (unlimited) users skip quota tracking entirely.
-    // ====================================================================
     if (!hasUnlimited) {
-      // Each AI suggestion generation counts as one edit, regardless of
-      // whether the user accepts it. This prevents unlimited AI calls.
-      // 
-      // IMPORTANT: Check the RPC return value to prevent race conditions.
-      // If two requests arrive simultaneously, the RPC enforces atomicity
-      // and returns false if the limit was reached between check and increment.
       let incrementResult;
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,8 +156,7 @@ export async function POST(request: Request) {
         );
       }
 
-      // RACE CONDITION PROTECTION: If increment returned false, the limit
-      // was reached between our check and the increment (concurrent requests).
+      // If increment returned false, the limit was reached between our check and the increment (concurrent requests).
       // Deny the request to prevent over-quota usage.
       if (!incrementResult) {
         console.warn(`[Security] Race condition detected: increment denied for user ${user.id}`);
@@ -198,9 +184,6 @@ export async function POST(request: Request) {
       console.log(`[Unlimited] Skipping quota tracking for whitelisted user: ${user.email}`);
     }
 
-    // ====================================================================
-    // If a remote Agent Service URL is configured, proxy the request
-    // ====================================================================
     const remoteUrl = process.env.CLAUDE_AGENT_SERVICE_URL;
     if (remoteUrl) {
       const body = await request.json();

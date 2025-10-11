@@ -17,7 +17,12 @@ interface SelectionRange {
 interface StreamCallbacks {
   onTextUpdate: (text: string) => void;
   onEdits: (edits: LineEdit[]) => void;
-  onToolCall: (name: string, count: number, violations?: unknown[]) => void;
+  onToolCall: (
+    name: string,
+    count?: number,
+    violations?: unknown[],
+    progressIncrement?: number
+  ) => void;
   onError: (error: string) => void;
   onStatus: (state: string) => void;
 }
@@ -79,6 +84,38 @@ export function useChatStream() {
       let buffer = '';
       let lastAssistantText = '';
 
+      const cancelPendingFrame = () => {
+        if (rafIdRef.current != null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+      };
+
+      const flushQueued = () => {
+        if (!pendingTextRef.current) return;
+        const toFlush = pendingTextRef.current;
+        pendingTextRef.current = '';
+        rafIdRef.current = null;
+        if (!toFlush) return;
+        lastAssistantText = `${lastAssistantText}${toFlush}`;
+        callbacks.onTextUpdate(lastAssistantText);
+      };
+
+      const queueChunk = (chunk: string) => {
+        if (!chunk) return;
+        pendingTextRef.current += chunk;
+        if (rafIdRef.current == null) {
+          rafIdRef.current = requestAnimationFrame(flushQueued);
+        }
+      };
+
+      const forceSetText = (text: string) => {
+        cancelPendingFrame();
+        pendingTextRef.current = '';
+        lastAssistantText = text;
+        callbacks.onTextUpdate(text);
+      };
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -113,44 +150,50 @@ export function useChatStream() {
             const chunk = String(payload.text)
               .replace(/\r\n/g, '\n')
               .replace(/\r/g, '\n');
-            pendingTextRef.current += chunk;
-
-            if (rafIdRef.current == null) {
-              rafIdRef.current = requestAnimationFrame(() => {
-                const toFlush = pendingTextRef.current;
-                pendingTextRef.current = '';
-                rafIdRef.current = null;
-                const merged = (lastAssistantText || '') + toFlush;
-                callbacks.onTextUpdate(merged);
-                lastAssistantText = merged;
-              });
-            }
+            queueChunk(chunk);
           } else if (eventName === 'assistant_message' && payload?.text) {
-            const full = String(payload.text);
-            callbacks.onTextUpdate(full);
-            lastAssistantText = full;
+            const full = String(payload.text)
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n');
+            if (full.startsWith(lastAssistantText)) {
+              queueChunk(full.slice(lastAssistantText.length));
+            } else {
+              forceSetText(full);
+            }
           } else if (eventName === 'edits' && Array.isArray(payload)) {
             callbacks.onEdits(payload);
           } else if (eventName === 'status') {
             if (payload?.state) callbacks.onStatus(payload.state);
           } else if (eventName === 'tool') {
             const name = payload?.name ? String(payload.name) : 'tool';
-            const count = typeof payload?.count === 'number' ? payload.count : 0;
-            callbacks.onToolCall(name, count, payload?.violations);
+            const count = typeof payload?.count === 'number' ? payload.count : undefined;
+            const progressIncrement = typeof payload?.progress === 'number' ? payload.progress : undefined;
+            callbacks.onToolCall(name, count, payload?.violations, progressIncrement);
           } else if (eventName === 'error') {
             const errorMsg = payload?.message
               ? String(payload.message)
               : 'An error occurred';
             callbacks.onError(errorMsg);
           } else if (eventName === 'result' && payload?.text) {
-            const full = String(payload.text);
-            callbacks.onTextUpdate(full);
-            lastAssistantText = full;
+            const full = String(payload.text)
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n');
+            if (full.startsWith(lastAssistantText)) {
+              queueChunk(full.slice(lastAssistantText.length));
+            } else {
+              forceSetText(full);
+            }
             if (Array.isArray(payload.edits)) callbacks.onEdits(payload.edits);
           } else if (eventName === 'done') {
             if (payload?.text && typeof payload.text === 'string') {
-              callbacks.onTextUpdate(payload.text);
-              lastAssistantText = payload.text;
+              const full = String(payload.text)
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n');
+              if (full.startsWith(lastAssistantText)) {
+                queueChunk(full.slice(lastAssistantText.length));
+              } else {
+                forceSetText(full);
+              }
             }
             if (Array.isArray(payload?.edits) && payload.edits.length > 0) {
               callbacks.onEdits(payload.edits);
@@ -159,6 +202,8 @@ export function useChatStream() {
         }
       }
 
+      cancelPendingFrame();
+      flushQueued();
       return lastAssistantText;
     },
     []
