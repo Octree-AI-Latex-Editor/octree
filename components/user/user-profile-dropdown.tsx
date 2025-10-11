@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { CancelSubscriptionDialog } from '@/components/subscription/cancel-subscription-dialog';
-import { User, Settings, LogOut, ChevronDown, Receipt } from 'lucide-react';
+import { User, Settings, LogOut, ChevronDown, Receipt, MessageCircle } from 'lucide-react';
 
 interface UserProfileDropdownProps {
   userName: string | null;
@@ -56,6 +56,13 @@ export function UserProfileDropdown({ userName }: UserProfileDropdownProps) {
             <Receipt className="mr-2 h-4 w-4" />
             Billing History
           </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={() => router.push('/contact')}>
+            <MessageCircle className="mr-2 h-4 w-4" />
+            Contact Us
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
 
           <DropdownMenuItem onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" />
