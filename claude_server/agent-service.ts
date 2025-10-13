@@ -19,9 +19,10 @@ app.post('/agent', async (req, res) => {
     const { messages, fileContent, textFromEditor, selectionRange } = req.body || {};
     if (!messages?.length || typeof fileContent !== 'string') return res.status(400).json({ error: 'Invalid request' });
 
-    const numbered = buildNumberedContent(fileContent, textFromEditor);
+    // Non-blocking operations to avoid blocking the event loop
+    const numbered = await buildNumberedContent(fileContent, textFromEditor);
     const userText = typeof messages[messages.length - 1]?.content === 'string' ? messages[messages.length - 1].content : '';
-    const intent = inferIntent(userText);
+    const intent = await inferIntent(userText);
     const collectedEdits: unknown[] = [];
 
     res.setHeader('Content-Type', 'text/event-stream');

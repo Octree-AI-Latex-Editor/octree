@@ -314,11 +314,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Process content and infer intent
-    const numberedContent = buildNumberedContent(fileContent, textFromEditor);
+    // Process content and infer intent (non-blocking)
+    const numberedContent = await buildNumberedContent(fileContent, textFromEditor);
     const lastUser = messages[messages.length - 1];
     const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
-    const intent = inferIntent(userText);
+    const intent = await inferIntent(userText);
 
     // Collect AST-based edits
     const collectedEdits: LineEdit[] = [];

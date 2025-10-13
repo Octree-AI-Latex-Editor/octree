@@ -5,34 +5,42 @@
 
 /**
  * Build numbered content with line numbers for better editing precision
+ * Non-blocking version using setImmediate for large documents
  * @param fileContent - The raw file content
  * @param textFromEditor - Optional selected text from editor
- * @returns Numbered content string
+ * @returns Promise resolving to numbered content string
  */
-export function buildNumberedContent(fileContent: string, textFromEditor?: string | null): string {
-  const lines = fileContent.split('\n');
-  const MAX_LINES_FULL_CONTEXT = 500;
+export async function buildNumberedContent(fileContent: string, textFromEditor?: string | null): Promise<string> {
+  return new Promise((resolve) => {
+    // Use setImmediate to avoid blocking the event loop
+    setImmediate(() => {
+      const lines = fileContent.split('\n');
+      const MAX_LINES_FULL_CONTEXT = 500;
 
-  if (lines.length <= MAX_LINES_FULL_CONTEXT) {
-    return lines
-      .map((line, index) => `${index + 1}: ${line}`)
-      .join('\n');
-  }
+      if (lines.length <= MAX_LINES_FULL_CONTEXT) {
+        const numbered = lines
+          .map((line, index) => `${index + 1}: ${line}`)
+          .join('\n');
+        resolve(numbered);
+        return;
+      }
 
-  const startLines = lines
-    .slice(0, 100)
-    .map((line, index) => `${index + 1}: ${line}`)
-    .join('\n');
-  const endLines = lines
-    .slice(-100)
-    .map((line, index) => `${lines.length - 100 + index + 1}: ${line}`)
-    .join('\n');
+      const startLines = lines
+        .slice(0, 100)
+        .map((line, index) => `${index + 1}: ${line}`)
+        .join('\n');
+      const endLines = lines
+        .slice(-100)
+        .map((line, index) => `${lines.length - 100 + index + 1}: ${line}`)
+        .join('\n');
 
-  let numbered = `${startLines}\n\n... [${lines.length - 200} lines omitted] ...\n\n${endLines}`;
-  if (textFromEditor && textFromEditor.length > 0) {
-    numbered += `\n\n[Selected region context will be provided separately]`;
-  }
-  return numbered;
+      let numbered = `${startLines}\n\n... [${lines.length - 200} lines omitted] ...\n\n${endLines}`;
+      if (textFromEditor && textFromEditor.length > 0) {
+        numbered += `\n\n[Selected region context will be provided separately]`;
+      }
+      resolve(numbered);
+    });
+  });
 }
 
 /**

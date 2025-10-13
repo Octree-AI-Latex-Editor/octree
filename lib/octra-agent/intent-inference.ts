@@ -98,39 +98,45 @@ const patterns = {
 
 /**
  * Infer user intent from text using pattern matching
+ * Non-blocking version using setImmediate
  * @param userText - The user's input text
- * @returns IntentResult with permission flags
+ * @returns Promise resolving to IntentResult with permission flags
  */
-export function inferIntent(userText: string): IntentResult {
-  const text = (userText || '').toLowerCase();
-  
-  // Execute pattern matching
-  const wantsInsert = patterns.insert.match(text);
-  const wantsDelete = patterns.delete.match(text);
-  const wantsReplace = patterns.replace.match(text);
-  const wantsGrammar = patterns.grammar.match(text);
-  const wantsDedupe = patterns.dedupe.match(text);
-  const wantsMulti = patterns.multi.match(text);
-  const wantsFull = patterns.full.match(text);
-  
-  const hasExplicitRestriction = patterns.explicitRestriction.match(text);
-  const hasNegativeRestriction = patterns.negativeRestriction.match(text);
-  const hasReadOnlyIntent = patterns.readOnlyIntent.match(text);
-  
-  // Default to allowing operations unless explicitly restricted
-  const allowOperations = !hasExplicitRestriction && !hasNegativeRestriction && !hasReadOnlyIntent;
-  
-  return {
-    // Basic operations - allow by default unless restricted
-    allowInsert: allowOperations,
-    allowDelete: allowOperations,
-    allowReplace: allowOperations,
-    
-    // Special flags
-    wantsGrammar,
-    wantsDedupe,
-    isReadOnly: hasReadOnlyIntent || hasExplicitRestriction || hasNegativeRestriction,
-    multiEdit: wantsMulti || wantsFull || wantsInsert || wantsReplace,
-    fullRevamp: wantsFull,
-  };
+export async function inferIntent(userText: string): Promise<IntentResult> {
+  return new Promise((resolve) => {
+    // Use setImmediate to avoid blocking the event loop
+    setImmediate(() => {
+      const text = (userText || '').toLowerCase();
+      
+      // Execute pattern matching
+      const wantsInsert = patterns.insert.match(text);
+      const wantsDelete = patterns.delete.match(text);
+      const wantsReplace = patterns.replace.match(text);
+      const wantsGrammar = patterns.grammar.match(text);
+      const wantsDedupe = patterns.dedupe.match(text);
+      const wantsMulti = patterns.multi.match(text);
+      const wantsFull = patterns.full.match(text);
+      
+      const hasExplicitRestriction = patterns.explicitRestriction.match(text);
+      const hasNegativeRestriction = patterns.negativeRestriction.match(text);
+      const hasReadOnlyIntent = patterns.readOnlyIntent.match(text);
+      
+      // Default to allowing operations unless explicitly restricted
+      const allowOperations = !hasExplicitRestriction && !hasNegativeRestriction && !hasReadOnlyIntent;
+      
+      resolve({
+        // Basic operations - allow by default unless restricted
+        allowInsert: allowOperations,
+        allowDelete: allowOperations,
+        allowReplace: allowOperations,
+        
+        // Special flags
+        wantsGrammar,
+        wantsDedupe,
+        isReadOnly: hasReadOnlyIntent || hasExplicitRestriction || hasNegativeRestriction,
+        multiEdit: wantsMulti || wantsFull || wantsInsert || wantsReplace,
+        fullRevamp: wantsFull,
+      });
+    });
+  });
 }
