@@ -58,6 +58,29 @@ export function useEditProposals(fileContent: string) {
     eventProgressRef.current = {};
   }, []);
 
+  const clearAllProposalsAndTimeouts = useCallback(() => {
+    // Clear all timeouts completely
+    Object.values(progressTimeoutsRef.current).forEach((timeouts) => {
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    });
+    progressTimeoutsRef.current = {};
+    pendingTimestampRef.current = {};
+    eventProgressRef.current = {};
+    processedEditsRef.current.clear();
+    
+    // Clear all pending indicators
+    setProposalIndicators((prev) => {
+      const updated: Record<string, ProposalIndicator> = {};
+      Object.entries(prev).forEach(([messageId, indicator]) => {
+        // Keep successful ones, clear pending/error ones
+        if (indicator.state === 'success') {
+          updated[messageId] = indicator;
+        }
+      });
+      return updated;
+    });
+  }, []);
+
   const setPending = useCallback(
     (messageId: string, count?: number, violations?: number) => {
       if (!pendingTimestampRef.current[messageId]) {
@@ -263,6 +286,7 @@ export function useEditProposals(fileContent: string) {
   return {
     proposalIndicators,
     clearProposals,
+    clearAllProposalsAndTimeouts,
     setPending,
     setError,
     incrementProgress,

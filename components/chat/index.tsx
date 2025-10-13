@@ -58,6 +58,7 @@ export function Chat({
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef<boolean>(true);
+  const currentAssistantIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
@@ -67,6 +68,7 @@ export function Chat({
   const {
     proposalIndicators,
     clearProposals,
+    clearAllProposalsAndTimeouts,
     setPending,
     incrementProgress,
     setError: setProposalError,
@@ -88,6 +90,14 @@ export function Chat({
         chatContainerRef.current.scrollHeight;
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopStream();
+      clearAllProposalsAndTimeouts();
+    };
+  }, [stopStream, clearAllProposalsAndTimeouts]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -134,6 +144,7 @@ export function Chat({
     clearProposals();
 
     const assistantId = `${Date.now()}-assistant`;
+    currentAssistantIdRef.current = assistantId;
 
     try {
       // Create messages array with the actual content for Claude (including image analysis)
@@ -243,10 +254,20 @@ export function Chat({
       }
     } catch (err) {
       console.error('Octra Agent API error:', err);
-      if ((err as any)?.name !== 'AbortError') setError(err);
+      if ((err as any)?.name !== 'AbortError') {
+        setError(err);
+      } else {
+        // AbortError - user stopped it, remove incomplete message
+        if (currentAssistantIdRef.current) {
+          setMessages((prev) => 
+            prev.filter((m) => m.id !== currentAssistantIdRef.current)
+          );
+        }
+      }
     } finally {
       setIsLoading(false);
       setInput('');
+      currentAssistantIdRef.current = null;
       window.dispatchEvent(new Event('usage-update'));
     }
   };
@@ -414,7 +435,27 @@ export function Chat({
               onInputChange={setInput}
               onSubmit={handleSubmit}
               onClearEditor={() => setTextFromEditor(null)}
-              onStop={stopStream}
+              onStop={() => {
+                console.log('[Chat] Stop button clicked, currentAssistantId:', currentAssistantIdRef.current);
+                
+                stopStream();
+                clearAllProposalsAndTimeouts();
+                
+                // Remove incomplete assistant message
+                const messageIdToRemove = currentAssistantIdRef.current;
+                if (messageIdToRemove) {
+                  setMessages((prev) => {
+                    const filtered = prev.filter((m) => m.id !== messageIdToRemove);
+                    console.log('[Chat] Removed message, before:', prev.length, 'after:', filtered.length);
+                    return filtered;
+                  });
+                  currentAssistantIdRef.current = null;
+                }
+                
+                setIsLoading(false);
+                setConversionStatus(null);
+                setError(null);
+              }}
               onFilesSelected={addFiles}
               onRemoveAttachment={removeAttachment}
               onResetError={() => setError(null)}

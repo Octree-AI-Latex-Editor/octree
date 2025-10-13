@@ -223,7 +223,7 @@ export async function POST(request: Request) {
             if (done) break;
             
             // Pass through immediately
-            writer.write(value);
+            await writer.write(value);
             
             // Log events for debugging
             const chunk = decoder.decode(value, { stream: true });
@@ -252,10 +252,33 @@ export async function POST(request: Request) {
               }
             }
           }
-          writer.close();
+          // Close writer if not already closed
+          try {
+            await writer.close();
+          } catch (e) {
+            // Writer already closed, ignore
+          }
         } catch (err) {
-          console.error('[Octra Proxy] Stream error:', err);
-          writer.abort(err);
+          // Ignore abort errors (expected when client stops)
+          const error = err as Error;
+          if (error?.name === 'AbortError' || error?.constructor?.name === 'ResponseAborted') {
+            console.log('[Octra Proxy] Stream aborted by client');
+          } else {
+            console.error('[Octra Proxy] Stream error:', err);
+          }
+          // Try to abort writer if not already closed
+          try {
+            await writer.abort();
+          } catch {
+            // Already closed, ignore
+          }
+        } finally {
+          // Clean up reader
+          try {
+            await reader.cancel();
+          } catch {
+            // Already cancelled, ignore
+          }
         }
       })();
       
