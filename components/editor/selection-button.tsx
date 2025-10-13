@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
 interface SelectionButtonProps {
   show: boolean;
@@ -16,6 +17,13 @@ export function SelectionButton({
   onCopy,
   className = '',
 }: SelectionButtonProps) {
+  const [isMac, setIsMac] = useState(true);
+
+  useEffect(() => {
+    // Detect platform (Mac vs Windows/Linux)
+    setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
+  }, []);
+
   if (!show) return null;
 
   return (
@@ -30,7 +38,9 @@ export function SelectionButton({
       }}
     >
       Edit
-      <kbd className="ml-1 text-xs opacity-60">⌘B</kbd>
+      <kbd className="ml-1 text-xs opacity-60">
+        {isMac ? '⌘B' : 'Ctrl+B'}
+      </kbd>
     </Button>
   );
 }

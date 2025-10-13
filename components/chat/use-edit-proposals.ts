@@ -257,7 +257,7 @@ export function useEditProposals(fileContent: string) {
 
       return mapped;
     },
-    [fileContent]
+    [fileContent, incrementProgress]
   );
 
   return {

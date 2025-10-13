@@ -54,9 +54,14 @@ export function Chat({
   const [isLoading, setIsLoading] = useState(false);
   const [conversionStatus, setConversionStatus] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [isMac, setIsMac] = useState(true);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
+  }, []);
 
   const { startStream, parseStream, stopStream } = useChatStream();
   const {
@@ -298,7 +303,7 @@ export function Chat({
         <div className="mb-2 rounded-md border border-blue-100 bg-white/80 px-3 py-1.5 text-sm text-foreground shadow-sm backdrop-blur-sm">
           Press{' '}
           <kbd className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
-            ⌘
+            {isMac ? '⌘' : 'Ctrl'}
           </kbd>
           {' + '}
           <kbd className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-xs">

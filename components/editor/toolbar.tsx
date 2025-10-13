@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupItem } from '@/components/ui/button-group';
 import { UsageIndicator } from '@/components/subscription/usage-indicator';
 import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface EditorToolbarProps {
   onTextFormat: (format: 'bold' | 'italic' | 'underline') => void;
@@ -24,6 +25,11 @@ export function EditorToolbar({
   isSaving,
   lastSaved,
 }: EditorToolbarProps) {
+  const [isMac, setIsMac] = useState(true);
+
+  useEffect(() => {
+    setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
+  }, []);
   return (
     <div className="flex-shrink-0 border-b border-slate-200 bg-white p-2">
       <div className="flex items-center justify-between">
@@ -77,7 +83,9 @@ export function EditorToolbar({
             ) : (
               <>
                 Compile
-                <span className="ml-1 text-xs opacity-60">⌘S</span>
+                <span className="ml-1 text-xs opacity-60">
+                  {isMac ? '⌘S' : 'Ctrl+S'}
+                </span>
               </>
             )}
           </Button>
