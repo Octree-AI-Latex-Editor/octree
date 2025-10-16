@@ -67,8 +67,10 @@ export default function FileEditorPage() {
 
   const {
     editSuggestions,
+    totalPendingCount,
     handleEditSuggestion,
     handleAcceptEdit,
+    handleAcceptAllEdits,
     handleRejectEdit,
   } = useEditSuggestions({
     editor: editorRef.current,
@@ -203,6 +205,8 @@ export default function FileEditorPage() {
         isOpen={chatOpen}
         setIsOpen={setChatOpen}
         onEditSuggestion={handleSuggestionFromChat}
+        onAcceptAllEdits={handleAcceptAllEdits}
+        pendingEditCount={totalPendingCount}
         fileContent={content}
         textFromEditor={textFromEditor}
         setTextFromEditor={setTextFromEditor}
