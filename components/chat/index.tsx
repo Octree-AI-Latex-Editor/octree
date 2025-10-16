@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, X, Maximize2, Minimize2 } from 'lucide-react';
+import { Loader2, X, Maximize2, Minimize2, CheckCheck } from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EditSuggestion } from '@/types/edit';
@@ -17,6 +17,8 @@ import { EmptyState } from './empty-state';
 
 interface ChatProps {
   onEditSuggestion: (edit: EditSuggestion | EditSuggestion[]) => void;
+  onAcceptAllEdits?: () => void;
+  pendingEditCount?: number;
   fileContent: string;
   textFromEditor: string | null;
   setTextFromEditor: (text: string | null) => void;
@@ -44,6 +46,8 @@ export function Chat({
   isOpen,
   setIsOpen,
   onEditSuggestion,
+  onAcceptAllEdits,
+  pendingEditCount = 0,
   fileContent,
   textFromEditor,
   setTextFromEditor,
@@ -368,6 +372,18 @@ export function Chat({
             <div className="flex items-center pr-1" aria-live="polite">
               <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
             </div>
+          )}
+          {pendingEditCount > 1 && onAcceptAllEdits && (
+            <Button
+              size="sm"
+              onClick={onAcceptAllEdits}
+              disabled={isLoading}
+              className="h-8 rounded-lg bg-green-600 px-2 text-xs text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isLoading ? 'Wait for all edits to finish generating' : 'Accept all pending edits'}
+            >
+              <CheckCheck size={14} className="mr-1" />
+              Accept All ({pendingEditCount})
+            </Button>
           )}
           <Button
             variant="ghost"

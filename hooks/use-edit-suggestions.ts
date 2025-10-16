@@ -9,10 +9,12 @@ import { useEditLimitCache } from './use-edit-limit-cache';
 
 export interface EditSuggestionsState {
   editSuggestions: EditSuggestion[];
+  totalPendingCount: number;
   decorationIds: string[];
   setDecorationIds: (ids: string[]) => void;
   handleEditSuggestion: (suggestion: EditSuggestion | EditSuggestion[]) => void;
   handleAcceptEdit: (suggestionId: string) => Promise<void>;
+  handleAcceptAllEdits: () => Promise<void>;
   handleRejectEdit: (suggestionId: string) => void;
   handleNextSuggestion: () => void;
 }
@@ -333,6 +335,86 @@ export function useEditSuggestions({
     }
   };
 
+  const handleAcceptAllEdits = async () => {
+    // Get ALL suggestions - both visible and queued
+    const allPendingSuggestions = [
+      ...editSuggestions.filter((s) => s.status === 'pending'),
+      ...suggestionQueueRef.current
+    ];
+
+    if (allPendingSuggestions.length === 0) return;
+
+    // Fast check using cached status
+    if (!canEdit) {
+      toast.error(
+        'You have reached your edit limit. Please upgrade to Pro for 200 edits per month.'
+      );
+      return;
+    }
+
+    if (!editor || !monacoInstance) {
+      console.error('Editor or Monaco instance not available.');
+      return;
+    }
+
+    const model = editor.getModel();
+    if (!model) {
+      console.error('Editor model not available.');
+      return;
+    }
+
+    try {
+      // Sort suggestions from bottom to top (highest line first)
+      // This prevents earlier edits from affecting the positions of later edits
+      const sortedSuggestions = [...allPendingSuggestions].sort((a, b) => {
+        const lineA = getStartLine(a);
+        const lineB = getStartLine(b);
+        return lineB - lineA; // Descending order
+      });
+
+      // Build all edit operations
+      const edits = sortedSuggestions.map((suggestion) => {
+        const startLineNumber = getStartLine(suggestion);
+        const originalLineCount = getOriginalLineCount(suggestion);
+        const suggestedText = getSuggestedText(suggestion);
+        
+        const endLineNumber =
+          originalLineCount > 0
+            ? startLineNumber + originalLineCount - 1
+            : startLineNumber;
+        const endColumn =
+          originalLineCount > 0
+            ? model.getLineMaxColumn(endLineNumber)
+            : 1;
+
+        return {
+          range: new monacoInstance.Range(
+            startLineNumber,
+            1,
+            endLineNumber,
+            endColumn
+          ),
+          text: suggestedText,
+          forceMoveMarkers: true,
+        };
+      });
+
+      // Apply all edits in a single batch operation
+      editor.executeEdits('accept-all-ai-suggestions', edits);
+
+      // Clear all suggestions and queue
+      suggestionQueueRef.current = [];
+      setEditSuggestions([]);
+      clearContinueToast();
+      hasActiveBatchRef.current = false;
+      
+      toast.success(`Applied ${allPendingSuggestions.length} edits`, { duration: 2000 });
+    } catch (error) {
+      console.error('Error applying all edits:', error);
+      toast.error('Failed to apply suggestions. Please try again.');
+    }
+  };
+
   const handleRejectEdit = (suggestionId: string) => {
     setEditSuggestions((prev) =>
       prev.filter((s) => s.id !== suggestionId)
@@ -527,12 +609,18 @@ export function useEditSuggestions({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array for unmount cleanup
 
+  const totalPendingCount = 
+    editSuggestions.filter((s) => s.status === 'pending').length + 
+    suggestionQueueRef.current.length;
+
   return {
     editSuggestions,
+    totalPendingCount,
     decorationIds,
     setDecorationIds,
     handleEditSuggestion,
     handleAcceptEdit,
+    handleAcceptAllEdits,
     handleRejectEdit,
     handleNextSuggestion,
   };
