@@ -46,6 +46,7 @@ app.post('/agent', async (req, res) => {
         permissionMode: 'bypassPermissions',
         allowedTools: ['get_context', 'propose_edits'],
         mcpServers: { 'octra-tools': sdkServer },
+        model: 'claude-haiku-4-5-20251001',
       },
     });
 

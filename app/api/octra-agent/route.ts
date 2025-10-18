@@ -363,7 +363,10 @@ export async function POST(request: Request) {
     try {
       gen = query({
         prompt: fullPrompt,
-        options: finalQueryOptions,
+        options: {
+          ...finalQueryOptions,
+          model: 'claude-haiku-4-5-20251001',
+        },
       });
     } catch (error) {
       console.error('Failed to initialize Claude Agent SDK:', error);
