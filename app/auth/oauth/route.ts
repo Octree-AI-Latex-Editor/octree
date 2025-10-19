@@ -10,8 +10,20 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      // Auto-complete onboarding for OAuth users (tools integration)
+      await supabase
+        .from('user_usage')
+        // @ts-ignore - Supabase type generation issue
+        .upsert({
+          user_id: data.user.id,
+          onboarding_completed: true,
+          referral_source: 'oauth',
+        }, {
+          onConflict: 'user_id',
+        });
+      
       const destination = buildRedirectUrl(request.headers, origin, next);
       return NextResponse.redirect(destination, { status: 303 });
     }
