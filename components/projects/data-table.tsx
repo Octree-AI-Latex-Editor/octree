@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   ColumnDef,
   flexRender,
@@ -17,7 +16,6 @@ import {
 } from '@/components/ui/table';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Loader2 } from 'lucide-react';
 
 interface DataTableProps<TData extends { id: string }, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -29,7 +27,6 @@ export function DataTable<TData extends { id: string }, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const router = useRouter();
-  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
   
   const table = useReactTable({
     data,
@@ -38,52 +35,29 @@ export function DataTable<TData extends { id: string }, TValue>({
   });
 
   const handleProjectClick = async (projectId: string) => {
-    if (loadingProjectId) return; // Prevent multiple clicks
+    // Quick lookup then navigate - loading will show on editor page
+    const supabase = createClient();
     
-    setLoadingProjectId(projectId);
+    const filesRes = await supabase
+      .from('files' as const)
+      .select('id')
+      .eq('project_id', projectId)
+      .order('uploaded_at', { ascending: false })
+      .limit(1);
     
-    try {
-      const supabase = createClient();
-      
-      // Get the latest file for this project
-      type MinimalFile = { id: string; name: string };
-      const filesRes = await supabase
-        .from('files' as const)
-        .select('id, name')
-        .eq('project_id', projectId)
-        .order('uploaded_at', { ascending: false })
-        .limit(1);
-      const files = (filesRes.data as MinimalFile[] | null) ?? [];
-      const error = filesRes.error;
+    type FileResult = { id: string };
+    const files = (filesRes.data as FileResult[] | null) ?? [];
 
-      if (error || !files || files.length === 0) {
-        // If no files found, redirect to the project files page
-        router.push(`/projects/${projectId}/files`);
-        return;
-      }
-
-      const latestFile = files[0] as MinimalFile;
-      router.push(`/projects/${projectId}/files/${latestFile.id}/editor`);
-    } catch (error) {
-      console.error('Error getting latest file:', error);
-      setLoadingProjectId(null); // Reset on error
-      // Fallback to project files page
+    if (files.length === 0) {
       router.push(`/projects/${projectId}/files`);
+      return;
     }
+
+    router.push(`/projects/${projectId}/files/${files[0].id}/editor`);
   };
 
   return (
-    <div className="relative rounded-md border">
-      {/* Loading overlay */}
-      {loadingProjectId && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm font-medium text-slate-700">Opening project...</p>
-          </div>
-        </div>
-      )}
-      
+    <div className="rounded-md border">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -112,7 +86,7 @@ export function DataTable<TData extends { id: string }, TValue>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && 'selected'}
-                className={`cursor-pointer transition-opacity ${loadingProjectId && loadingProjectId !== row.original.id ? 'opacity-50' : ''}`}
+                className="cursor-pointer"
                 onClick={() => handleProjectClick(row.original.id)}
               >
                 {row.getVisibleCells().map((cell) => (
