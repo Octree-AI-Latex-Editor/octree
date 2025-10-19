@@ -23,15 +23,22 @@ export async function GET(request: Request) {
         .eq('user_id', data.user.id)
         .maybeSingle<UsageRecord>();
 
-      // Only auto-complete onboarding if they haven't done it yet
-      if (!existingUsage?.onboarding_completed) {
+      // Only auto-complete onboarding if:
+      // 1. They haven't completed it yet, AND
+      // 2. They're coming from Tools (deep link to editor or referer is tools domain)
+      const isFromTools = 
+        next.includes('/projects/') || 
+        next.includes('/files/') ||
+        request.headers.get('referer')?.includes('tools.useoctree.com');
+
+      if (!existingUsage?.onboarding_completed && isFromTools) {
         await supabase
           .from('user_usage')
           // @ts-ignore - Supabase type generation issue
           .upsert({
             user_id: data.user.id,
             onboarding_completed: true,
-            referral_source: 'oauth',
+            referral_source: 'tools',
           }, {
             onConflict: 'user_id',
           });
