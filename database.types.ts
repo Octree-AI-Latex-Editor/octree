@@ -169,6 +169,8 @@ export type Database = {
           cancel_at_period_end: boolean;
           created_at: string | null;
           updated_at: string | null;
+          referral_source: string | null;
+          onboarding_completed: boolean | null;
         };
         Insert: {
           id?: string;
@@ -185,6 +187,8 @@ export type Database = {
           cancel_at_period_end?: boolean;
           created_at?: string | null;
           updated_at?: string | null;
+          referral_source?: string | null;
+          onboarding_completed?: boolean | null;
         };
         Update: {
           id?: string;
@@ -201,6 +205,8 @@ export type Database = {
           cancel_at_period_end?: boolean;
           created_at?: string | null;
           updated_at?: string | null;
+          referral_source?: string | null;
+          onboarding_completed?: boolean | null;
         };
         Relationships: [
           {

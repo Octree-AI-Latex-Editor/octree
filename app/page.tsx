@@ -14,6 +14,16 @@ export default async function Dashboard() {
     redirect('/auth/login');
   }
 
+  const { data: usage } = await supabase
+    .from('user_usage')
+    .select('onboarding_completed')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!usage?.onboarding_completed) {
+    redirect('/onboarding');
+  }
+
   const userName = user?.user_metadata?.name ?? user?.email ?? null;
 
   const { data } = await supabase
