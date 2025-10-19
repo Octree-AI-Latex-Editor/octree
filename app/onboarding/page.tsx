@@ -61,16 +61,29 @@ export default function OnboardingPage() {
         return;
       }
 
-      const { error } = await supabase
+      const { data: updatedRows } = await supabase
         .from('user_usage')
+        // @ts-ignore - Supabase type generation issue
         .update({
           referral_source: referralSource,
           onboarding_completed: true,
         })
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .select('user_id');
 
-      if (error) {
-        throw error;
+      if (!updatedRows || updatedRows.length === 0) {
+        const { error: insertError } = await supabase
+          .from('user_usage')
+          // @ts-ignore - Supabase type generation issue
+          .insert({
+            user_id: user.id,
+            referral_source: referralSource,
+            onboarding_completed: true,
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       toast.success('Thanks for the info!');

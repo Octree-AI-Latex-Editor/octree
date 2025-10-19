@@ -18,17 +18,17 @@ export default async function OnboardingLayout({
     redirect('/auth/login');
   }
 
+  type UsageRecord = {
+    onboarding_completed: boolean | null;
+  };
+
   const { data: usage, error } = await supabase
     .from('user_usage')
     .select('onboarding_completed')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle<UsageRecord>();
 
-  if (error) {
-    console.error('Failed to fetch onboarding status', error);
-  }
-
-  if (usage?.onboarding_completed) {
+  if (!error && usage?.onboarding_completed) {
     redirect('/');
   }
 
