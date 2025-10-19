@@ -14,6 +14,20 @@ export default async function Dashboard() {
     redirect('/auth/login');
   }
 
+  type UsageRecord = {
+    onboarding_completed: boolean | null;
+  };
+
+  const { data: usage } = await supabase
+    .from('user_usage')
+    .select('onboarding_completed')
+    .eq('user_id', user.id)
+    .maybeSingle<UsageRecord>();
+
+  if (!usage?.onboarding_completed) {
+    redirect('/onboarding');
+  }
+
   const userName = user?.user_metadata?.name ?? user?.email ?? null;
 
   const { data } = await supabase
