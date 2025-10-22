@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface DataTableProps<TData extends { id: string }, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -42,6 +43,11 @@ export function DataTable<TData extends { id: string }, TValue>({
       },
     },
   });
+
+  // Reset pagination to first page when data changes
+  useEffect(() => {
+    table.setPageIndex(0);
+  }, [data, table]);
 
   const handleProjectClick = async (projectId: string) => {
     // Quick lookup then navigate - loading will show on editor page
@@ -143,6 +149,15 @@ export function DataTable<TData extends { id: string }, TValue>({
               Next
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Show pagination info even when there are 10 or fewer items if user was on a higher page */}
+      {data.length <= 10 && table.getState().pagination.pageIndex > 0 && (
+        <div className="flex items-center justify-center px-2">
+          <div className="text-sm text-neutral-500">
+            Showing all {data.length} projects
           </div>
         </div>
       )}
