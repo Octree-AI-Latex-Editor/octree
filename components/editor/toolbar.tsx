@@ -57,12 +57,12 @@ export function EditorToolbar({
         <div className="flex items-center gap-2">
           <UsageIndicator />
           {lastSaved && (
-            <span className="text-xs text-slate-500">
+            <span className="text-sm text-slate-500">
               Last saved: {lastSaved.toLocaleTimeString()}
             </span>
           )}
           {isSaving && (
-            <span className="flex items-center text-xs text-blue-500">
+            <span className="flex items-center text-sm text-blue-500">
               <Loader2 className="mr-1 inline h-4 w-4 animate-spin" />
               Saving
             </span>
@@ -70,10 +70,10 @@ export function EditorToolbar({
 
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             onClick={onCompile}
             disabled={compiling}
-            className="w-[90px]"
+            className="w-[90px] gap-0.5"
           >
             {compiling ? (
               <>
@@ -83,7 +83,7 @@ export function EditorToolbar({
             ) : (
               <>
                 Compile
-                <span className="ml-1 text-xs opacity-60">
+                <span className="ml-1 pt-0.5 text-xs opacity-60">
                   {isMac ? '⌘S' : 'Ctrl+S'}
                 </span>
               </>
@@ -92,7 +92,7 @@ export function EditorToolbar({
 
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             onClick={onExportPDF}
             disabled={exportingPDF || isSaving}
           >

@@ -155,12 +155,12 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
   };
 
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="offcanvas" className="w-64">
       <SidebarHeader className="flex-row items-center justify-between border-b border-gray-200">
         <p className="px-3 text-sm font-medium">Files</p>
         <button
           onClick={toggleSidebar}
-          className="rounded-md p-1.5 hover:bg-gray-100 transition-colors"
+          className="rounded-md p-1.5 transition-colors hover:bg-gray-100"
           aria-label="Close sidebar"
         >
           <X className="h-4 w-4 text-gray-500" />
@@ -191,11 +191,11 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton className="group w-full justify-between rounded-lg p-3 hover:bg-gray-50">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
                           {isProjectOpen ? (
-                            <FolderOpen className="h-5 w-5 text-blue-600" />
+                            <FolderOpen className="h-4 w-4 text-blue-600" />
                           ) : (
-                            <Folder className="h-5 w-5 text-gray-500" />
+                            <Folder className="h-4 w-4 text-gray-500" />
                           )}
                           <span className="truncate font-medium text-gray-900">
                             {currentProject.title}
@@ -209,7 +209,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                   </SidebarMenuItem>
 
                   <CollapsibleContent>
-                    <SidebarMenuSub className="mt-1 ml-4 space-y-1">
+                    <SidebarMenuSub className="ml-4 mt-1 space-y-1">
                       {currentProject.files &&
                       currentProject.files.length > 0 ? (
                         <>
@@ -231,7 +231,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                                   <div className="flex w-full items-center gap-2">
                                     <Link
                                       href={`/projects/${currentProject.id}/files/${file.id}/editor`}
-                                      className="flex flex-1 items-center gap-3 overflow-hidden px-1 py-1"
+                                      className="flex flex-1 items-center gap-1.5 overflow-hidden px-1 py-1"
                                     >
                                       {getFileIcon(file.name)}
                                       <div className="min-w-0 flex-1">
@@ -252,13 +252,17 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent
                                         align="end"
-                                        onClick={(event) => event.stopPropagation()}
+                                        onClick={(event) =>
+                                          event.stopPropagation()
+                                        }
                                       >
                                         <RenameFileDialog
                                           projectId={currentProject.id}
                                           fileId={file.id}
                                           currentName={file.name}
-                                          onRenamed={() => fetchCurrentProjectAndFiles()}
+                                          onRenamed={() =>
+                                            fetchCurrentProjectAndFiles()
+                                          }
                                         />
                                       </DropdownMenuContent>
                                     </DropdownMenu>

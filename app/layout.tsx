@@ -1,11 +1,23 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
 import './globals.css';
 import { ProjectProvider } from '@/app/context/project';
 import { Toaster } from '@/components/ui/sonner';
+import localFont from 'next/font/local';
 
-const inter = Inter({ subsets: ['latin'] });
+const satoshi = localFont({
+  src: [
+    {
+      path: './fonts/Satoshi-Variable.woff2',
+      style: 'normal',
+    },
+    {
+      path: './fonts/Satoshi-VariableItalic.woff2',
+      style: 'italic',
+    },
+  ],
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Octree',
@@ -19,7 +31,7 @@ export default async function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={satoshi.className}>
         <ProjectProvider>{children}</ProjectProvider>
         <Toaster position="top-center" />
         <Analytics />

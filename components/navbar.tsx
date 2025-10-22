@@ -16,7 +16,7 @@ type NavbarProps = {
 export default function Navbar({ userName }: NavbarProps) {
   return (
     <nav className="border-b border-gray-200 bg-white">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="container mx-auto px-4">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
