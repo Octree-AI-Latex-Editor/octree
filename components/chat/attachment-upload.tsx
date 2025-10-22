@@ -23,20 +23,23 @@ export function AttachmentUpload({
   const handleFiles = useCallback(
     (files: FileList | null) => {
       if (!files || !canAddMore) return;
-      
+
       const fileArray = Array.from(files);
       onFilesSelected(fileArray);
     },
     [onFilesSelected, canAddMore]
   );
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!disabled && canAddMore) {
-      setIsDragging(true);
-    }
-  }, [disabled, canAddMore]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!disabled && canAddMore) {
+        setIsDragging(true);
+      }
+    },
+    [disabled, canAddMore]
+  );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -83,13 +86,13 @@ export function AttachmentUpload({
         onChange={handleFileInputChange}
         disabled={disabled || !canAddMore}
       />
-      
+
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          'relative',
+          'relative inline-flex items-center',
           isDragging && 'opacity-50'
         )}
       >
@@ -110,7 +113,7 @@ export function AttachmentUpload({
         >
           <Paperclip className="h-4 w-4" />
         </Button>
-        
+
         {isDragging && (
           <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center rounded-md border-2 border-dashed border-blue-400 bg-blue-50/50">
             <div className="flex flex-col items-center gap-2">
@@ -125,4 +128,3 @@ export function AttachmentUpload({
     </>
   );
 }
-

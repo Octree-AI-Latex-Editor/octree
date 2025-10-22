@@ -66,7 +66,7 @@ export const columns = ({
                   onRename(project.id, project.title);
                 }}
               >
-                <Pencil className="h-4 w-4" />
+                <Pencil className="size-4" />
                 Rename
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -76,7 +76,7 @@ export const columns = ({
                   onDelete(project.id, project.title);
                 }}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="size-4 text-destructive" />
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
