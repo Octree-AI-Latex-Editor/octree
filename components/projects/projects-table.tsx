@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 import { Project, SelectedProject } from '@/types/project';
 import { useProjectRefresh } from '@/app/context/project';
 import { useDeleteProject } from '@/hooks/delete-project-client';
@@ -28,6 +28,8 @@ export function ProjectsTable({ data }: { data: Project[] }) {
   const [rows, setRows] = useState<Project[]>(data);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredRows, setFilteredRows] = useState<Project[]>(data);
   const { refreshProjects } = useProjectRefresh();
   const { deleteProjectWithRefresh } = useDeleteProject();
   const { renameProjectWithRefresh } = useRenameProject();
@@ -35,7 +37,20 @@ export function ProjectsTable({ data }: { data: Project[] }) {
   // Keep local rows in sync if server-provided data changes
   useEffect(() => {
     setRows(data);
+    setFilteredRows(data);
   }, [data]);
+
+  // Filter rows based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredRows(rows);
+    } else {
+      const filtered = rows.filter(project =>
+        project.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredRows(filtered);
+    }
+  }, [searchQuery, rows]);
 
   const handleDeleteClick = (projectId: string, projectTitle: string) => {
     setSelectedProject({
@@ -62,6 +77,7 @@ export function ProjectsTable({ data }: { data: Project[] }) {
     if (result.success) {
       // Optimistically remove the deleted row to avoid full reload and flicker
       setRows((prev) => prev.filter((p) => p.id !== selectedProject.id));
+      setFilteredRows((prev) => prev.filter((p) => p.id !== selectedProject.id));
       // Notify other UI (e.g., sidebar) to refresh
       refreshProjects();
       closeDialog();
@@ -80,9 +96,28 @@ export function ProjectsTable({ data }: { data: Project[] }) {
 
   return (
     <>
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <Input
+            type="text"
+            placeholder="Search projects..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 w-full"
+          />
+        </div>
+        {searchQuery && (
+          <p className="mt-2 text-sm text-neutral-500">
+            {filteredRows.length} project{filteredRows.length !== 1 ? 's' : ''} found
+          </p>
+        )}
+      </div>
+
       <DataTable
         columns={columns({ onDelete: handleDeleteClick, onRename: handleRenameClick })}
-        data={rows}
+        data={filteredRows}
       />
       <Dialog
         open={isDeleteDialogOpen}
@@ -171,10 +206,12 @@ export function ProjectsTable({ data }: { data: Project[] }) {
                 setError(null);
                 // Optimistic update
                 setRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: nextTitle } : p)));
+                setFilteredRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: nextTitle } : p)));
                 const res = await renameProjectWithRefresh(id, nextTitle);
                 if (!res.success) {
                   // Rollback title if failed
                   setRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: selectedProject.title } : p)));
+                  setFilteredRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: selectedProject.title } : p)));
                   setError(res.message || 'Failed to rename project');
                 } else {
                   setIsRenameDialogOpen(false);
