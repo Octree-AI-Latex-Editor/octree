@@ -24,11 +24,9 @@ export function ProjectBreadcrumbs({ projectTitle }: ProjectBreadcrumbsProps) {
 
   const [fileName, setFileName] = useState<string | null>(null);
 
-  // Check if we're in a file editor
   const isFileEditor =
     pathname.includes('/files/') && pathname.includes('/editor');
 
-  // Extract file ID from pathname
   const fileId = isFileEditor
     ? pathname.split('/files/')[1]?.split('/')[0]
     : null;
@@ -62,13 +60,7 @@ export function ProjectBreadcrumbs({ projectTitle }: ProjectBreadcrumbsProps) {
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          {isFileEditor ? (
-            <BreadcrumbLink href={`/projects/${projectId}`}>
-              {projectTitle}
-            </BreadcrumbLink>
-          ) : (
-            <BreadcrumbPage>{projectTitle}</BreadcrumbPage>
-          )}
+          <BreadcrumbPage>{projectTitle}</BreadcrumbPage>
         </BreadcrumbItem>
         {isFileEditor && (
           <>
