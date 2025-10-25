@@ -12,7 +12,7 @@ import { useChatStream } from './use-chat-stream';
 import { useEditProposals } from './use-edit-proposals';
 import { useFileAttachments } from './use-file-attachments';
 import { ChatMessageComponent } from './chat-message';
-import { ChatInput } from './chat-input';
+import { ChatInput, ChatInputRef } from './chat-input';
 import { EmptyState } from './empty-state';
 
 interface ChatProps {
@@ -63,10 +63,17 @@ export function Chat({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef<boolean>(true);
   const currentAssistantIdRef = useRef<string | null>(null);
+  const chatInputRef = useRef<ChatInputRef>(null);
 
   useEffect(() => {
     setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
   }, []);
+
+  useEffect(() => {
+    if (isOpen && !isMinimized) {
+      chatInputRef.current?.focus();
+    }
+  }, [isOpen, isMinimized]);
 
   const { startStream, parseStream, stopStream } = useChatStream();
   const {
@@ -446,6 +453,7 @@ export function Chat({
             </div>
 
             <ChatInput
+              ref={chatInputRef}
               input={input}
               isLoading={isLoading}
               textFromEditor={textFromEditor}

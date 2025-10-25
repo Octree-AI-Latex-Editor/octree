@@ -69,6 +69,7 @@ const config = {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        'primary-light': 'hsl(var(--primary-light))',
       },
       borderRadius: {
         lg: 'var(--radius)',
