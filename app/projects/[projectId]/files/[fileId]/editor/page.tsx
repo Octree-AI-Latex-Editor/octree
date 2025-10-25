@@ -175,6 +175,9 @@ export default function FileEditorPage() {
         onCompile={handleCompile}
         onExportPDF={handleExportPDF}
         onOpenChat={() => {
+          if (selectedText.trim()) {
+            setTextFromEditor(selectedText);
+          }
           setChatOpen(true);
           setChatMinimized(false);
         }}
