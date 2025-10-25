@@ -1,6 +1,6 @@
 -- Migration: Update edit limits and add daily reset for free users
 -- Free users: 5 edits per day (resets daily)
--- Pro users: 200 edits per month (resets monthly)
+-- Pro users: 500 edits per month (resets monthly)
 
 -- Add daily_reset_date column for free users
 ALTER TABLE public.user_usage 
@@ -15,8 +15,8 @@ DECLARE
   current_daily_reset DATE;
   user_monthly_reset DATE;
   is_pro_user BOOLEAN;
-  max_free_daily_edits INTEGER := 15;
-  max_pro_monthly_edits INTEGER := 200;
+  max_free_daily_edits INTEGER := 5;
+  max_pro_monthly_edits INTEGER := 500;
 BEGIN
   -- Get current usage
   SELECT edit_count, monthly_edit_count, daily_reset_date, monthly_reset_date, is_pro 

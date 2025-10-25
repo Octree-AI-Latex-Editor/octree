@@ -263,7 +263,7 @@ export function Chat({
       } else {
         // AbortError - user stopped it, remove incomplete message
         if (currentAssistantIdRef.current) {
-          setMessages((prev) => 
+          setMessages((prev) =>
             prev.filter((m) => m.id !== currentAssistantIdRef.current)
           );
         }
@@ -378,8 +378,12 @@ export function Chat({
               size="sm"
               onClick={onAcceptAllEdits}
               disabled={isLoading}
-              className="h-8 rounded-lg bg-green-600 px-2 text-xs text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={isLoading ? 'Wait for all edits to finish generating' : 'Accept all pending edits'}
+              className="h-8 rounded-lg bg-green-600 px-2 text-xs text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              title={
+                isLoading
+                  ? 'Wait for all edits to finish generating'
+                  : 'Accept all pending edits'
+              }
             >
               <CheckCheck size={14} className="mr-1" />
               Accept All ({pendingEditCount})
@@ -410,13 +414,12 @@ export function Chat({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            className="flex flex-col"
+            style={{ height: 'calc(100% - 56px)' }}
           >
             <div
               ref={chatContainerRef}
-              className={cn(
-                'h-[440px] overflow-y-auto overflow-x-hidden p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300',
-                textFromEditor && 'pb-24'
-              )}
+              className="min-h-[300px] flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300"
             >
               {messages.length === 0 && !isLoading && !conversionStatus && (
                 <EmptyState />
@@ -452,22 +455,32 @@ export function Chat({
               onSubmit={handleSubmit}
               onClearEditor={() => setTextFromEditor(null)}
               onStop={() => {
-                console.log('[Chat] Stop button clicked, currentAssistantId:', currentAssistantIdRef.current);
-                
+                console.log(
+                  '[Chat] Stop button clicked, currentAssistantId:',
+                  currentAssistantIdRef.current
+                );
+
                 stopStream();
                 clearAllProposalsAndTimeouts();
-                
+
                 // Remove incomplete assistant message
                 const messageIdToRemove = currentAssistantIdRef.current;
                 if (messageIdToRemove) {
                   setMessages((prev) => {
-                    const filtered = prev.filter((m) => m.id !== messageIdToRemove);
-                    console.log('[Chat] Removed message, before:', prev.length, 'after:', filtered.length);
+                    const filtered = prev.filter(
+                      (m) => m.id !== messageIdToRemove
+                    );
+                    console.log(
+                      '[Chat] Removed message, before:',
+                      prev.length,
+                      'after:',
+                      filtered.length
+                    );
                     return filtered;
                   });
                   currentAssistantIdRef.current = null;
                 }
-                
+
                 setIsLoading(false);
                 setConversionStatus(null);
                 setError(null);

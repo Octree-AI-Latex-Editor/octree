@@ -53,13 +53,16 @@ export function ChatInput({
     }
   };
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isLoading && canAddMoreAttachments && onFilesSelected) {
-      setIsDragging(true);
-    }
-  }, [isLoading, canAddMoreAttachments, onFilesSelected]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isLoading && canAddMoreAttachments && onFilesSelected) {
+        setIsDragging(true);
+      }
+    },
+    [isLoading, canAddMoreAttachments, onFilesSelected]
+  );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -84,20 +87,20 @@ export function ChatInput({
   );
 
   return (
-    <div className="relative px-2">
+    <div className="relative px-2 pb-2">
       {textFromEditor && (
-        <div className="pointer-events-auto absolute top-0 left-1/2 z-10 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-full rounded-t-md border border-b-0 border-slate-300 bg-slate-50 px-2 py-1 text-xs shadow-xs">
+        <div className="shadow-xs pointer-events-auto absolute left-1/2 top-0 z-10 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-full rounded-t-md border border-b-0 border-slate-300 bg-slate-50 px-2 py-1 text-xs">
           <Button
             onClick={onClearEditor}
             size="icon"
             variant="ghost"
-            className="absolute top-0 right-0 size-5 text-slate-500 hover:text-slate-700"
+            className="absolute right-0 top-0 size-5 text-slate-500 hover:text-slate-700"
             aria-label="Close"
           >
             <X className="size-3" />
           </Button>
           <p className="text-slate-500">Attached From Editor</p>
-          <code className="scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent block max-h-20 overflow-x-hidden overflow-y-scroll whitespace-pre">
+          <code className="block max-h-20 overflow-x-hidden overflow-y-scroll whitespace-pre scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300">
             {textFromEditor}
           </code>
         </div>
@@ -123,26 +126,23 @@ export function ChatInput({
             </div>
           </div>
         )}
-        
+
         {attachments.length > 0 && onRemoveAttachment && (
           <AttachmentList
             attachments={attachments}
             onRemove={onRemoveAttachment}
           />
         )}
-        
+
         <div className="flex w-full flex-wrap items-end gap-2">
           <Textarea
-          id='chat-input'
+            id="chat-input"
             ref={inputRef}
             value={input}
             placeholder="Prompt to edit your document..."
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            className={cn(
-              "scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent flex-1 resize-none border-none p-1 shadow-none focus-visible:ring-0",
-              attachments.length > 0 ? "min-h-[60px]" : "min-h-[72px]"
-            )}
+            className="min-h-[72px] flex-1 resize-none border-none p-1 shadow-none scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300 focus-visible:ring-0"
           />
 
           <div className="flex items-end gap-1 self-end">
@@ -186,4 +186,3 @@ export function ChatInput({
     </div>
   );
 }
-

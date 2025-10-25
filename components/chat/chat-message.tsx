@@ -140,11 +140,11 @@ export function ChatMessageComponent({
 
       <div className="min-w-0 overflow-hidden whitespace-pre-wrap break-words text-sm text-slate-800">
         {message.role === 'assistant' && !message.content && isLoading ? (
-          <div className="flex items-center gap-1.5">
-            <span className="animate-pulse text-sm italic text-slate-500">
+          <div className="flex items-end gap-1.5">
+            <span className="animate-pulse text-sm text-slate-500">
               Thinking
             </span>
-            <div className="flex items-center space-x-0.5">
+            <div className="flex items-center space-x-0.5 pb-1">
               <div className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]"></div>
               <div className="h-1 w-1 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]"></div>
               <div className="h-1 w-1 animate-bounce rounded-full bg-slate-400"></div>

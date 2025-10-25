@@ -71,33 +71,34 @@ export function RenameFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const { error: updateFileError } = await (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase.from('files') as any
-      )
-        .update({ name: trimmedName })
-        .eq('id', fileId)
-        .eq('project_id', projectId);
+      const { error: updateFileError } =
+        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase.from('files') as any)
+          .update({ name: trimmedName })
+          .eq('id', fileId)
+          .eq('project_id', projectId);
 
       if (updateFileError) {
         throw new Error('Failed to rename file');
       }
 
-      const { error: updateDocumentError } = await (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase.from('documents') as any
-      )
-        .update({
-          title: trimmedName,
-          filename: trimmedName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('project_id', projectId)
-        .eq('filename', currentName)
-        .eq('owner_id', session.user.id);
+      const { error: updateDocumentError } =
+        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase.from('documents') as any)
+          .update({
+            title: trimmedName,
+            filename: trimmedName,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('project_id', projectId)
+          .eq('filename', currentName)
+          .eq('owner_id', session.user.id);
 
       if (updateDocumentError) {
-        console.warn('Failed to update associated document name:', updateDocumentError);
+        console.warn(
+          'Failed to update associated document name:',
+          updateDocumentError
+        );
       }
 
       toast.success('File renamed successfully');
@@ -120,7 +121,7 @@ export function RenameFileDialog({
           onSelect={(event) => event.preventDefault()}
           className="cursor-pointer gap-2"
         >
-          <Pencil className="h-4 w-4" />
+          <Pencil className="size-4" />
           Rename
         </DropdownMenuItem>
       </DialogTrigger>
@@ -128,7 +129,8 @@ export function RenameFileDialog({
         <DialogHeader>
           <DialogTitle>Rename File</DialogTitle>
           <DialogDescription>
-            Update the file name. This will also update the associated document name.
+            Update the file name. This will also update the associated document
+            name.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleRename} className="grid gap-4">
