@@ -49,7 +49,10 @@ export function CreateProjectDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button
+          size="sm"
+          className="bg-gradient-to-b from-primary-light to-primary hover:bg-gradient-to-b hover:from-primary-light/90 hover:to-primary/90"
+        >
           <PlusIcon />
           New Project
         </Button>
@@ -65,15 +68,13 @@ export function CreateProjectDialog() {
 
           <div className="grid gap-3">
             <Label htmlFor="title">Title</Label>
-            <Input 
-              id="title" 
+            <Input
+              id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter project title"
             />
-            {error && (
-              <p className="text-sm text-red-600">{error}</p>
-            )}
+            {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
 
           <DialogFooter>

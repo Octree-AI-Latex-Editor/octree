@@ -51,7 +51,8 @@ export function useEditorCompilation({
 }: UseEditorCompilationProps): CompilationState {
   const [compiling, setCompiling] = useState(false);
   const [pdfData, setPdfData] = useState<string | null>(null);
-  const [compilationError, setCompilationError] = useState<CompilationError | null>(null);
+  const [compilationError, setCompilationError] =
+    useState<CompilationError | null>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
 
   const handleCompile = useCallback(async () => {
@@ -62,13 +63,8 @@ export function useEditorCompilation({
 
     let handled = false;
     try {
-      // Get the current content from the editor
       const currentContent = editorRef.current?.getValue() || content;
 
-      console.log('Compiling content, length:', currentContent.length);
-      console.log('Content preview:', currentContent.substring(0, 200) + '...');
-
-      // Save the document first
       await saveDocument(currentContent);
 
       const response = await fetch('/api/compile-pdf', {
@@ -86,7 +82,8 @@ export function useEditorCompilation({
       }
 
       if (!response.ok) {
-        const errorMessage = data?.error || `Compilation failed with status ${response.status}`;
+        const errorMessage =
+          data?.error || `Compilation failed with status ${response.status}`;
         const structuredError = {
           message: errorMessage,
           details: data?.details,
@@ -105,16 +102,14 @@ export function useEditorCompilation({
       }
 
       if (data.pdf) {
-        console.log('PDF generated successfully, size:', data.size);
         setPdfData(data.pdf);
-        setCompilationError(null); // Clear any previous errors
+        setCompilationError(null);
       } else {
         throw new Error('No PDF data received');
       }
     } catch (error) {
       console.error('Compilation error:', error);
 
-      // Set compilation error for display
       if (!handled) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown compilation error';

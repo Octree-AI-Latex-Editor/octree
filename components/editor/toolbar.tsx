@@ -3,13 +3,14 @@
 import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupItem } from '@/components/ui/button-group';
 import { UsageIndicator } from '@/components/subscription/usage-indicator';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles, WandSparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface EditorToolbarProps {
   onTextFormat: (format: 'bold' | 'italic' | 'underline') => void;
   onCompile: () => void;
   onExportPDF: () => void;
+  onOpenChat: () => void;
   compiling: boolean;
   exportingPDF: boolean;
   isSaving: boolean;
@@ -20,6 +21,7 @@ export function EditorToolbar({
   onTextFormat,
   onCompile,
   onExportPDF,
+  onOpenChat,
   compiling,
   exportingPDF,
   isSaving,
@@ -33,26 +35,39 @@ export function EditorToolbar({
   return (
     <div className="flex-shrink-0 border-b border-slate-200 bg-white p-2">
       <div className="flex items-center justify-between">
-        <ButtonGroup>
-          <ButtonGroupItem
-            onClick={() => onTextFormat('bold')}
-            className="w-8 px-2.5 py-1"
+        <div className="flex items-center gap-2">
+          <ButtonGroup>
+            <ButtonGroupItem
+              onClick={() => onTextFormat('bold')}
+              className="w-8 px-2.5 py-1"
+            >
+              <span className="font-bold">B</span>
+            </ButtonGroupItem>
+            <ButtonGroupItem
+              onClick={() => onTextFormat('italic')}
+              className="w-8 px-2.5 py-1"
+            >
+              <span className="italic">I</span>
+            </ButtonGroupItem>
+            <ButtonGroupItem
+              onClick={() => onTextFormat('underline')}
+              className="w-8 px-2.5 py-1"
+            >
+              <span className="underline">U</span>
+            </ButtonGroupItem>
+          </ButtonGroup>
+
+          <Button
+            variant="default"
+            size="sm"
+            onClick={onOpenChat}
+            className="h-8 gap-1.5 border-slate-300 bg-gradient-to-b from-primary-light to-primary px-3 text-white hover:bg-gradient-to-b hover:from-primary-light/90 hover:to-primary/90"
+            title="Edit with AI (⌘B)"
           >
-            <span className="font-bold">B</span>
-          </ButtonGroupItem>
-          <ButtonGroupItem
-            onClick={() => onTextFormat('italic')}
-            className="w-8 px-2.5 py-1"
-          >
-            <span className="italic">I</span>
-          </ButtonGroupItem>
-          <ButtonGroupItem
-            onClick={() => onTextFormat('underline')}
-            className="w-8 px-2.5 py-1"
-          >
-            <span className="underline">U</span>
-          </ButtonGroupItem>
-        </ButtonGroup>
+            <WandSparkles className="h-3.5 w-3.5" />
+            <span className="font-medium">Edit with AI</span>
+          </Button>
+        </div>
 
         <div className="flex items-center gap-2">
           <UsageIndicator />

@@ -112,6 +112,12 @@ export default function FileEditorPage() {
     }
   }, [documentData?.content, setContent]);
 
+  useEffect(() => {
+    if (content && !compiling && !pdfData) {
+      handleCompile();
+    }
+  }, [content]);
+
   const handleEditorChange = useCallback(
     (value: string) => {
       setContent(value);
@@ -168,6 +174,10 @@ export default function FileEditorPage() {
         onTextFormat={handleTextFormat}
         onCompile={handleCompile}
         onExportPDF={handleExportPDF}
+        onOpenChat={() => {
+          setChatOpen(true);
+          setChatMinimized(false);
+        }}
         compiling={compiling}
         exportingPDF={exportingPDF}
         isSaving={isSaving}
@@ -223,11 +233,16 @@ export default function FileEditorPage() {
             const errorContext = [
               `LaTeX Compilation Error:`,
               `${compilationError.message}`,
-              compilationError.details && `\nDetails: ${compilationError.details}`,
-              compilationError.summary && `\nError Summary:\n${compilationError.summary}`,
-              compilationError.log && `\nLog (last lines):\n${compilationError.log.split('\n').slice(-20).join('\n')}`,
-            ].filter(Boolean).join('\n');
-            
+              compilationError.details &&
+                `\nDetails: ${compilationError.details}`,
+              compilationError.summary &&
+                `\nError Summary:\n${compilationError.summary}`,
+              compilationError.log &&
+                `\nLog (last lines):\n${compilationError.log.split('\n').slice(-20).join('\n')}`,
+            ]
+              .filter(Boolean)
+              .join('\n');
+
             setTextFromEditor(errorContext);
             setChatOpen(true);
             setChatMinimized(false);

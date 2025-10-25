@@ -4,6 +4,7 @@ import '@/lib/promise-polyfill';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { PageCallback } from 'react-pdf/dist/esm/shared/types.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -27,6 +28,10 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageLoading, setPageLoading] = useState<boolean>(false);
+  const [pageDimensions, setPageDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -54,13 +59,24 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     changePage(1);
   }
 
-  function onPageLoadSuccess() {
+  function onPageLoadSuccess(page: PageCallback) {
     setPageLoading(false);
+    const { width, height } = page;
+    setPageDimensions({ width, height });
+  }
+
+  if (isLoading && !pdfData) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <span className="ml-2 text-slate-500">Compiling...</span>
+      </div>
+    );
   }
 
   if (!pdfData) {
     return (
-      <p className="flex h-full items-center justify-center text-sm whitespace-pre text-slate-600">
+      <p className="flex h-full items-center justify-center whitespace-pre text-sm text-slate-600">
         Click <span className="font-semibold">Compile</span> to see the PDF
         preview
       </p>
@@ -70,6 +86,26 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
   // Create a data URL from the Base64 PDF
   const pdfUrl = `data:application/pdf;base64,${pdfData}`;
 
+  const calculatePageWidth = () => {
+    if (!pageDimensions) {
+      return 595;
+    }
+
+    const aspectRatio = pageDimensions.width / pageDimensions.height;
+    const viewportWidth =
+      typeof window !== 'undefined' ? window.innerWidth : 1200;
+
+    if (aspectRatio > 1.2) {
+      return Math.min(pageDimensions.width, viewportWidth * 0.9);
+    } else if (aspectRatio < 0.9) {
+      return Math.min(pageDimensions.width, 595);
+    } else {
+      return Math.min(pageDimensions.width, 650);
+    }
+  };
+
+  const pageWidth = calculatePageWidth();
+
   return (
     <div className="relative flex h-full w-full flex-col">
       {isLoading && (
@@ -78,7 +114,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
         </div>
       )}
       {/* Main PDF viewer area with scrolling */}
-      <div className="flex flex-1 justify-center overflow-auto">
+      <div className="flex flex-1 items-center justify-center overflow-auto">
         {pageLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50">
             <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
@@ -99,6 +135,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
           <Page
             key={`page_${pageNumber}_${pdfData?.substring(0, 50)}`} // Key includes PDF data to force re-render when PDF changes
             pageNumber={pageNumber}
+            width={pageWidth}
             className="border border-slate-200 shadow-sm"
             onLoadSuccess={onPageLoadSuccess}
             renderTextLayer={false} // Disable text layer for better performance
