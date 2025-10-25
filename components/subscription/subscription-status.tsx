@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CreditCard, Calendar, AlertCircle, CheckCircle, XCircle, Zap } from 'lucide-react';
 import { PaywallDialog } from './paywall-dialog';
+import { PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 interface SubscriptionData {
   hasSubscription: boolean;
@@ -303,35 +304,25 @@ export function SubscriptionStatus() {
           </div>
 
           <div className="text-sm text-neutral-600">
-            {usage.limitReached 
-              ? 'You have reached your free edit limit. Upgrade to Pro for 50 edits per month!'
-              : 'Upgrade to unlock 50 edits per month and remove daily limitations.'
-            }
-          </div>
-
-          <div className="bg-blue-50 rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="h-4 w-4 text-blue-500" />
-              <span className="text-sm font-medium text-blue-700">Pro Plan Benefits</span>
-            </div>
-            <ul className="space-y-1 text-xs text-blue-700">
-              <li>• 50 AI edits per month (vs 5 per day)</li>
-              <li>• Monthly reset instead of daily</li>
-              <li>• Advanced LaTeX compilation</li>
-              <li>• Priority support</li>
-            </ul>
+            {usage.limitReached ? (
+              <>
+                You have reached your free edit limit. Upgrade to Pro for{' '}
+                <span className="font-bold">{PRO_MONTHLY_EDIT_LIMIT}</span> edits per month!
+              </>
+            ) : (
+              <>
+                Upgrade to unlock <span className="font-bold">{PRO_MONTHLY_EDIT_LIMIT}</span> edits per month and remove daily limitations.
+              </>
+            )}
           </div>
 
           <div className="flex gap-2">
             <Button 
               onClick={handleUpgradeClick}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <CreditCard className="h-4 w-4 mr-2" />
               {usage.limitReached ? 'Upgrade Now' : 'Subscribe Now'}
-            </Button>
-            <Button variant="outline" asChild>
-              <a href="/pricing">View Plans</a>
             </Button>
           </div>
         </CardContent>
