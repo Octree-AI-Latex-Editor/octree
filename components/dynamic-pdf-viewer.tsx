@@ -114,39 +114,41 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
         </div>
       )}
       {/* Main PDF viewer area with scrolling */}
-      <div className="flex flex-1 items-center justify-center overflow-auto">
+      <div className="flex flex-1 justify-center overflow-auto py-2">
         {pageLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50">
             <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
           </div>
         )}
 
-        <Document
-          key={pdfData?.substring(0, 100)} // Force re-render when PDF data changes
-          file={pdfUrl}
-          options={options}
-          onLoadSuccess={onDocumentLoadSuccess}
-          loading={
-            <div className="flex items-center justify-center p-4">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-500" />
-            </div>
-          }
-        >
-          <Page
-            key={`page_${pageNumber}_${pdfData?.substring(0, 50)}`} // Key includes PDF data to force re-render when PDF changes
-            pageNumber={pageNumber}
-            width={pageWidth}
-            className="border border-slate-200 shadow-sm"
-            onLoadSuccess={onPageLoadSuccess}
-            renderTextLayer={false} // Disable text layer for better performance
-            renderAnnotationLayer={false} // Disable annotations for better performance
+        <div className="flex items-start justify-center">
+          <Document
+            key={pdfData?.substring(0, 100)} // Force re-render when PDF data changes
+            file={pdfUrl}
+            options={options}
+            onLoadSuccess={onDocumentLoadSuccess}
             loading={
               <div className="flex items-center justify-center p-4">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-500" />
               </div>
             }
-          />
-        </Document>
+          >
+            <Page
+              key={`page_${pageNumber}_${pdfData?.substring(0, 50)}`} // Key includes PDF data to force re-render when PDF changes
+              pageNumber={pageNumber}
+              width={pageWidth}
+              className="border border-slate-200 shadow-sm"
+              onLoadSuccess={onPageLoadSuccess}
+              renderTextLayer={false} // Disable text layer for better performance
+              renderAnnotationLayer={false} // Disable annotations for better performance
+              loading={
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-500" />
+                </div>
+              }
+            />
+          </Document>
+        </div>
       </div>
 
       {/* Fixed pagination controls at the bottom */}
