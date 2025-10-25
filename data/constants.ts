@@ -1,5 +1,5 @@
 // Subscription and usage limits
-export const FREE_DAILY_EDIT_LIMIT = 15;
+export const FREE_DAILY_EDIT_LIMIT = 5;
 export const PRO_MONTHLY_EDIT_LIMIT = 200;
 export const PRO_SUBSCRIPTION_PRICE = 10; // USD per month
 
