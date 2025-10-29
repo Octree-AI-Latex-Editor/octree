@@ -4,6 +4,7 @@ import './globals.css';
 import { ProjectProvider } from '@/app/context/project';
 import { Toaster } from '@/components/ui/sonner';
 import localFont from 'next/font/local';
+import { PostHogProvider } from '@/components/providers/posthog';
 
 const satoshi = localFont({
   src: [
@@ -32,7 +33,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={satoshi.className}>
-        <ProjectProvider>{children}</ProjectProvider>
+        <ProjectProvider>
+          <PostHogProvider>{children}</PostHogProvider>
+        </ProjectProvider>
         <Toaster position="top-center" />
         <Analytics />
       </body>
