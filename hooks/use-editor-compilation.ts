@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import type * as Monaco from 'monaco-editor';
+import { createClient } from '@/lib/supabase/client';
 
 export interface CompilationError {
   message: string;
@@ -34,6 +35,8 @@ interface UseEditorCompilationProps {
   saveDocument: (content?: string) => Promise<boolean>;
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
   fileName?: string;
+  projectId?: string;
+  currentFileId?: string;
 }
 
 function summarizeLog(log?: string) {
@@ -48,11 +51,62 @@ export function useEditorCompilation({
   saveDocument,
   editorRef,
   fileName = 'document',
+  projectId,
+  currentFileId,
 }: UseEditorCompilationProps): CompilationState {
   const [compiling, setCompiling] = useState(false);
   const [pdfData, setPdfData] = useState<string | null>(null);
   const [compilationError, setCompilationError] = useState<CompilationError | null>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
+
+  // Helper function to fetch all project files and their contents
+  const fetchProjectFiles = useCallback(async () => {
+    if (!projectId) return null;
+
+    try {
+      const supabase = createClient();
+      
+      // Fetch all files in the project
+      const { data: filesData, error: filesError } = await supabase
+        .from('files')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('uploaded_at', { ascending: false });
+
+      if (filesError || !filesData) {
+        console.error('Error fetching project files:', filesError);
+        return null;
+      }
+
+      // Fetch document content for each file
+      const filesWithContent = await Promise.all(
+        filesData.map(async (file: any) => {
+          const { data: docData, error: docError } = await supabase
+            .from('documents')
+            .select('content')
+            .eq('project_id', projectId)
+            .eq('filename', file.name)
+            .maybeSingle();
+
+          if (docError || !docData) {
+            console.warn(`No document found for file: ${file.name}`);
+            return null;
+          }
+
+          return {
+            path: file.name,
+            content: (docData as any).content as string,
+          };
+        })
+      );
+
+      // Filter out null entries and return
+      return filesWithContent.filter((f): f is { path: string; content: string } => f !== null);
+    } catch (error) {
+      console.error('Error fetching project files:', error);
+      return null;
+    }
+  }, [projectId]);
 
   const handleCompile = useCallback(async () => {
     if (compiling) return;
@@ -71,10 +125,37 @@ export function useEditorCompilation({
       // Save the document first
       await saveDocument(currentContent);
 
+      let requestBody: any;
+
+      // If projectId is provided, fetch all files for multi-file compilation
+      if (projectId) {
+        const projectFiles = await fetchProjectFiles();
+        
+        if (projectFiles && projectFiles.length > 0) {
+          // Update current file content in the array
+          const updatedFiles = projectFiles.map(f => 
+            (currentFileId && f.path === fileName) 
+              ? { ...f, content: currentContent }
+              : f
+          );
+          
+          console.log(`Multi-file compilation: ${updatedFiles.length} files`);
+          requestBody = { files: updatedFiles };
+        } else {
+          // Fallback to single file
+          console.log('Single-file compilation (fallback)');
+          requestBody = { content: currentContent };
+        }
+      } else {
+        // No projectId: use single file compilation
+        console.log('Single-file compilation');
+        requestBody = { content: currentContent };
+      }
+
       const response = await fetch('/api/compile-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: currentContent }),
+        body: JSON.stringify(requestBody),
       });
 
       const raw = await response.text();
@@ -126,7 +207,7 @@ export function useEditorCompilation({
     } finally {
       setCompiling(false);
     }
-  }, [compiling, content, saveDocument, editorRef]);
+  }, [compiling, content, saveDocument, editorRef, projectId, currentFileId, fileName, fetchProjectFiles]);
 
   const handleExportPDF = useCallback(async () => {
     setExportingPDF(true);
@@ -134,10 +215,32 @@ export function useEditorCompilation({
     try {
       const currentContent = editorRef.current?.getValue() || content;
 
+      let requestBody: any;
+
+      // If projectId is provided, fetch all files for multi-file compilation
+      if (projectId) {
+        const projectFiles = await fetchProjectFiles();
+        
+        if (projectFiles && projectFiles.length > 0) {
+          // Update current file content in the array
+          const updatedFiles = projectFiles.map(f => 
+            (currentFileId && f.path === fileName) 
+              ? { ...f, content: currentContent }
+              : f
+          );
+          
+          requestBody = { files: updatedFiles };
+        } else {
+          requestBody = { content: currentContent };
+        }
+      } else {
+        requestBody = { content: currentContent };
+      }
+
       const response = await fetch('/api/compile-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: currentContent }),
+        body: JSON.stringify(requestBody),
       });
 
       const rawText = await response.text();
@@ -180,7 +283,7 @@ export function useEditorCompilation({
     } finally {
       setExportingPDF(false);
     }
-  }, [content, editorRef, fileName]);
+  }, [content, editorRef, fileName, projectId, currentFileId, fetchProjectFiles]);
 
   // Auto-compile on content changes (debounced)
   const debouncedAutoCompile = useDebouncedCallback((content: string) => {

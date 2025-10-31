@@ -63,6 +63,8 @@ export default function FileEditorPage() {
     saveDocument: handleSaveDocument,
     editorRef,
     fileName: file?.name,
+    projectId,
+    currentFileId: fileId,
   });
 
   const {
@@ -115,10 +117,12 @@ export default function FileEditorPage() {
   const handleEditorChange = useCallback(
     (value: string) => {
       setContent(value);
-      debouncedSave(value);
-      debouncedAutoCompile(value);
+      // Autosave disabled - use Cmd+S or toolbar save button
+      // debouncedSave(value);
+      // Auto-compile disabled - use toolbar compile button or Cmd+S
+      // debouncedAutoCompile(value);
     },
-    [setContent, debouncedSave, debouncedAutoCompile]
+    [setContent]
   );
 
   const handleSuggestionFromChat = useCallback(
@@ -149,12 +153,13 @@ export default function FileEditorPage() {
 
       setupEditorListeners(editor);
 
-      editor.onDidChangeModelContent(() => {
-        const currentContent = editor.getValue();
-        debouncedAutoCompile(currentContent);
-      });
+      // Auto-compile disabled
+      // editor.onDidChangeModelContent(() => {
+      //   const currentContent = editor.getValue();
+      //   debouncedAutoCompile(currentContent);
+      // });
     },
-    [setupEditorListeners, debouncedAutoCompile]
+    [setupEditorListeners]
   );
 
   if (isLoading) return <LoadingState />;
