@@ -78,20 +78,27 @@ export function useEditorCompilation({
         return null;
       }
 
+      console.log(`Found ${filesData.length} files in project:`, filesData.map((f: any) => f.name));
+
       // Fetch document content for each file
       const filesWithContent = await Promise.all(
         filesData.map(async (file: any) => {
+          // Get the most recent document for this file
           const { data: docData, error: docError } = await supabase
             .from('documents')
             .select('content')
             .eq('project_id', projectId)
             .eq('filename', file.name)
+            .order('updated_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
           if (docError || !docData) {
-            console.warn(`No document found for file: ${file.name}`);
+            console.warn(`No document found for file: ${file.name}`, docError);
             return null;
           }
+
+          console.log(`Loaded content for ${file.name}: ${(docData as any).content?.length} bytes`);
 
           return {
             path: file.name,
@@ -101,7 +108,10 @@ export function useEditorCompilation({
       );
 
       // Filter out null entries and return
-      return filesWithContent.filter((f): f is { path: string; content: string } => f !== null);
+      const validFiles = filesWithContent.filter((f): f is { path: string; content: string } => f !== null);
+      console.log(`Returning ${validFiles.length} files with content:`, validFiles.map(f => f.path));
+      
+      return validFiles;
     } catch (error) {
       console.error('Error fetching project files:', error);
       return null;

@@ -30,15 +30,18 @@ export async function GET(
     }
 
     // Check if there's a corresponding document in the documents table
+    // Get the most recent document (in case of duplicates)
     const { data: documentData, error: documentError } = await supabase
       .from('documents' as const)
       .select('*')
       .eq('project_id', projectId)
       .eq('filename', fileData.name)
       .eq('owner_id', user.id)
-      .single<Tables<'documents'>>();
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as { data: Tables<'documents'> | null; error: any };
 
-    if (documentError) {
+    if (documentError || !documentData) {
       // If no document exists, create one with default content
       const insertDoc: TablesInsert<'documents'> = {
         title: fileData.name,
@@ -94,7 +97,7 @@ export async function PUT(
     const { projectId, fileId } = await params;
     const { content } = await request.json();
 
-    if (!content) {
+    if (content === undefined || content === null) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 });
     }
 
@@ -111,15 +114,18 @@ export async function PUT(
     }
 
     // Check if there's a corresponding document in the documents table
+    // Get the most recent document (in case of duplicates)
     const { data: documentData, error: documentError } = await supabase
       .from('documents' as const)
       .select('*')
       .eq('project_id', projectId)
       .eq('filename', fileData.name)
       .eq('owner_id', user.id)
-      .single<Tables<'documents'>>();
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as { data: Tables<'documents'> | null; error: any };
 
-    if (documentError) {
+    if (documentError || !documentData) {
       // If no document exists, create one
       const insertDoc: TablesInsert<'documents'> = {
         title: fileData.name,
@@ -154,6 +160,12 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
+    console.log('Updating document:', {
+      documentId: documentData.id,
+      contentLength: content.length,
+      contentPreview: content.substring(0, 100)
+    });
+
     const { data: updatedDocument, error: updateError } = await (
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase.from('documents') as any
@@ -164,8 +176,14 @@ export async function PUT(
       .single();
 
     if (updateError) {
+      console.error('Update error:', updateError);
       return NextResponse.json({ error: 'Failed to update document' }, { status: 500 });
     }
+
+    console.log('Document updated successfully:', {
+      updatedContentLength: updatedDocument?.content?.length,
+      updatedAt: updatedDocument?.updated_at
+    });
 
     // Save version to document_versions table
     const versionInsert: TablesInsert<'document_versions'> = {

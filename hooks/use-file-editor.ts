@@ -103,6 +103,13 @@ export function useFileEditor(): FileEditorState {
         const { file: fileData, document: documentData } =
           await response.json();
 
+        console.log('Loaded file:', {
+          fileName: fileData.name,
+          contentLength: documentData.content?.length,
+          contentPreview: documentData.content?.substring(0, 100),
+          updatedAt: documentData.updated_at
+        });
+
         setFile(fileData);
         setDocumentData(documentData);
         setTitle(documentData.title);

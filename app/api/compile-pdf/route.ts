@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       // Multi-file mode: send JSON with files array
       requestBody = JSON.stringify({ files });
       requestHeaders = { 'Content-Type': 'application/json' };
-      console.log(`Multi-file compilation: ${files.length} files`);
+      console.log(`Multi-file compilation: ${files.length} files`, files.map(f => f.path));
     } else {
       // Single-file mode: send plain text (backward compatibility)
       requestBody = content!;

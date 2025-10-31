@@ -117,12 +117,10 @@ export default function FileEditorPage() {
   const handleEditorChange = useCallback(
     (value: string) => {
       setContent(value);
-      // Autosave disabled - use Cmd+S or toolbar save button
-      // debouncedSave(value);
-      // Auto-compile disabled - use toolbar compile button or Cmd+S
-      // debouncedAutoCompile(value);
+      debouncedSave(value);
+      debouncedAutoCompile(value);
     },
-    [setContent]
+    [setContent, debouncedSave, debouncedAutoCompile]
   );
 
   const handleSuggestionFromChat = useCallback(
@@ -135,7 +133,12 @@ export default function FileEditorPage() {
   useEditorKeyboardShortcuts({
     editor: editorRef.current,
     monacoInstance: monacoRef.current,
-    onSave: () => handleSaveDocument().then(() => handleCompile()),
+    onSave: (currentContent: string) => {
+      // Update content state first
+      setContent(currentContent);
+      // Then save and compile
+      handleSaveDocument(currentContent).then(() => handleCompile());
+    },
     onCopy: () => {
       if (selectedText.trim()) {
         setTextFromEditor(selectedText);
@@ -153,13 +156,12 @@ export default function FileEditorPage() {
 
       setupEditorListeners(editor);
 
-      // Auto-compile disabled
-      // editor.onDidChangeModelContent(() => {
-      //   const currentContent = editor.getValue();
-      //   debouncedAutoCompile(currentContent);
-      // });
+      editor.onDidChangeModelContent(() => {
+        const currentContent = editor.getValue();
+        debouncedAutoCompile(currentContent);
+      });
     },
-    [setupEditorListeners]
+    [setupEditorListeners, debouncedAutoCompile]
   );
 
   if (isLoading) return <LoadingState />;
