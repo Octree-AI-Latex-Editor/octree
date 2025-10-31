@@ -123,44 +123,33 @@ export function DataTable<TData extends { id: string }, TValue>({
         </Table>
       </div>
 
-      {/* Pagination Controls */}
-      {data.length > 10 && (
-        <div className="flex items-center justify-between px-2">
-          <div className="text-sm text-neutral-500">
-            Page {table.getState().pagination.pageIndex + 1} of{' '}
-            {table.getPageCount()} ({data.length} total projects)
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Next
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
+      {/* Pagination Controls - Always visible (disabled when not applicable) */}
+      <div className="flex items-center justify-between px-2">
+        <div className="text-sm text-neutral-500">
+          Page {table.getState().pagination.pageIndex + 1} of{' '}
+          {table.getPageCount()} ({data.length} total projects)
         </div>
-      )}
-
-      {/* Show pagination info even when there are 10 or fewer items if user was on a higher page */}
-      {data.length <= 10 && table.getState().pagination.pageIndex > 0 && (
-        <div className="flex items-center justify-center px-2">
-          <div className="text-sm text-neutral-500">
-            Showing all {data.length} projects
-          </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
