@@ -39,7 +39,7 @@ export async function GET(
       .eq('owner_id', user.id)
       .order('updated_at', { ascending: false })
       .limit(1)
-      .maybeSingle() as { data: Tables<'documents'> | null; error: any };
+      .maybeSingle() as { data: Tables<'documents'> | null; error: Error | null };
 
     if (documentError || !documentData) {
       // If no document exists, create one with default content
@@ -123,7 +123,7 @@ export async function PUT(
       .eq('owner_id', user.id)
       .order('updated_at', { ascending: false })
       .limit(1)
-      .maybeSingle() as { data: Tables<'documents'> | null; error: any };
+      .maybeSingle() as { data: Tables<'documents'> | null; error: Error | null };
 
     if (documentError || !documentData) {
       // If no document exists, create one
