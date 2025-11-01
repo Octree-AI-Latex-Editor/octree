@@ -18,6 +18,8 @@ interface FileEntry {
 interface CompileRequest {
   content?: string; // Single file (backward compatibility)
   files?: FileEntry[]; // Multi-file support
+  projectId?: string; // Project identifier for caching
+  lastModifiedFile?: string; // Hint for which file changed
 }
 
 export async function POST(request: Request) {
@@ -96,9 +98,16 @@ export async function POST(request: Request) {
 
     if (files && files.length > 0) {
       // Multi-file mode: send JSON with files array
-      requestBody = JSON.stringify({ files });
+      requestBody = JSON.stringify({ 
+        files,
+        projectId: body.projectId,
+        lastModifiedFile: body.lastModifiedFile
+      });
       requestHeaders = { 'Content-Type': 'application/json' };
       console.log(`Multi-file compilation: ${files.length} files`, files.map(f => f.path));
+      if (body.projectId) {
+        console.log(`Project ID: ${body.projectId}`);
+      }
     } else {
       // Single-file mode: send plain text (backward compatibility)
       requestBody = content!;

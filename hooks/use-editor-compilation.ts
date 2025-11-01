@@ -146,7 +146,11 @@ export function useEditorCompilation({
           );
           
           console.log(`Multi-file compilation: ${updatedFiles.length} files`);
-          requestBody = { files: updatedFiles };
+          requestBody = { 
+            files: updatedFiles,
+            projectId: projectId,
+            lastModifiedFile: fileName
+          };
         } else {
           // Fallback to single file
           console.log('Single-file compilation (fallback)');
