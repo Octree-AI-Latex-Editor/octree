@@ -11,6 +11,11 @@ export async function saveDocument(
   fileId: string,
   content: string
 ): Promise<SaveDocumentResult> {
+  console.log('saveDocument called:', {
+    url: `/api/projects/${projectId}/files/${fileId}`,
+    contentLength: content.length
+  });
+
   try {
     const response = await fetch(`/api/projects/${projectId}/files/${fileId}`, {
       method: 'PUT',
@@ -18,15 +23,20 @@ export async function saveDocument(
       body: JSON.stringify({ content }),
     });
 
+    console.log('Save response:', response.status, response.statusText);
+
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Save failed:', errorText);
       return {
         success: false,
         document: null,
-        error: `Failed to save document with status ${response.status}`,
+        error: `Failed to save document with status ${response.status}: ${errorText}`,
       };
     }
 
     const data = await response.json();
+    console.log('Save successful:', data);
 
     return {
       success: true,

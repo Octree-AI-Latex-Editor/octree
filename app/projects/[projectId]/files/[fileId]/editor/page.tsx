@@ -63,6 +63,8 @@ export default function FileEditorPage() {
     saveDocument: handleSaveDocument,
     editorRef,
     fileName: file?.name,
+    projectId,
+    currentFileId: fileId,
   });
 
   const {
@@ -137,7 +139,12 @@ export default function FileEditorPage() {
   useEditorKeyboardShortcuts({
     editor: editorRef.current,
     monacoInstance: monacoRef.current,
-    onSave: () => handleSaveDocument().then(() => handleCompile()),
+    onSave: (currentContent: string) => {
+      // Update content state first
+      setContent(currentContent);
+      // Then save and compile
+      handleSaveDocument(currentContent).then(() => handleCompile());
+    },
     onCopy: () => {
       if (selectedText.trim()) {
         setTextFromEditor(selectedText);
