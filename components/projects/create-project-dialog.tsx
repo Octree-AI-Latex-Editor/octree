@@ -70,7 +70,10 @@ export function CreateProjectDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button
+          size="sm"
+          className="from-primary-light hover:from-primary-light/90 bg-gradient-to-b to-primary hover:bg-gradient-to-b hover:to-primary/90"
+        >
           <PlusIcon />
           New Project
         </Button>
