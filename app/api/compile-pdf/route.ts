@@ -1,11 +1,5 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-
-const execAsync = promisify(exec);
+import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +14,95 @@ interface CompileRequest {
   files?: FileEntry[]; // Multi-file support
   projectId?: string; // Project identifier for caching
   lastModifiedFile?: string; // Hint for which file changed
+}
+
+const CACHE_TTL_MS = Number(process.env.COMPILE_CACHE_TTL_MS ?? 60_000);
+const MAX_CACHE_ENTRIES = Number(process.env.COMPILE_CACHE_MAX_ENTRIES ?? 32);
+
+type CompileCachePayload = {
+  pdf: string;
+  size: number;
+  mimeType: string;
+  debugInfo?: Record<string, unknown>;
+};
+
+interface CompileCacheEntry {
+  payload: CompileCachePayload;
+  timestamp: number;
+}
+
+const globalForCompileCache = globalThis as unknown as {
+  __octreeCompileCache__?: Map<string, CompileCacheEntry>;
+};
+
+const compileCache =
+  globalForCompileCache.__octreeCompileCache__ ??
+  (globalForCompileCache.__octreeCompileCache__ = new Map<string, CompileCacheEntry>());
+
+function buildCacheKey(body: CompileRequest): string | null {
+  if (body.files && body.files.length > 0) {
+    const hash = createHash('sha256');
+    const sortedFiles = [...body.files].sort((a, b) => a.path.localeCompare(b.path));
+    for (const file of sortedFiles) {
+      hash.update(file.path);
+      hash.update('\0');
+      hash.update(file.content);
+      if (file.encoding) {
+        hash.update('\0');
+        hash.update(file.encoding);
+      }
+    }
+    if (body.projectId) {
+      hash.update('\0');
+      hash.update(`project:${body.projectId}`);
+    }
+    return hash.digest('hex');
+  }
+
+  if (body.content) {
+    const hash = createHash('sha256');
+    hash.update(body.content);
+    if (body.projectId) {
+      hash.update('\0');
+      hash.update(`project:${body.projectId}`);
+    }
+    return hash.digest('hex');
+  }
+
+  return null;
+}
+
+function getCachedResponse(cacheKey: string | null): CompileCachePayload | null {
+  if (!cacheKey) {
+    return null;
+  }
+
+  const entry = compileCache.get(cacheKey);
+  if (!entry) {
+    return null;
+  }
+
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    compileCache.delete(cacheKey);
+    return null;
+  }
+
+  return entry.payload;
+}
+
+function storeCachedResponse(cacheKey: string | null, payload: CompileCachePayload) {
+  if (!cacheKey) {
+    return;
+  }
+
+  if (compileCache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = compileCache.keys().next().value as string | undefined;
+    if (oldestKey) {
+      compileCache.delete(oldestKey);
+    }
+  }
+
+  compileCache.set(cacheKey, { payload: { ...payload }, timestamp: Date.now() });
 }
 
 export async function POST(request: Request) {
@@ -96,9 +179,24 @@ export async function POST(request: Request) {
     let requestBody: string;
     let requestHeaders: Record<string, string>;
 
+    const cacheKey = buildCacheKey(body);
+
+    const cachedPayload = getCachedResponse(cacheKey);
+    if (cachedPayload) {
+      console.log('Serving LaTeX compilation from cache', { cacheKey });
+      return NextResponse.json({
+        ...cachedPayload,
+        debugInfo: {
+          ...(cachedPayload.debugInfo ?? {}),
+          cacheStatus: 'hit',
+          cacheKey,
+        },
+      });
+    }
+
     if (files && files.length > 0) {
       // Multi-file mode: send JSON with files array
-      requestBody = JSON.stringify({ 
+      requestBody = JSON.stringify({
         files,
         projectId: body.projectId,
         lastModifiedFile: body.lastModifiedFile
@@ -194,7 +292,7 @@ export async function POST(request: Request) {
         });
 
         // Return with compilation metadata
-        return NextResponse.json({
+        const responsePayload: CompileCachePayload = {
           pdf: base64PDF,
           size: pdfBuffer.length,
           mimeType: 'application/pdf',
@@ -205,6 +303,17 @@ export async function POST(request: Request) {
             durationMs: durationMs ? Number(durationMs) : null,
             queueMs: queueMs ? Number(queueMs) : null,
             sha256,
+          },
+        };
+
+        storeCachedResponse(cacheKey, responsePayload);
+
+        return NextResponse.json({
+          ...responsePayload,
+          debugInfo: {
+            ...(responsePayload.debugInfo ?? {}),
+            cacheStatus: 'miss',
+            cacheKey,
           },
         });
       } catch (error) {
@@ -303,7 +412,7 @@ export async function POST(request: Request) {
         durationMs: durationMs ? Number(durationMs) : null
       });
 
-      return NextResponse.json({
+      const responsePayload: CompileCachePayload = {
         pdf: base64PDF,
         size: pdfBuffer.length,
         mimeType: 'application/pdf',
@@ -313,6 +422,17 @@ export async function POST(request: Request) {
           durationMs: durationMs ? Number(durationMs) : null,
           queueMs: queueMs ? Number(queueMs) : null,
           sha256,
+        },
+      };
+
+      storeCachedResponse(cacheKey, responsePayload);
+
+      return NextResponse.json({
+        ...responsePayload,
+        debugInfo: {
+          ...(responsePayload.debugInfo ?? {}),
+          cacheStatus: 'miss',
+          cacheKey,
         },
       });
     } catch (compileError) {
