@@ -1,189 +1,42 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'crypto';
+import type { CompileRequest, CompileCachePayload } from './types';
+import { buildCacheKey, getCachedResponse, storeCachedResponse, getCacheStats } from './cache';
+import { validateCompileRequest, validateLatexStructure } from './validation';
+import { compileLatex } from './compiler';
 
 export const runtime = 'nodejs';
 
-interface FileEntry {
-  path: string;
-  content: string;
-  encoding?: string; // "base64" for binary files
-}
-
-interface CompileRequest {
-  content?: string; // Single file (backward compatibility)
-  files?: FileEntry[]; // Multi-file support
-  projectId?: string; // Project identifier for caching
-  lastModifiedFile?: string; // Hint for which file changed
-}
-
-const CACHE_TTL_MS = Number(process.env.COMPILE_CACHE_TTL_MS ?? 60_000);
-const MAX_CACHE_ENTRIES = Number(process.env.COMPILE_CACHE_MAX_ENTRIES ?? 32);
-
-type CompileCachePayload = {
-  pdf: string;
-  size: number;
-  mimeType: string;
-  debugInfo?: Record<string, unknown>;
-};
-
-interface CompileCacheEntry {
-  payload: CompileCachePayload;
-  timestamp: number;
-}
-
-const globalForCompileCache = globalThis as unknown as {
-  __octreeCompileCache__?: Map<string, CompileCacheEntry>;
-};
-
-const compileCache =
-  globalForCompileCache.__octreeCompileCache__ ??
-  (globalForCompileCache.__octreeCompileCache__ = new Map<string, CompileCacheEntry>());
-
-function buildCacheKey(body: CompileRequest): string | null {
-  if (body.files && body.files.length > 0) {
-    const hash = createHash('sha256');
-    const sortedFiles = [...body.files].sort((a, b) => a.path.localeCompare(b.path));
-    for (const file of sortedFiles) {
-      hash.update(file.path);
-      hash.update('\0');
-      hash.update(file.content);
-      if (file.encoding) {
-        hash.update('\0');
-        hash.update(file.encoding);
-      }
-    }
-    if (body.projectId) {
-      hash.update('\0');
-      hash.update(`project:${body.projectId}`);
-    }
-    return hash.digest('hex');
-  }
-
-  if (body.content) {
-    const hash = createHash('sha256');
-    hash.update(body.content);
-    if (body.projectId) {
-      hash.update('\0');
-      hash.update(`project:${body.projectId}`);
-    }
-    return hash.digest('hex');
-  }
-
-  return null;
-}
-
-function getCachedResponse(cacheKey: string | null): CompileCachePayload | null {
-  if (!cacheKey) {
-    return null;
-  }
-
-  const entry = compileCache.get(cacheKey);
-  if (!entry) {
-    return null;
-  }
-
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    compileCache.delete(cacheKey);
-    return null;
-  }
-
-  return entry.payload;
-}
-
-function storeCachedResponse(cacheKey: string | null, payload: CompileCachePayload) {
-  if (!cacheKey) {
-    return;
-  }
-
-  if (compileCache.size >= MAX_CACHE_ENTRIES) {
-    const oldestKey = compileCache.keys().next().value as string | undefined;
-    if (oldestKey) {
-      compileCache.delete(oldestKey);
-    }
-  }
-
-  compileCache.set(cacheKey, { payload: { ...payload }, timestamp: Date.now() });
-}
+const COMPILE_SERVICE_URL = process.env.COMPILE_SERVICE_URL || 'http://localhost:3001';
+const IS_PROD = process.env.ENVIRONMENT === 'prod';
 
 export async function POST(request: Request) {
   try {
+    // Parse request body
     const body: CompileRequest = await request.json();
-    const { content, files } = body;
-    
-    // Validate: must have either content or files
-    if (!content && (!files || files.length === 0)) {
-      return NextResponse.json(
-        {
-          error: 'Invalid request',
-          details: 'Must provide either content or files array',
-          suggestion: 'Please provide valid LaTeX content or files'
-        },
-        { status: 400 }
-      );
+
+    // Validate request
+    const requestValidationError = validateCompileRequest(body);
+    if (requestValidationError) {
+      return NextResponse.json(requestValidationError, { status: 400 });
     }
 
-    // For backward compatibility, if content is provided, validate it
-    if (content && typeof content !== 'string') {
-      return NextResponse.json(
-        {
-          error: 'Invalid content',
-          details: 'Content must be a non-empty string',
-          suggestion: 'Please provide valid LaTeX content'
-        },
-        { status: 400 }
-      );
-    }
+    // // Validate LaTeX structure
+    // const latexValidationError = validateLatexStructure(body);
+    // if (latexValidationError) {
+    //   return NextResponse.json(latexValidationError, { status: 400 });
+    // }
 
-    // Validate LaTeX structure (check main.tex or single content file)
-    let mainContent = '';
-    if (files && files.length > 0) {
-      // Find main.tex in multi-file project
-      const mainFile = files.find(f => f.path === 'main.tex') || files.find(f => f.path.endsWith('.tex'));
-      mainContent = mainFile?.content || '';
-    } else if (content) {
-      mainContent = content;
-    }
-
-    if (mainContent) {
-      const hasDocumentClass = mainContent.includes('\\documentclass');
-      const hasBeginDocument = mainContent.includes('\\begin{document}');
-      const hasEndDocument = mainContent.includes('\\end{document}');
-
-      if (!hasDocumentClass) {
-        return NextResponse.json(
-          {
-            error: 'Invalid LaTeX structure',
-            details: 'LaTeX document must start with \\documentclass declaration',
-            suggestion: 'Add \\documentclass{article} at the beginning of your document'
-          },
-          { status: 400 }
-        );
-      }
-
-      if (!hasBeginDocument || !hasEndDocument) {
-        return NextResponse.json(
-          {
-            error: 'Invalid LaTeX structure',
-            details: 'LaTeX document must have \\begin{document} and \\end{document}',
-            suggestion: 'Wrap your content between \\begin{document} and \\end{document}'
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    const isProd = process.env.ENVIRONMENT === 'prod';
-    const compileServiceUrl = process.env.COMPILE_SERVICE_URL || 'http://localhost:3001';
-
-    // Prepare request body for octree-compile
-    let requestBody: string;
-    let requestHeaders: Record<string, string>;
-
+    // Check cache
     const cacheKey = buildCacheKey(body);
+    console.log('[COMPILE CACHE] Cache key generated:', cacheKey?.substring(0, 16) + '...');
 
     const cachedPayload = getCachedResponse(cacheKey);
     if (cachedPayload) {
-      console.log('Serving LaTeX compilation from cache', { cacheKey });
+      console.log('🎯 [COMPILE CACHE] ⚡ CACHE HIT - Serving from cache instantly!', {
+        cacheKey: cacheKey?.substring(0, 16) + '...',
+        pdfSize: cachedPayload.size,
+        projectId: body.projectId,
+      });
       return NextResponse.json({
         ...cachedPayload,
         debugInfo: {
@@ -194,279 +47,70 @@ export async function POST(request: Request) {
       });
     }
 
-    if (files && files.length > 0) {
-      // Multi-file mode: send JSON with files array
-      requestBody = JSON.stringify({
-        files,
-        projectId: body.projectId,
-        lastModifiedFile: body.lastModifiedFile
-      });
-      requestHeaders = { 'Content-Type': 'application/json' };
-      console.log(`Multi-file compilation: ${files.length} files`, files.map(f => f.path));
-      if (body.projectId) {
-        console.log(`Project ID: ${body.projectId}`);
-      }
-    } else {
-      // Single-file mode: send plain text (backward compatibility)
-      requestBody = content!;
-      requestHeaders = { 'Content-Type': 'text/plain' };
-      console.log('Single-file compilation');
-    }
+    console.log('❌ [COMPILE CACHE] CACHE MISS - Compiling with octree-compile', {
+      cacheKey: cacheKey?.substring(0, 16) + '...',
+      projectId: body.projectId,
+      filesCount: body.files?.length,
+    });
 
-    if (isProd) {
-      // Use the octree-compile service in production
-      try {
-        console.log('Attempting LaTeX compilation via octree-compile...');
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-        
-        const response = await fetch(`${compileServiceUrl}/compile`, {
-          method: 'POST',
-          headers: requestHeaders,
-          body: requestBody,
-          signal: controller.signal,
-        });
+    // Compile
+    const compileResult = await compileLatex(body, COMPILE_SERVICE_URL);
 
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('octree-compile error response:', errorText);
-          
-          // Parse octree-compile error response (always JSON on error)
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { error: errorText };
-          }
-          const requestId = response.headers.get('x-compile-request-id') || errorData.requestId || null;
-          const durationMs = response.headers.get('x-compile-duration-ms');
-          const queueMs = response.headers.get('x-compile-queue-ms');
-          
-          return NextResponse.json(
-            {
-              error: errorData.error || 'LaTeX compilation failed',
-              details: errorData.message || errorData.details || `Server returned status ${response.status}`,
-              log: errorData.log,
-              stdout: errorData.stdout,
-              stderr: errorData.stderr,
-              requestId,
-              queueMs: queueMs ? Number(queueMs) : errorData.queueMs,
-              durationMs: durationMs ? Number(durationMs) : errorData.durationMs,
-              suggestion: 'Check your LaTeX syntax and try again'
-            },
-            { status: response.status }
-          );
-        }
-
-        const requestId = response.headers.get('x-compile-request-id') || null;
-        const durationMs = response.headers.get('x-compile-duration-ms');
-        const queueMs = response.headers.get('x-compile-queue-ms');
-        const sha256 = response.headers.get('x-compile-sha256');
-
-        const pdfArrayBuffer = await response.arrayBuffer();
-
-        // Check if we got a valid PDF
-        if (pdfArrayBuffer.byteLength === 0) {
-          throw new Error('octree-compile returned empty response');
-        }
-
-        // Verify PDF magic number (%PDF)
-        const pdfBuffer = Buffer.from(pdfArrayBuffer);
-        const firstBytes = pdfBuffer.toString('utf8', 0, 4);
-        if (firstBytes !== '%PDF') {
-          throw new Error(`Invalid PDF format. Expected %PDF, got: ${firstBytes}`);
-        }
-
-        // Convert to Base64
-        const base64PDF = pdfBuffer.toString('base64');
-
-        console.log('octree-compile successful:', {
-          size: pdfBuffer.length,
-          requestId,
-          queueMs: queueMs ? Number(queueMs) : null,
-          durationMs: durationMs ? Number(durationMs) : null,
-          sha256
-        });
-
-        // Return with compilation metadata
-        const responsePayload: CompileCachePayload = {
-          pdf: base64PDF,
-          size: pdfBuffer.length,
-          mimeType: 'application/pdf',
-          debugInfo: {
-            contentLength: pdfArrayBuffer.byteLength,
-            base64Length: base64PDF.length,
-            requestId,
-            durationMs: durationMs ? Number(durationMs) : null,
-            queueMs: queueMs ? Number(queueMs) : null,
-            sha256,
-          },
-        };
-
-        storeCachedResponse(cacheKey, responsePayload);
-
-        return NextResponse.json({
-          ...responsePayload,
-          debugInfo: {
-            ...(responsePayload.debugInfo ?? {}),
-            cacheStatus: 'miss',
-            cacheKey,
-          },
-        });
-      } catch (error) {
-        console.error('octree-compile error:', error);
-        
-        if (error instanceof Error && error.name === 'AbortError') {
-          return NextResponse.json(
-            {
-              error: 'LaTeX compilation timed out',
-              details: 'Request took longer than 60 seconds',
-              suggestion: 'Try simplifying your LaTeX document or contact support if the issue persists'
-            },
-            { status: 504 }
-          );
-        }
-        
-        return NextResponse.json(
-          {
-            error: 'LaTeX compilation failed',
-            details: String(error),
-            suggestion: 'The octree-compile service may be temporarily unavailable'
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Development: Use octree-compile service
-    console.log('Development mode: Using octree-compile service...');
-    
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
-      
-      const response = await fetch(`${compileServiceUrl}/compile`, {
-        method: 'POST',
-        headers: requestHeaders,
-        body: requestBody,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText };
-        }
-        const requestId = response.headers.get('x-compile-request-id') || errorData.requestId || null;
-        const durationMs = response.headers.get('x-compile-duration-ms');
-        const queueMs = response.headers.get('x-compile-queue-ms');
-        
-        return NextResponse.json(
-          {
-            error: errorData.error || 'LaTeX compilation failed',
-            details: errorData.message || errorData.details || `Server returned status ${response.status}`,
-            log: errorData.log,
-            stdout: errorData.stdout,
-            stderr: errorData.stderr,
-            requestId,
-            queueMs: queueMs ? Number(queueMs) : errorData.queueMs,
-            durationMs: durationMs ? Number(durationMs) : errorData.durationMs,
-            suggestion: 'Check your LaTeX syntax and try again'
-          },
-          { status: response.status }
-        );
-      }
-
-      const pdfArrayBuffer = await response.arrayBuffer();
-
-      if (pdfArrayBuffer.byteLength === 0) {
-        throw new Error('octree-compile returned empty response');
-      }
-
-      // Verify PDF magic number
-      const pdfBuffer = Buffer.from(pdfArrayBuffer);
-      const firstBytes = pdfBuffer.toString('utf8', 0, 4);
-      if (firstBytes !== '%PDF') {
-        throw new Error(`Invalid PDF format. Expected %PDF, got: ${firstBytes}`);
-      }
-
-      const base64PDF = pdfBuffer.toString('base64');
-
-      const requestId = response.headers.get('x-compile-request-id') || null;
-      const durationMs = response.headers.get('x-compile-duration-ms');
-      const queueMs = response.headers.get('x-compile-queue-ms');
-      const sha256 = response.headers.get('x-compile-sha256');
-
-      console.log('octree-compile successful (dev):', {
-        size: pdfBuffer.length,
-        requestId,
-        queueMs: queueMs ? Number(queueMs) : null,
-        durationMs: durationMs ? Number(durationMs) : null
-      });
-
-      const responsePayload: CompileCachePayload = {
-        pdf: base64PDF,
-        size: pdfBuffer.length,
-        mimeType: 'application/pdf',
-        debugInfo: {
-          contentLength: pdfArrayBuffer.byteLength,
-          requestId,
-          durationMs: durationMs ? Number(durationMs) : null,
-          queueMs: queueMs ? Number(queueMs) : null,
-          sha256,
-        },
-      };
-
-      storeCachedResponse(cacheKey, responsePayload);
-
-      return NextResponse.json({
-        ...responsePayload,
-        debugInfo: {
-          ...(responsePayload.debugInfo ?? {}),
-          cacheStatus: 'miss',
-          cacheKey,
-        },
-      });
-    } catch (compileError) {
-      console.error('octree-compile failed:', compileError);
-      
-      if (compileError instanceof Error && compileError.name === 'AbortError') {
-        return NextResponse.json(
-          {
-            error: 'LaTeX compilation timed out',
-            details: 'Request took longer than 60 seconds',
-            suggestion: 'Try simplifying your LaTeX document'
-          },
-          { status: 504 }
-        );
-      }
-      
+    // Handle compilation error
+    if (!compileResult.success || !compileResult.base64PDF || !compileResult.pdfBuffer) {
       return NextResponse.json(
         {
-          error: 'LaTeX compilation failed',
-          details: String(compileError),
-          suggestion: 'The octree-compile service may be temporarily unavailable. Please try again.'
+          ...compileResult.error,
+          suggestion: compileResult.error?.suggestion || 'Check your LaTeX syntax and try again',
         },
         { status: 500 }
       );
     }
+
+    // Build response payload
+    const responsePayload: CompileCachePayload = {
+      pdf: compileResult.base64PDF,
+      size: compileResult.pdfBuffer.length,
+      mimeType: 'application/pdf',
+      debugInfo: {
+        contentLength: compileResult.pdfBuffer.byteLength,
+        base64Length: compileResult.base64PDF.length,
+        requestId: compileResult.requestId,
+        durationMs: compileResult.durationMs,
+        queueMs: compileResult.queueMs,
+        sha256: compileResult.sha256,
+      },
+    };
+
+    // Store in cache
+    storeCachedResponse(cacheKey, responsePayload);
+    const stats = getCacheStats();
+    console.log('💾 [COMPILE CACHE] Stored in cache', {
+      cacheKey: cacheKey?.substring(0, 16) + '...',
+      pdfSize: compileResult.pdfBuffer.length,
+      ttlMs: stats.ttlMs,
+      cacheSize: stats.size,
+      maxSize: stats.maxSize,
+    });
+
+    return NextResponse.json({
+      ...responsePayload,
+      debugInfo: {
+        ...(responsePayload.debugInfo ?? {}),
+        cacheStatus: 'miss',
+        cacheKey,
+      },
+    });
   } catch (error) {
     console.error('LaTeX compilation error:', error);
     return NextResponse.json(
       {
         error: 'LaTeX compilation failed',
         details: String(error),
-        suggestion: 'Check your LaTeX syntax and try again'
+        suggestion: 'Check your LaTeX syntax and try again',
       },
       { status: 500 }
     );
   }
 }
+
