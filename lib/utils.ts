@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import axios from 'axios';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -64,3 +65,5 @@ The definition of an integral:
 \\end{equation}
 
 \\end{document}`;
+
+export const fetcher = (url: string) => axios.get(url).then((res) => res.data);

@@ -14,7 +14,7 @@ export interface DocumentSaveState {
 
 interface UseDocumentSaveProps {
   projectId: string;
-  fileId: string;
+  fileId: string | null;
   content: string;
 }
 
@@ -29,19 +29,15 @@ export function useDocumentSave({
   const handleSaveDocument = useCallback(
     async (contentToSave?: string): Promise<boolean> => {
       if (!projectId || !fileId) {
-        console.log('Cannot save: missing projectId or fileId', { projectId, fileId });
+        console.log('Cannot save: missing projectId or fileId', {
+          projectId,
+          fileId,
+        });
         return false;
       }
 
       const contentToUse =
         contentToSave !== undefined ? contentToSave : content;
-
-      console.log('Saving document:', {
-        projectId,
-        fileId,
-        contentLength: contentToUse.length,
-        contentPreview: contentToUse.substring(0, 100)
-      });
 
       try {
         setIsSaving(true);

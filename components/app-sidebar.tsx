@@ -29,12 +29,10 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { UserProfileDropdown } from '@/components/user/user-profile-dropdown';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import Link from 'next/link';
 import { useProjectRefresh } from '@/app/context/project';
 import { AddFileDialog } from '@/components/projects/add-file-dialog';
-import { usePathname } from 'next/navigation';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,118 +40,93 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { RenameFileDialog } from '@/components/projects/rename-file-dialog';
 import { DeleteFileDialog } from '@/components/projects/delete-file-dialog';
+import useSWR, { useSWRConfig } from 'swr';
+import { getProject } from '@/lib/requests/project';
+import type { Project } from '@/types/project';
+import type { Tables } from '@/database.types';
+import { useFileStore } from '@/stores/file';
 
-interface Project {
-  id: string;
-  title: string;
-  created_at: string | null;
-  updated_at: string | null;
-  user_id: string;
-}
-
-interface File {
-  id: string;
-  name: string;
-  project_id: string;
-  size: number | null;
-  type: string | null;
-  uploaded_at: string | null;
-}
-
-interface ProjectWithFiles extends Project {
-  files: File[];
-}
+type File = Tables<'files'>;
 
 interface AppSidebarProps {
   userName: string | null;
   projectId?: string;
 }
 
+const fetchFiles = async (projectId: string): Promise<File[]> => {
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { data, error } = await supabase
+    .from('files')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('uploaded_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+};
+
+const getFileIcon = (fileName: string) => {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'pdf':
+      return <DocumentIcon className="h-4 w-4 text-red-500" />;
+    case 'doc':
+    case 'docx':
+      return <DocumentIcon className="h-4 w-4 text-blue-500" />;
+    case 'txt':
+      return <FileText className="h-4 w-4 text-gray-500" />;
+    default:
+      return <FileText className="h-4 w-4 text-gray-600" />;
+  }
+};
+
 export function AppSidebar({ userName, projectId }: AppSidebarProps) {
-  const [currentProject, setCurrentProject] = useState<ProjectWithFiles | null>(
-    null
-  );
-  const [isLoading, setIsLoading] = useState(true);
   const [isProjectOpen, setIsProjectOpen] = useState(true);
   const { refreshTrigger } = useProjectRefresh();
   const { toggleSidebar } = useSidebar();
+  const { mutate } = useSWRConfig();
+  const { selectedFileId, setSelectedFileId } = useFileStore();
 
-  const pathname = usePathname();
+  const { data: projectData, isLoading: isProjectLoading } = useSWR<Project>(
+    projectId ? ['project', projectId] : null,
+    () => getProject(projectId!)
+  );
 
-  const fetchCurrentProjectAndFiles = useCallback(async () => {
-    if (!projectId) return;
+  const { data: filesData, isLoading: isFilesLoading } = useSWR<File[]>(
+    projectId ? ['files', projectId] : null,
+    () => fetchFiles(projectId!)
+  );
 
-    try {
-      const supabase = createClient();
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user) return;
-
-      const { data: projectData, error: projectError } = await supabase
-        .from('projects' as const)
-        .select('*')
-        .eq('id', projectId)
-        .eq('user_id', session.user.id)
-        .single<Project>();
-
-      if (projectError) {
-        console.error('Error fetching project:', projectError);
-        return;
-      }
-
-      const { data: filesData, error: filesError } = await supabase
-        .from('files' as const)
-        .select('*')
-        .eq('project_id', projectId)
-        .order('uploaded_at', { ascending: false });
-
-      if (filesError) {
-        console.error(
-          'Error fetching files for project:',
-          projectId,
-          filesError
-        );
-        return;
-      }
-
-      if (!projectData) {
-        setCurrentProject(null);
-        return;
-      }
-
-      const files = (filesData || []) as File[];
-
-      setCurrentProject({
-        ...(projectData as Project),
-        files,
-      });
-    } catch (error) {
-      console.error('Error fetching project and files:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [projectId]);
+  const isLoading = isProjectLoading || isFilesLoading;
 
   useEffect(() => {
-    fetchCurrentProjectAndFiles();
-  }, [refreshTrigger, projectId, fetchCurrentProjectAndFiles]);
+    if (filesData && filesData.length > 0 && !selectedFileId) {
+      const mainTexFile = filesData.find((file) => file.name === 'main.tex');
+      if (mainTexFile) {
+        setSelectedFileId(mainTexFile.id);
+      } else {
+        setSelectedFileId(filesData[0].id);
+      }
+    }
+  }, [filesData]);
 
-  const getFileIcon = (fileName: string) => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'pdf':
-        return <DocumentIcon className="h-4 w-4 text-red-500" />;
-      case 'doc':
-      case 'docx':
-        return <DocumentIcon className="h-4 w-4 text-blue-500" />;
-      case 'txt':
-        return <FileText className="h-4 w-4 text-gray-500" />;
-      default:
-        return <FileText className="h-4 w-4 text-gray-600" />;
+  const refreshData = () => {
+    if (projectId) {
+      mutate(['project', projectId]);
+      mutate(['files', projectId]);
     }
   };
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshTrigger, projectId]);
 
   return (
     <Sidebar collapsible="offcanvas" className="w-64">
@@ -179,7 +152,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                     <div className="h-3 w-2/3 rounded bg-gray-200"></div>
                   </div>
                 </div>
-              ) : !currentProject ? (
+              ) : !projectData ? (
                 <div className="p-6 text-center text-sm text-gray-500">
                   <Folder className="mx-auto mb-2 h-8 w-8 text-gray-300" />
                   No project found
@@ -199,7 +172,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                             <Folder className="h-4 w-4 text-gray-500" />
                           )}
                           <span className="truncate font-medium text-gray-900">
-                            {currentProject.title}
+                            {projectData.title}
                           </span>
                         </div>
                         <ChevronDown
@@ -211,13 +184,10 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
 
                   <CollapsibleContent>
                     <SidebarMenuSub className="ml-4 mt-1 space-y-1">
-                      {currentProject.files &&
-                      currentProject.files.length > 0 ? (
+                      {filesData && filesData.length > 0 ? (
                         <>
-                          {currentProject.files.map((file) => {
-                            const isActive =
-                              pathname ===
-                              `/projects/${currentProject.id}/files/${file.id}/editor`;
+                          {filesData.map((file) => {
+                            const isActive = selectedFileId === file.id;
                             return (
                               <SidebarMenuItem key={file.id}>
                                 <SidebarMenuSubButton
@@ -229,10 +199,11 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                                       : 'text-gray-700 hover:bg-gray-50'
                                   }`}
                                 >
-                                  <div className="flex w-full items-center gap-2">
-                                    <Link
-                                      href={`/projects/${currentProject.id}/files/${file.id}/editor`}
-                                      className="flex flex-1 items-center gap-1.5 overflow-hidden px-1 py-1"
+                                  <div className="flex w-full items-center gap-2 hover:bg-gray-100 hover:ring-1 hover:ring-gray-200">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedFileId(file.id)}
+                                      className="flex flex-1 items-center gap-1.5 overflow-hidden px-1 py-1 text-left"
                                     >
                                       {getFileIcon(file.name)}
                                       <div className="min-w-0 flex-1">
@@ -240,7 +211,7 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                                           {file.name}
                                         </span>
                                       </div>
-                                    </Link>
+                                    </button>
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
                                         <button
@@ -258,20 +229,16 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                                         }
                                       >
                                         <RenameFileDialog
-                                          projectId={currentProject.id}
+                                          projectId={projectData.id}
                                           fileId={file.id}
                                           currentName={file.name}
-                                          onRenamed={() =>
-                                            fetchCurrentProjectAndFiles()
-                                          }
+                                          onRenamed={refreshData}
                                         />
                                         <DeleteFileDialog
-                                          projectId={currentProject.id}
+                                          projectId={projectData.id}
                                           fileId={file.id}
                                           fileName={file.name}
-                                          onDeleted={() =>
-                                            fetchCurrentProjectAndFiles()
-                                          }
+                                          onDeleted={refreshData}
                                         />
                                       </DropdownMenuContent>
                                     </DropdownMenu>
@@ -282,9 +249,9 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                           })}
                           <SidebarMenuItem>
                             <AddFileDialog
-                              projectId={currentProject.id}
-                              projectTitle={currentProject.title}
-                              onFileAdded={fetchCurrentProjectAndFiles}
+                              projectId={projectData.id}
+                              projectTitle={projectData.title}
+                              onFileAdded={refreshData}
                             />
                           </SidebarMenuItem>
                         </>
@@ -295,9 +262,9 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                             No files yet
                           </p>
                           <AddFileDialog
-                            projectId={currentProject.id}
-                            projectTitle={currentProject.title}
-                            onFileAdded={fetchCurrentProjectAndFiles}
+                            projectId={projectData.id}
+                            projectTitle={projectData.title}
+                            onFileAdded={refreshData}
                           />
                         </div>
                       )}

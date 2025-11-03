@@ -1,16 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-
-export interface Project {
-  id: string;
-  title: string;
-  user_id: string;
-  created_at: string | null;
-  updated_at: string | null;
-}
+import { useParams } from 'next/navigation';
+import useSWR from 'swr';
+import { getProject } from '@/lib/requests/project';
+import { fetcher } from '@/lib/utils';
+import type { Project } from '@/types/project';
+import { useFileStore } from '@/stores/file';
 
 export interface FileData {
   id: string;
@@ -33,107 +28,53 @@ export interface DocumentData {
   updated_at: string | null;
 }
 
+interface FileApiResponse {
+  file: FileData;
+  document: DocumentData;
+}
+
 export interface FileEditorState {
   project: Project | null;
   file: FileData | null;
   documentData: DocumentData | null;
   isLoading: boolean;
   error: string | null;
-  title: string;
-  setTitle: (title: string) => void;
 }
 
 export function useFileEditor(): FileEditorState {
-  const supabase = createClient();
   const params = useParams();
-  const router = useRouter();
   const projectId = params.projectId as string;
-  const fileId = params.fileId as string;
 
-  const [project, setProject] = useState<Project | null>(null);
-  const [file, setFile] = useState<FileData | null>(null);
-  const [documentData, setDocumentData] = useState<DocumentData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [title, setTitle] = useState('');
+  const { selectedFileId } = useFileStore();
+  const fileId = selectedFileId;
 
-  useEffect(() => {
-    const fetchFile = async () => {
-      if (!projectId || !fileId) return;
+  const {
+    data: projectData,
+    isLoading: isProjectLoading,
+    error: projectError,
+  } = useSWR<Project>(projectId ? ['project', projectId] : null, () =>
+    getProject(projectId)
+  );
 
-      try {
-        setIsLoading(true);
-        setError(null);
+  const {
+    data: fileResponse,
+    isLoading: isFileLoading,
+    error: fileError,
+  } = useSWR<FileApiResponse>(
+    projectId && fileId ? `/api/projects/${projectId}/files/${fileId}` : null,
+    fetcher
+  );
 
-        // Get current user
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session?.user) {
-          router.push('/auth/login');
-          return;
-        }
-
-        // Fetch the project
-        const { data: projectData, error: projectError } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('id', projectId)
-          .eq('user_id', session.user.id)
-          .single();
-
-        if (projectError) {
-          throw new Error('Project not found');
-        }
-
-        setProject(projectData);
-
-        // Fetch the specific file and its document
-        const response = await fetch(
-          `/api/projects/${projectId}/files/${fileId}`
-        );
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('File not found');
-          }
-          throw new Error('Failed to fetch file');
-        }
-
-        const { file: fileData, document: documentData } =
-          await response.json();
-
-        console.log('Loaded file:', {
-          fileName: fileData.name,
-          contentLength: documentData.content?.length,
-          contentPreview: documentData.content?.substring(0, 100),
-          updatedAt: documentData.updated_at
-        });
-
-        setFile(fileData);
-        setDocumentData(documentData);
-        setTitle(documentData.title);
-
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error loading file:', error);
-        setError(
-          error instanceof Error ? error.message : 'Failed to load file'
-        );
-        setIsLoading(false);
-      }
-    };
-
-    fetchFile();
-  }, [projectId, fileId, supabase, router]);
+  const file = fileResponse?.file ?? null;
+  const documentData = fileResponse?.document ?? null;
+  const isLoading = isProjectLoading || isFileLoading;
+  const error = projectError?.message || fileError?.message || null;
 
   return {
-    project,
+    project: projectData ?? null,
     file,
     documentData,
     isLoading,
     error,
-    title,
-    setTitle,
   };
 }
