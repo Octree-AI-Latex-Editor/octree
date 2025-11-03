@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { X, StopCircle, ArrowUp, Loader2, Upload } from 'lucide-react';
+import { X, ArrowUp, Loader2, Upload, Square, Trash2 } from 'lucide-react';
 import { FileAttachment } from '@/types/attachment';
 import { AttachmentUpload } from './attachment-upload';
 import { AttachmentList } from './attachment-list';
@@ -26,6 +26,7 @@ interface ChatInputProps {
   onFilesSelected?: (files: File[]) => void;
   onRemoveAttachment?: (id: string) => void;
   onResetError?: () => void;
+  onClearHistory?: () => void;
 }
 
 export interface ChatInputRef {
@@ -47,6 +48,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       onFilesSelected,
       onRemoveAttachment,
       onResetError,
+      onClearHistory,
     },
     ref
   ) => {
@@ -166,6 +168,21 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             />
 
             <div className="flex items-end gap-1 self-end">
+              {onClearHistory && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={onClearHistory}
+                  disabled={isLoading}
+                  className="size-6 rounded-full hover:text-red-600"
+                  title="Clear chat history"
+                  aria-label="Clear chat history"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
+
               {onFilesSelected && (
                 <AttachmentUpload
                   onFilesSelected={onFilesSelected}
@@ -183,7 +200,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                   className="size-6 rounded-full"
                   aria-label="Stop streaming"
                 >
-                  <StopCircle className="h-4 w-4" />
+                  <Square className="size-3 fill-primary text-primary" />
                 </Button>
               )}
 

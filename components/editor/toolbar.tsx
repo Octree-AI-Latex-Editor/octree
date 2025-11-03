@@ -77,8 +77,8 @@ export function EditorToolbar({
             </span>
           )}
           {isSaving && (
-            <span className="flex items-center text-sm text-blue-500">
-              <Loader2 className="mr-1 inline h-4 w-4 animate-spin" />
+            <span className="flex items-center gap-1 text-sm text-blue-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
               Saving
             </span>
           )}
@@ -88,7 +88,7 @@ export function EditorToolbar({
             size="sm"
             onClick={onCompile}
             disabled={compiling}
-            className="w-[90px] gap-0.5"
+            className="w-[90px] gap-1"
           >
             {compiling ? (
               <>

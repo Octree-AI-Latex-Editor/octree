@@ -3,11 +3,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, X, Maximize2, Minimize2, CheckCheck } from 'lucide-react';
+import { Loader2, X, CheckCheck } from 'lucide-react';
 import { OctreeLogo } from '@/components/icons/octree-logo';
-import { motion, AnimatePresence } from 'framer-motion';
 import { EditSuggestion } from '@/types/edit';
-import { cn } from '@/lib/utils';
 import { useChatStream } from './use-chat-stream';
 import { useEditProposals } from './use-edit-proposals';
 import { useFileAttachments } from './use-file-attachments';
@@ -28,8 +26,6 @@ interface ChatProps {
     endLineNumber: number;
     endColumn: number;
   } | null;
-  isMinimized: boolean;
-  setIsMinimized: React.Dispatch<React.SetStateAction<boolean>>;
   isOpen: boolean;
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -41,8 +37,6 @@ interface ChatMessage {
 }
 
 export function Chat({
-  isMinimized,
-  setIsMinimized,
   isOpen,
   setIsOpen,
   onEditSuggestion,
@@ -70,10 +64,11 @@ export function Chat({
   }, []);
 
   useEffect(() => {
-    if (isOpen && !isMinimized) {
+    if (isOpen) {
       chatInputRef.current?.focus();
+      scrollToBottom();
     }
-  }, [isOpen, isMinimized]);
+  }, [isOpen]);
 
   const { startStream, parseStream, stopStream } = useChatStream();
   const {
@@ -323,51 +318,37 @@ export function Chat({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setIsOpen]);
 
+  const clearHistory = () => {
+    setMessages([]);
+  };
+
   if (!isOpen) {
     return (
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
+      <div
         className="fixed bottom-4 right-4 z-20 flex cursor-pointer flex-col items-end space-y-2"
         onClick={() => setIsOpen(true)}
       >
-        <div className="mb-2 rounded-md border border-blue-100 bg-white/80 px-3 py-1.5 text-sm text-foreground shadow-sm backdrop-blur-sm">
+        <div className="mb-2 rounded-md border bg-primary px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm transition-all hover:bg-blue-600 hover:shadow-xl">
           Press{' '}
-          <kbd className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
+          <kbd className="rounded-sm bg-blue-700 px-1.5 py-0.5 font-mono text-xs text-white">
             {isMac ? '⌘' : 'Ctrl'}
           </kbd>
           {' + '}
-          <kbd className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
+          <kbd className="rounded-sm bg-blue-700 px-1.5 py-0.5 font-mono text-xs text-white">
             B
           </kbd>{' '}
           to chat
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ y: 20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 20, opacity: 0 }}
-      className={cn(
-        'fixed bottom-4 right-4 z-20 w-96 rounded-md border border-blue-100 bg-white shadow-2xl transition-all duration-200',
-        isMinimized ? 'h-15' : 'h-[610px]'
-      )}
-    >
+    <div className="fixed bottom-4 right-4 z-20 h-[610px] w-96 rounded-md border border-blue-100 bg-white shadow-2xl transition-all duration-200">
       {/* Header */}
-      <div
-        className={cn(
-          'flex items-center justify-between px-3 py-2',
-          !isMinimized && 'border-b border-blue-100/50'
-        )}
-      >
+      <div className="flex items-center justify-between border-b border-blue-100/50 px-4 py-2">
         <div className="flex items-center space-x-3">
-          <div className="rounded-lg bg-blue-100/50 p-1.5">
-            <OctreeLogo className="h-5 w-5 text-blue-600" />
-          </div>
+          <OctreeLogo className="h-6 w-6" />
           <div>
             <h3 className="font-semibold text-blue-800">Octra</h3>
             <p className="text-xs text-slate-500">LaTeX Assistant</p>
@@ -377,7 +358,7 @@ export function Chat({
         <div className="flex gap-1">
           {isLoading && (
             <div className="flex items-center pr-1" aria-live="polite">
-              <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
             </div>
           )}
           {pendingEditCount > 1 && onAcceptAllEdits && (
@@ -399,14 +380,6 @@ export function Chat({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setIsMinimized(!isMinimized)}
-            className="h-8 w-8 rounded-lg p-0 text-blue-600 hover:bg-blue-50 hover:text-blue-800"
-          >
-            {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
             onClick={() => setIsOpen(false)}
             className="h-8 w-8 rounded-lg p-0 text-blue-600 hover:bg-blue-50 hover:text-blue-800"
           >
@@ -415,91 +388,80 @@ export function Chat({
         </div>
       </div>
 
-      <AnimatePresence>
-        {!isMinimized && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col"
-            style={{ height: 'calc(100% - 56px)' }}
-          >
-            <div
-              ref={chatContainerRef}
-              className="min-h-[300px] flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300"
-            >
-              {messages.length === 0 && !isLoading && !conversionStatus && (
-                <EmptyState />
-              )}
-              {messages.map((message) => (
-                <ChatMessageComponent
-                  key={message.id}
-                  message={message}
-                  isLoading={isLoading}
-                  proposalIndicator={proposalIndicators[message.id]}
-                  textFromEditor={textFromEditor}
-                />
-              ))}
-
-              {/* Image Analysis Status Indicator (like propose_edits) */}
-              {conversionStatus && (
-                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2">
-                  <div className="flex items-center gap-2 text-sm text-blue-700">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span className="font-medium">{conversionStatus}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <ChatInput
-              ref={chatInputRef}
-              input={input}
+      <div className="flex flex-col" style={{ height: 'calc(100% - 56px)' }}>
+        <div
+          ref={chatContainerRef}
+          className="min-h-[300px] flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-300"
+        >
+          {messages.length === 0 && !isLoading && !conversionStatus && (
+            <EmptyState />
+          )}
+          {messages.map((message) => (
+            <ChatMessageComponent
+              key={message.id}
+              message={message}
               isLoading={isLoading}
+              proposalIndicator={proposalIndicators[message.id]}
               textFromEditor={textFromEditor}
-              attachments={attachments}
-              canAddMoreAttachments={canAddMoreAttachments}
-              onInputChange={setInput}
-              onSubmit={handleSubmit}
-              onClearEditor={() => setTextFromEditor(null)}
-              onStop={() => {
-                console.log(
-                  '[Chat] Stop button clicked, currentAssistantId:',
-                  currentAssistantIdRef.current
-                );
-
-                stopStream();
-                clearAllProposalsAndTimeouts();
-
-                // Remove incomplete assistant message
-                const messageIdToRemove = currentAssistantIdRef.current;
-                if (messageIdToRemove) {
-                  setMessages((prev) => {
-                    const filtered = prev.filter(
-                      (m) => m.id !== messageIdToRemove
-                    );
-                    console.log(
-                      '[Chat] Removed message, before:',
-                      prev.length,
-                      'after:',
-                      filtered.length
-                    );
-                    return filtered;
-                  });
-                  currentAssistantIdRef.current = null;
-                }
-
-                setIsLoading(false);
-                setConversionStatus(null);
-                setError(null);
-              }}
-              onFilesSelected={addFiles}
-              onRemoveAttachment={removeAttachment}
-              onResetError={() => setError(null)}
             />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+          ))}
+
+          {/* Image Analysis Status Indicator (like propose_edits) */}
+          {conversionStatus && (
+            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="font-medium">{conversionStatus}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <ChatInput
+          ref={chatInputRef}
+          input={input}
+          isLoading={isLoading}
+          textFromEditor={textFromEditor}
+          attachments={attachments}
+          canAddMoreAttachments={canAddMoreAttachments}
+          onInputChange={setInput}
+          onSubmit={handleSubmit}
+          onClearEditor={() => setTextFromEditor(null)}
+          onStop={() => {
+            console.log(
+              '[Chat] Stop button clicked, currentAssistantId:',
+              currentAssistantIdRef.current
+            );
+
+            stopStream();
+            clearAllProposalsAndTimeouts();
+
+            // Remove incomplete assistant message
+            const messageIdToRemove = currentAssistantIdRef.current;
+            if (messageIdToRemove) {
+              setMessages((prev) => {
+                const filtered = prev.filter((m) => m.id !== messageIdToRemove);
+                console.log(
+                  '[Chat] Removed message, before:',
+                  prev.length,
+                  'after:',
+                  filtered.length
+                );
+                return filtered;
+              });
+              currentAssistantIdRef.current = null;
+            }
+
+            setIsLoading(false);
+            setConversionStatus(null);
+            setError(null);
+          }}
+          onFilesSelected={addFiles}
+          onRemoveAttachment={removeAttachment}
+          onResetError={() => setError(null)}
+          onClearHistory={clearHistory}
+        />
+      </div>
+    </div>
   );
 }

@@ -220,8 +220,6 @@ export default function FileEditorPage() {
       </div>
 
       <Chat
-        isMinimized={chatMinimized}
-        setIsMinimized={setChatMinimized}
         isOpen={chatOpen}
         setIsOpen={setChatOpen}
         onEditSuggestion={handleSuggestionFromChat}

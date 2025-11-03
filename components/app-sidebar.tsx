@@ -41,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { RenameFileDialog } from '@/components/projects/rename-file-dialog';
+import { DeleteFileDialog } from '@/components/projects/delete-file-dialog';
 
 interface Project {
   id: string;
@@ -261,6 +262,14 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
                                           fileId={file.id}
                                           currentName={file.name}
                                           onRenamed={() =>
+                                            fetchCurrentProjectAndFiles()
+                                          }
+                                        />
+                                        <DeleteFileDialog
+                                          projectId={currentProject.id}
+                                          fileId={file.id}
+                                          fileName={file.name}
+                                          onDeleted={() =>
                                             fetchCurrentProjectAndFiles()
                                           }
                                         />
