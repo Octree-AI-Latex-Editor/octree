@@ -328,13 +328,13 @@ export function Chat({
         className="fixed bottom-4 right-4 z-20 flex cursor-pointer flex-col items-end space-y-2"
         onClick={() => setIsOpen(true)}
       >
-        <div className="mb-2 rounded-md border bg-primary px-3 py-1.5 text-sm text-white shadow-lg backdrop-blur-sm transition-all hover:bg-blue-600 hover:shadow-xl">
+        <div className="mb-2 rounded-md border border-neutral-300 bg-white/80 px-3 py-1.5 text-sm text-foreground shadow-sm backdrop-blur-sm">
           Press{' '}
-          <kbd className="rounded-sm bg-blue-700 px-1.5 py-0.5 font-mono text-xs text-white">
+          <kbd className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
             {isMac ? '⌘' : 'Ctrl'}
           </kbd>
           {' + '}
-          <kbd className="rounded-sm bg-blue-700 px-1.5 py-0.5 font-mono text-xs text-white">
+          <kbd className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
             B
           </kbd>{' '}
           to chat
