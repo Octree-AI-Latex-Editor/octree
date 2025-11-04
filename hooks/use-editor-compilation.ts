@@ -22,7 +22,7 @@ export interface CompilationState {
   pdfData: string | null;
   compilationError: CompilationError | null;
   exportingPDF: boolean;
-  handleCompile: () => Promise<void>;
+  handleCompile: () => Promise<boolean>;
   handleExportPDF: () => Promise<void>;
   debouncedAutoCompile: (content: string) => void;
   setCompilationError: (error: CompilationError | null) => void;
@@ -31,7 +31,6 @@ export interface CompilationState {
 
 interface UseEditorCompilationProps {
   content: string;
-  saveDocument: (content?: string) => Promise<boolean>;
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
   fileName?: string;
   projectId?: string;
@@ -47,7 +46,6 @@ function summarizeLog(log?: string) {
 
 export function useEditorCompilation({
   content,
-  saveDocument,
   editorRef,
   fileName = 'document',
   projectId,
@@ -118,8 +116,8 @@ export function useEditorCompilation({
     }
   }, [projectId]);
 
-  const handleCompile = useCallback(async () => {
-    if (compiling) return;
+  const handleCompile = useCallback(async (): Promise<boolean> => {
+    if (compiling) return false;
 
     setCompiling(true);
     setCompilationError(null);
@@ -128,27 +126,25 @@ export function useEditorCompilation({
     try {
       const currentContent = editorRef.current?.getValue() || content;
 
-      await saveDocument(currentContent);
-
       let requestBody: any;
 
       // If projectId is provided, fetch all files for multi-file compilation
       if (projectId) {
         const projectFiles = await fetchProjectFiles();
-        
+
         if (projectFiles && projectFiles.length > 0) {
           // Update current file content in the array
-          const updatedFiles = projectFiles.map(f => 
-            (currentFileId && f.path === fileName) 
+          const updatedFiles = projectFiles.map((f) =>
+            currentFileId && f.path === fileName
               ? { ...f, content: currentContent }
               : f
           );
-          
+
           console.log(`Multi-file compilation: ${updatedFiles.length} files`);
-          requestBody = { 
+          requestBody = {
             files: updatedFiles,
             projectId: projectId,
-            lastModifiedFile: fileName
+            lastModifiedFile: fileName,
           };
         } else {
           // Fallback to single file
@@ -198,9 +194,10 @@ export function useEditorCompilation({
       if (data.pdf) {
         setPdfData(data.pdf);
         setCompilationError(null);
-      } else {
-        throw new Error('No PDF data received');
+        return true;
       }
+
+      throw new Error('No PDF data received');
     } catch (error) {
       console.error('Compilation error:', error);
 
@@ -212,10 +209,12 @@ export function useEditorCompilation({
           details: error instanceof Error ? error.stack : undefined,
         });
       }
+
+      return false;
     } finally {
       setCompiling(false);
     }
-  }, [compiling, content, saveDocument, editorRef, projectId, currentFileId, fileName, fetchProjectFiles]);
+  }, [compiling, content, editorRef, projectId, currentFileId, fileName, fetchProjectFiles]);
 
   const handleExportPDF = useCallback(async () => {
     setExportingPDF(true);
