@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
-import { cva, VariantProps } from "class-variance-authority"
+import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -30,7 +30,7 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
-const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+const SIDEBAR_KEYBOARD_SHORTCUT = "k"
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -93,7 +93,21 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
-  // Keyboard shortcut removed - no longer toggles sidebar with Cmd+B
+  // Adds a keyboard shortcut to toggle the sidebar.
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
+        (event.metaKey || event.ctrlKey)
+      ) {
+        event.preventDefault()
+        toggleSidebar()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [toggleSidebar])
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
@@ -156,7 +170,7 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
+          "bg-sidebar text-sidebar-foreground flex h-full w-[var(--sidebar-width)] flex-col",
           className
         )}
         {...props}
@@ -173,7 +187,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0"
+          className="bg-sidebar text-sidebar-foreground w-[var(--sidebar-width)] p-0 [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -204,26 +218,25 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-[var(--sidebar-width)] bg-transparent transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
-            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
+            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_1rem)]"
+            : "group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)]"
         )}
       />
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex transform transition-transform duration-200 ease-linear",
+          "fixed inset-y-0 z-10 hidden h-svh w-[var(--sidebar-width)] transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
-            ? "left-0 translate-x-0 group-data-[collapsible=offcanvas]:-translate-x-full"
-            : "right-0 translate-x-0 group-data-[collapsible=offcanvas]:translate-x-full",
+            ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
+            : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
-            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:group-data-[state=expanded]:border-r group-data-[side=right]:group-data-[state=expanded]:border-l",
-          "group-data-[collapsible=offcanvas]:pointer-events-none",
+            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_1rem_+_2px)]"
+            : "group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)] group-data-[side=left]:border-r group-data-[side=right]:border-l",
           className
         )}
         {...props}
@@ -245,25 +258,40 @@ function SidebarTrigger({
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar } = useSidebar();
+  const [shortcut, setShortcut] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof navigator === 'undefined') {
+      return;
+    }
+
+    const platform = navigator.platform?.toLowerCase() ?? '';
+    if (platform.includes('mac')) {
+      setShortcut('⌘K');
+    } else {
+      setShortcut('Ctrl+K');
+    }
+  }, []);
 
   return (
     <Button
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
       variant="ghost"
-      size="icon"
-      className={cn("size-7", className)}
+      size="xs"
+      className={cn('px-2.5', className)}
       onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
+        onClick?.(event);
+        toggleSidebar();
       }}
       {...props}
     >
       <PanelLeftIcon />
       <span className="sr-only">Toggle Sidebar</span>
+      {shortcut && <span className="ml-0.5 pt-0.5 text-xs text-muted-foreground">{shortcut}</span>}
     </Button>
-  )
+  );
 }
 
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
@@ -612,7 +640,7 @@ function SidebarMenuSkeleton({
         />
       )}
       <Skeleton
-        className="h-4 max-w-(--skeleton-width) flex-1"
+        className="h-4 max-w-[var(--skeleton-width)] flex-1"
         data-sidebar="menu-skeleton-text"
         style={
           {
