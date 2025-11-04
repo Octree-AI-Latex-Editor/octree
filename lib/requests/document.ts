@@ -11,11 +11,6 @@ export async function saveDocument(
   fileId: string,
   content: string
 ): Promise<SaveDocumentResult> {
-  console.log('saveDocument called:', {
-    url: `/api/projects/${projectId}/files/${fileId}`,
-    contentLength: content.length
-  });
-
   try {
     const response = await fetch(`/api/projects/${projectId}/files/${fileId}`, {
       method: 'PUT',

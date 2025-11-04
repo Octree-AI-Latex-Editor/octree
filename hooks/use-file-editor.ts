@@ -2,8 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import useSWR from 'swr';
-import { getProject } from '@/lib/requests/project';
-import { fetcher } from '@/lib/utils';
+import { getProject, getProjectFiles } from '@/lib/requests/project';
 import type { Project } from '@/types/project';
 import { useFileStore } from '@/stores/file';
 
@@ -57,16 +56,20 @@ export function useFileEditor(): FileEditorState {
   );
 
   const {
-    data: fileResponse,
+    data: filesData,
     isLoading: isFileLoading,
     error: fileError,
-  } = useSWR<FileApiResponse>(
-    projectId && fileId ? `/api/projects/${projectId}/files/${fileId}` : null,
-    fetcher
+  } = useSWR<FileApiResponse[]>(
+    projectId ? ['project-files', projectId] : null,
+    () => getProjectFiles(projectId)
   );
 
-  const file = fileResponse?.file ?? null;
-  const documentData = fileResponse?.document ?? null;
+  const selectedFileResponse = filesData?.find(
+    (fileResponse) => fileResponse.file.id === fileId
+  );
+
+  const file = selectedFileResponse?.file ?? null;
+  const documentData = selectedFileResponse?.document ?? null;
   const isLoading = isProjectLoading || isFileLoading;
   const error = projectError?.message || fileError?.message || null;
 

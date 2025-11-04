@@ -36,7 +36,7 @@ interface UseEditorCompilationProps {
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
   fileName?: string;
   projectId?: string;
-  currentFileId?: string;
+  currentFileId?: string | null;
 }
 
 function summarizeLog(log?: string) {
@@ -66,7 +66,7 @@ export function useEditorCompilation({
 
     try {
       const supabase = createClient();
-      
+
       // Fetch all files in the project
       const { data: filesData, error: filesError } = await supabase
         .from('files')
@@ -78,8 +78,6 @@ export function useEditorCompilation({
         console.error('Error fetching project files:', filesError);
         return null;
       }
-
-      console.log(`Found ${filesData.length} files in project:`, filesData.map((f: any) => f.name));
 
       // Fetch document content for each file
       const filesWithContent = await Promise.all(
@@ -99,8 +97,6 @@ export function useEditorCompilation({
             return null;
           }
 
-          console.log(`Loaded content for ${file.name}: ${(docData as any).content?.length} bytes`);
-
           return {
             path: file.name,
             content: (docData as any).content as string,
@@ -109,9 +105,10 @@ export function useEditorCompilation({
       );
 
       // Filter out null entries and return
-      const validFiles = filesWithContent.filter((f): f is { path: string; content: string } => f !== null);
-      console.log(`Returning ${validFiles.length} files with content:`, validFiles.map(f => f.path));
-      
+      const validFiles = filesWithContent.filter(
+        (f): f is { path: string; content: string } => f !== null
+      );
+
       return validFiles;
     } catch (error) {
       console.error('Error fetching project files:', error);
@@ -136,20 +133,19 @@ export function useEditorCompilation({
       // If projectId is provided, fetch all files for multi-file compilation
       if (projectId) {
         const projectFiles = await fetchProjectFiles();
-        
+
         if (projectFiles && projectFiles.length > 0) {
           // Update current file content in the array
-          const updatedFiles = projectFiles.map(f => 
-            (currentFileId && f.path === fileName) 
+          const updatedFiles = projectFiles.map((f) =>
+            currentFileId && f.path === fileName
               ? { ...f, content: currentContent }
               : f
           );
-          
-          console.log(`Multi-file compilation: ${updatedFiles.length} files`);
-          requestBody = { 
+
+          requestBody = {
             files: updatedFiles,
             projectId: projectId,
-            lastModifiedFile: fileName
+            lastModifiedFile: fileName,
           };
         } else {
           // Fallback to single file
@@ -216,7 +212,16 @@ export function useEditorCompilation({
     } finally {
       setCompiling(false);
     }
-  }, [compiling, content, saveDocument, editorRef, projectId, currentFileId, fileName, fetchProjectFiles]);
+  }, [
+    compiling,
+    content,
+    saveDocument,
+    editorRef,
+    projectId,
+    currentFileId,
+    fileName,
+    fetchProjectFiles,
+  ]);
 
   const handleExportPDF = useCallback(async () => {
     setExportingPDF(true);
@@ -229,15 +234,15 @@ export function useEditorCompilation({
       // If projectId is provided, fetch all files for multi-file compilation
       if (projectId) {
         const projectFiles = await fetchProjectFiles();
-        
+
         if (projectFiles && projectFiles.length > 0) {
           // Update current file content in the array
-          const updatedFiles = projectFiles.map(f => 
-            (currentFileId && f.path === fileName) 
+          const updatedFiles = projectFiles.map((f) =>
+            currentFileId && f.path === fileName
               ? { ...f, content: currentContent }
               : f
           );
-          
+
           requestBody = { files: updatedFiles };
         } else {
           requestBody = { content: currentContent };
@@ -292,7 +297,14 @@ export function useEditorCompilation({
     } finally {
       setExportingPDF(false);
     }
-  }, [content, editorRef, fileName, projectId, currentFileId, fetchProjectFiles]);
+  }, [
+    content,
+    editorRef,
+    fileName,
+    projectId,
+    currentFileId,
+    fetchProjectFiles,
+  ]);
 
   // Auto-compile on content changes (debounced)
   const debouncedAutoCompile = useDebouncedCallback((content: string) => {
