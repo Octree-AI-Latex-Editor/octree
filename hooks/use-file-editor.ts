@@ -28,7 +28,7 @@ export interface DocumentData {
   updated_at: string | null;
 }
 
-interface FileApiResponse {
+export interface FileApiResponse {
   file: FileData;
   document: DocumentData;
 }
