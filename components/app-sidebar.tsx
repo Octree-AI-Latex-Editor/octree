@@ -50,7 +50,7 @@ type File = Tables<'files'>;
 
 interface AppSidebarProps {
   userName: string | null;
-  projectId?: string;
+  projectId: string;
 }
 
 const fetchFiles = async (projectId: string): Promise<File[]> => {
@@ -96,18 +96,18 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
 
   const { data: projectData, isLoading: isProjectLoading } = useSWR<Project>(
     projectId ? ['project', projectId] : null,
-    () => getProject(projectId!)
+    () => getProject(projectId)
   );
 
   const { data: filesData, isLoading: isFilesLoading } = useSWR<File[]>(
     projectId ? ['files', projectId] : null,
-    () => fetchFiles(projectId!)
+    () => fetchFiles(projectId)
   );
 
   const isLoading = isProjectLoading || isFilesLoading;
 
   useEffect(() => {
-    if (filesData && filesData.length > 0 && !selectedFileId) {
+    if (filesData && filesData.length > 0) {
       const mainTexFile = filesData.find((file) => file.name === 'main.tex');
       if (mainTexFile) {
         setSelectedFileId(mainTexFile.id);

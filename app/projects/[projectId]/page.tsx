@@ -65,7 +65,6 @@ export default function ProjectPage() {
     setCompilationError,
   } = useEditorCompilation({
     content,
-    saveDocument: handleSaveDocument,
     editorRef,
     fileName: file?.name,
     projectId,
