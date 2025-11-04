@@ -76,12 +76,12 @@ export function EditorToolbar({
               Last saved: {lastSaved.toLocaleTimeString()}
             </span>
           )}
-          {isSaving && (
+          {/* {isSaving && (
             <span className="flex items-center gap-1 text-sm text-blue-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Saving
             </span>
-          )}
+          )} */}
 
           <Button
             variant="ghost"

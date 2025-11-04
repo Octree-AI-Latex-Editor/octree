@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useDebouncedCallback } from 'use-debounce';
 import type * as Monaco from 'monaco-editor';
 import { createClient } from '@/lib/supabase/client';
 
@@ -23,7 +22,7 @@ export interface CompilationState {
   pdfData: string | null;
   compilationError: CompilationError | null;
   exportingPDF: boolean;
-  handleCompile: () => Promise<void>;
+  handleCompile: () => Promise<boolean>;
   handleExportPDF: () => Promise<void>;
   debouncedAutoCompile: (content: string) => void;
   setCompilationError: (error: CompilationError | null) => void;
@@ -32,7 +31,6 @@ export interface CompilationState {
 
 interface UseEditorCompilationProps {
   content: string;
-  saveDocument: (content?: string) => Promise<boolean>;
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
   fileName?: string;
   projectId?: string;
@@ -48,7 +46,6 @@ function summarizeLog(log?: string) {
 
 export function useEditorCompilation({
   content,
-  saveDocument,
   editorRef,
   fileName = 'document',
   projectId,
@@ -116,8 +113,8 @@ export function useEditorCompilation({
     }
   }, [projectId]);
 
-  const handleCompile = useCallback(async () => {
-    if (compiling) return;
+  const handleCompile = useCallback(async (): Promise<boolean> => {
+    if (compiling) return false;
 
     setCompiling(true);
     setCompilationError(null);
@@ -125,8 +122,6 @@ export function useEditorCompilation({
     let handled = false;
     try {
       const currentContent = editorRef.current?.getValue() || content;
-
-      await saveDocument(currentContent);
 
       let requestBody: any;
 
@@ -195,9 +190,10 @@ export function useEditorCompilation({
       if (data.pdf) {
         setPdfData(data.pdf);
         setCompilationError(null);
-      } else {
-        throw new Error('No PDF data received');
+        return true;
       }
+
+      throw new Error('No PDF data received');
     } catch (error) {
       console.error('Compilation error:', error);
 
@@ -209,13 +205,14 @@ export function useEditorCompilation({
           details: error instanceof Error ? error.stack : undefined,
         });
       }
+
+      return false;
     } finally {
       setCompiling(false);
     }
   }, [
     compiling,
     content,
-    saveDocument,
     editorRef,
     projectId,
     currentFileId,
@@ -307,11 +304,9 @@ export function useEditorCompilation({
   ]);
 
   // Auto-compile on content changes (debounced)
-  const debouncedAutoCompile = useDebouncedCallback((content: string) => {
-    if (!compiling && content.trim()) {
-      handleCompile();
-    }
-  }, 1000);
+  const debouncedAutoCompile = useCallback((_content: string) => {
+    // Auto compile disabled; compilation still available via explicit actions.
+  }, []);
 
   return {
     compiling,

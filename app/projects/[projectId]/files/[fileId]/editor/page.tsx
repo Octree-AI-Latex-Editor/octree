@@ -60,7 +60,6 @@ export default function FileEditorPage() {
     setCompilationError,
   } = useEditorCompilation({
     content,
-    saveDocument: handleSaveDocument,
     editorRef,
     fileName: file?.name,
     projectId,
@@ -116,9 +115,9 @@ export default function FileEditorPage() {
 
   useEffect(() => {
     if (content && !compiling && !pdfData) {
-      handleCompile();
+      void handleCompile();
     }
-  }, [content]);
+  }, [content, compiling, pdfData, handleCompile]);
 
   const handleEditorChange = useCallback(
     (value: string) => {
@@ -139,11 +138,13 @@ export default function FileEditorPage() {
   useEditorKeyboardShortcuts({
     editor: editorRef.current,
     monacoInstance: monacoRef.current,
-    onSave: (currentContent: string) => {
+    onSave: async (currentContent: string) => {
       // Update content state first
       setContent(currentContent);
-      // Then save and compile
-      handleSaveDocument(currentContent).then(() => handleCompile());
+      const compiled = await handleCompile();
+      if (compiled) {
+        await handleSaveDocument(currentContent);
+      }
     },
     onCopy: () => {
       if (selectedText.trim()) {
@@ -179,7 +180,9 @@ export default function FileEditorPage() {
     <div className="flex h-[calc(100vh-45px)] flex-col bg-slate-100">
       <EditorToolbar
         onTextFormat={handleTextFormat}
-        onCompile={handleCompile}
+        onCompile={() => {
+          void handleCompile();
+        }}
         onExportPDF={handleExportPDF}
         onOpenChat={() => {
           if (selectedText.trim()) {
@@ -234,7 +237,9 @@ export default function FileEditorPage() {
       {compilationError && (
         <CompilationError
           error={compilationError}
-          onRetry={handleCompile}
+          onRetry={() => {
+            void handleCompile();
+          }}
           onDismiss={() => setCompilationError(null)}
           onFixWithAI={() => {
             // Format error details for AI
