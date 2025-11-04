@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log('❌ [COMPILE CACHE] CACHE MISS - Compiling with octree-compile', {
+    console.log('[COMPILE CACHE] CACHE MISS - Compiling with octree-compile', {
       cacheKey: cacheKey?.substring(0, 16) + '...',
       projectId: body.projectId,
       filesCount: body.files?.length,
