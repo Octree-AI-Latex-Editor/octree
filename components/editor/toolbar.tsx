@@ -98,7 +98,7 @@ export function EditorToolbar({
             ) : (
               <>
                 Compile
-                <span className="ml-1 pt-0.5 text-xs opacity-60">
+                <span className="ml-1 pt-0.5 text-xs text-muted-foreground">
                   {isMac ? '⌘S' : 'Ctrl+S'}
                 </span>
               </>
