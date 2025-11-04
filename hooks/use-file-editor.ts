@@ -29,7 +29,7 @@ export interface DocumentData {
 
 export interface FileApiResponse {
   file: FileData;
-  document: DocumentData;
+  document: DocumentData | null;
 }
 
 export interface FileEditorState {

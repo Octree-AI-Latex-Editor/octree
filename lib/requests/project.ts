@@ -61,7 +61,7 @@ export const getProjectFiles = async (
       if (documentError || !documentData) {
         return {
           file,
-          document: null as any,
+          document: null,
         };
       }
 
