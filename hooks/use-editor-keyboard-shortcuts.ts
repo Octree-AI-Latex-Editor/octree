@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
+import { useSidebar } from '@/components/ui/sidebar';
 
 export interface KeyboardShortcutsConfig {
   editor: Monaco.editor.IStandaloneCodeEditor | null;
@@ -18,6 +19,8 @@ export function useEditorKeyboardShortcuts({
   onCopy,
   onTextFormat,
 }: KeyboardShortcutsConfig) {
+  const { toggleSidebar } = useSidebar();
+
   useEffect(() => {
     if (!editor || !monacoInstance) return;
 
@@ -41,6 +44,13 @@ export function useEditorKeyboardShortcuts({
 
           return false;
         }
+
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSidebar();
+          return false;
+        }
       };
 
       editorDomNode.addEventListener('keydown', handleKeyDown);
@@ -50,7 +60,7 @@ export function useEditorKeyboardShortcuts({
         editorDomNode.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [editor, monacoInstance, onSave]);
+  }, [editor, monacoInstance, onSave, toggleSidebar]);
 
   useEffect(() => {
     if (!editor || !monacoInstance) return;
