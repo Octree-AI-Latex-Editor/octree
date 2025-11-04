@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useDebouncedCallback } from 'use-debounce';
 import type * as Monaco from 'monaco-editor';
 import { createClient } from '@/lib/supabase/client';
 
@@ -295,11 +294,9 @@ export function useEditorCompilation({
   }, [content, editorRef, fileName, projectId, currentFileId, fetchProjectFiles]);
 
   // Auto-compile on content changes (debounced)
-  const debouncedAutoCompile = useDebouncedCallback((content: string) => {
-    if (!compiling && content.trim()) {
-      handleCompile();
-    }
-  }, 1000);
+  const debouncedAutoCompile = useCallback((_content: string) => {
+    // Auto compile disabled; compilation still available via explicit actions.
+  }, []);
 
   return {
     compiling,
