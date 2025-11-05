@@ -68,7 +68,6 @@ export function useEditorCompilation({
 
     try {
       const supabase = createClient();
-
       // Fetch all files in the project
       const { data: filesData, error: filesError } = await supabase
         .from('files')

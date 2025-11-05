@@ -10,6 +10,7 @@ import {
   registerLatexCompletions,
 } from '@/lib/editor-config';
 import { EditSuggestion } from '@/types/edit';
+import { cn } from '@/lib/utils';
 
 import { useFileEditor } from '@/hooks/use-file-editor';
 import { useEditorState } from '@/hooks/use-editor-state';
@@ -19,6 +20,7 @@ import { useEditSuggestions } from '@/hooks/use-edit-suggestions';
 import { useEditorKeyboardShortcuts } from '@/hooks/use-editor-keyboard-shortcuts';
 import { useTextFormatting } from '@/hooks/use-text-formatting';
 import { useEditorInteractions } from '@/hooks/use-editor-interactions';
+import { useSidebar } from '@/components/ui/sidebar';
 
 import { EditorToolbar } from '@/components/editor/toolbar';
 import { MonacoEditor } from '@/components/editor/monaco-editor';
@@ -88,12 +90,12 @@ export default function FileEditorPage() {
     selectionRange,
     chatOpen,
     setChatOpen,
-    chatMinimized,
-    setChatMinimized,
     setTextFromEditor,
     handleCopy,
     setupEditorListeners,
   } = useEditorInteractions();
+
+  const { open: sidebarOpen } = useSidebar();
 
   useEffect(() => {
     loader.init().then((monaco) => {
@@ -115,9 +117,9 @@ export default function FileEditorPage() {
 
   useEffect(() => {
     if (content && !compiling && !pdfData) {
-      void handleCompile();
+      handleCompile();
     }
-  }, [content, compiling, pdfData, handleCompile]);
+  }, [content]);
 
   const handleEditorChange = useCallback(
     (value: string) => {
@@ -150,7 +152,6 @@ export default function FileEditorPage() {
       if (selectedText.trim()) {
         setTextFromEditor(selectedText);
         setChatOpen(true);
-        setChatMinimized(false);
       }
     },
     onTextFormat: handleTextFormat,
@@ -177,7 +178,7 @@ export default function FileEditorPage() {
     return <ErrorState error="Project or file not found" />;
 
   return (
-    <div className="flex h-[calc(100vh-45px)] flex-col bg-slate-100">
+    <div className="flex h-full flex-col overflow-hidden bg-slate-100">
       <EditorToolbar
         onTextFormat={handleTextFormat}
         onCompile={() => {
@@ -189,7 +190,6 @@ export default function FileEditorPage() {
             setTextFromEditor(selectedText);
           }
           setChatOpen(true);
-          setChatMinimized(false);
         }}
         compiling={compiling}
         exportingPDF={exportingPDF}
@@ -217,7 +217,12 @@ export default function FileEditorPage() {
           />
         </div>
 
-        <div className="w-1/2 overflow-hidden border-l border-slate-200">
+        <div
+          className={cn(
+            sidebarOpen ? 'w-[60%]' : 'flex-1',
+            'overflow-hidden border-l border-slate-200'
+          )}
+        >
           <PDFViewer pdfData={pdfData} isLoading={compiling} />
         </div>
       </div>
@@ -258,7 +263,6 @@ export default function FileEditorPage() {
 
             setTextFromEditor(errorContext);
             setChatOpen(true);
-            setChatMinimized(false);
             setCompilationError(null);
           }}
         />

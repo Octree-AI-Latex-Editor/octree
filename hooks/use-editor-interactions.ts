@@ -17,8 +17,6 @@ export interface EditorInteractionsState {
   } | null;
   chatOpen: boolean;
   setChatOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  chatMinimized: boolean;
-  setChatMinimized: React.Dispatch<React.SetStateAction<boolean>>;
   setTextFromEditor: (text: string | null) => void;
   handleCopy: (textToCopy?: string) => void;
   setupEditorListeners: (editor: Monaco.editor.IStandaloneCodeEditor) => void;
@@ -36,7 +34,6 @@ export function useEditorInteractions(): EditorInteractionsState {
     endColumn: number;
   } | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatMinimized, setChatMinimized] = useState(false);
 
   const handleCopy = useCallback(
     (textToCopy?: string) => {
@@ -105,8 +102,6 @@ export function useEditorInteractions(): EditorInteractionsState {
     selectionRange,
     chatOpen,
     setChatOpen,
-    chatMinimized,
-    setChatMinimized,
     setTextFromEditor,
     handleCopy,
     setupEditorListeners,
