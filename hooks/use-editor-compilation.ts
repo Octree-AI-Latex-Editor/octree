@@ -49,13 +49,18 @@ export function useEditorCompilation({
   editorRef,
   fileName = 'document',
   projectId,
-  currentFileId,
+  currentFileId: _currentFileId,
 }: UseEditorCompilationProps): CompilationState {
   const [compiling, setCompiling] = useState(false);
   const [pdfData, setPdfData] = useState<string | null>(null);
   const [compilationError, setCompilationError] =
     useState<CompilationError | null>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
+
+  const normalizePath = useCallback((name: string) => {
+    if (!name) return 'document.tex';
+    return name.endsWith('.tex') ? name : `${name}.tex`;
+  }, []);
 
   // Helper function to fetch all project files and their contents
   const fetchProjectFiles = useCallback(async () => {
@@ -122,36 +127,33 @@ export function useEditorCompilation({
     let handled = false;
     try {
       const currentContent = editorRef.current?.getValue() || content;
+      const normalizedFileName = normalizePath(fileName);
 
-      let requestBody: any;
+      let filesPayload: Array<{ path: string; content: string }>;
 
-      // If projectId is provided, fetch all files for multi-file compilation
       if (projectId) {
         const projectFiles = await fetchProjectFiles();
 
         if (projectFiles && projectFiles.length > 0) {
-          // Update current file content in the array
-          const updatedFiles = projectFiles.map((f) =>
-            currentFileId && f.path === fileName
+          filesPayload = projectFiles.map((f) =>
+            f.path === normalizedFileName
               ? { ...f, content: currentContent }
               : f
           );
-
-          requestBody = {
-            files: updatedFiles,
-            projectId: projectId,
-            lastModifiedFile: fileName,
-          };
         } else {
-          // Fallback to single file
-          console.log('Single-file compilation (fallback)');
-          requestBody = { content: currentContent };
+          filesPayload = [
+            { path: normalizedFileName, content: currentContent },
+          ];
         }
       } else {
-        // No projectId: use single file compilation
-        console.log('Single-file compilation');
-        requestBody = { content: currentContent };
+        filesPayload = [{ path: normalizedFileName, content: currentContent }];
       }
+
+      const requestBody = {
+        files: filesPayload,
+        projectId,
+        lastModifiedFile: normalizedFileName,
+      };
 
       const response = await fetch('/api/compile-pdf', {
         method: 'POST',
@@ -215,9 +217,9 @@ export function useEditorCompilation({
     content,
     editorRef,
     projectId,
-    currentFileId,
     fileName,
     fetchProjectFiles,
+    normalizePath,
   ]);
 
   const handleExportPDF = useCallback(async () => {
@@ -225,28 +227,33 @@ export function useEditorCompilation({
 
     try {
       const currentContent = editorRef.current?.getValue() || content;
+      const normalizedFileName = normalizePath(fileName);
 
-      let requestBody: any;
+      let filesPayload: Array<{ path: string; content: string }>;
 
-      // If projectId is provided, fetch all files for multi-file compilation
       if (projectId) {
         const projectFiles = await fetchProjectFiles();
 
         if (projectFiles && projectFiles.length > 0) {
-          // Update current file content in the array
-          const updatedFiles = projectFiles.map((f) =>
-            currentFileId && f.path === fileName
+          filesPayload = projectFiles.map((f) =>
+            f.path === normalizedFileName
               ? { ...f, content: currentContent }
               : f
           );
-
-          requestBody = { files: updatedFiles };
         } else {
-          requestBody = { content: currentContent };
+          filesPayload = [
+            { path: normalizedFileName, content: currentContent },
+          ];
         }
       } else {
-        requestBody = { content: currentContent };
+        filesPayload = [{ path: normalizedFileName, content: currentContent }];
       }
+
+      const requestBody = {
+        files: filesPayload,
+        projectId,
+        lastModifiedFile: normalizedFileName,
+      };
 
       const response = await fetch('/api/compile-pdf', {
         method: 'POST',
@@ -299,8 +306,8 @@ export function useEditorCompilation({
     editorRef,
     fileName,
     projectId,
-    currentFileId,
     fetchProjectFiles,
+    normalizePath,
   ]);
 
   // Auto-compile on content changes (debounced)

@@ -5,10 +5,11 @@ export interface FileEntry {
 }
 
 export interface CompileRequest {
-  content?: string; // Single file (backward compatibility)
-  files?: FileEntry[]; // Multi-file support
+  files: FileEntry[];
   projectId?: string; // Project identifier for caching
   lastModifiedFile?: string; // Hint for which file changed
+  // Legacy single-file support
+  content?: string;
 }
 
 export type CompileCachePayload = {
