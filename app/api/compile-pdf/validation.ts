@@ -9,35 +9,29 @@ export interface ValidationError {
 /**
  * Validates the compile request
  */
-export function validateCompileRequest(body: CompileRequest): ValidationError | null {
-  const { content, files } = body;
+export function validateCompileRequest(body: Partial<CompileRequest>): ValidationError | null {
+  const { files, content } = body;
 
-  // Validate: must have either content or files
-  if (!content && (!files || files.length === 0)) {
-    return {
-      error: 'Invalid request',
-      details: 'Must provide either content or files array',
-      suggestion: 'Please provide valid LaTeX content or files',
-    };
+  if (files && Array.isArray(files) && files.length > 0) {
+    return null;
   }
 
-  // For backward compatibility, if content is provided, validate it
-  if (content && typeof content !== 'string') {
-    return {
-      error: 'Invalid content',
-      details: 'Content must be a non-empty string',
-      suggestion: 'Please provide valid LaTeX content',
-    };
+  if (typeof content === 'string' && content.trim().length > 0) {
+    return null;
   }
 
-  return null;
+  return {
+    error: 'Invalid request',
+    details: 'Must provide a files array with at least one entry or legacy content string',
+    suggestion: 'Please provide your LaTeX project files',
+  };
 }
 
 /**
  * Validates LaTeX structure
  */
 export function validateLatexStructure(body: CompileRequest): ValidationError | null {
-  const { content, files } = body;
+  const { files } = body;
 
   // Extract main content
   let mainContent = '';
@@ -45,8 +39,6 @@ export function validateLatexStructure(body: CompileRequest): ValidationError | 
     // Find main.tex in multi-file project
     const mainFile = files.find(f => f.path === 'main.tex') || files.find(f => f.path.endsWith('.tex'));
     mainContent = mainFile?.content || '';
-  } else if (content) {
-    mainContent = content;
   }
 
   if (!mainContent) {
