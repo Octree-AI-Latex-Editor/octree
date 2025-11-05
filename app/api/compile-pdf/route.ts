@@ -1,32 +1,50 @@
 import { NextResponse } from 'next/server';
 import type { CompileRequest, CompileCachePayload } from './types';
 import { buildCacheKey, getCachedResponse, storeCachedResponse, getCacheStats } from './cache';
-import { validateCompileRequest, validateLatexStructure } from './validation';
+import { validateCompileRequest } from './validation';
 import { compileLatex } from './compiler';
 
 export const runtime = 'nodejs';
 
 const COMPILE_SERVICE_URL = process.env.COMPILE_SERVICE_URL || 'http://localhost:3001';
-const IS_PROD = process.env.ENVIRONMENT === 'prod';
+
+function normalizeRequest(body: Partial<CompileRequest>): CompileRequest {
+  if (body.files && body.files.length > 0) {
+    return {
+      files: body.files,
+      projectId: body.projectId,
+      lastModifiedFile: body.lastModifiedFile,
+    };
+  }
+
+  if (typeof body.content === 'string') {
+    const path = body.lastModifiedFile || 'main.tex';
+    return {
+      files: [
+        {
+          path,
+          content: body.content,
+        },
+      ],
+      projectId: body.projectId,
+      lastModifiedFile: path,
+    };
+  }
+
+  throw new Error('Invalid compile request');
+}
 
 export async function POST(request: Request) {
   try {
-    // Parse request body
-    const body: CompileRequest = await request.json();
+    const rawBody: Partial<CompileRequest> = await request.json();
 
-    // Validate request
-    const requestValidationError = validateCompileRequest(body);
+    const requestValidationError = validateCompileRequest(rawBody);
     if (requestValidationError) {
       return NextResponse.json(requestValidationError, { status: 400 });
     }
 
-    // // Validate LaTeX structure
-    // const latexValidationError = validateLatexStructure(body);
-    // if (latexValidationError) {
-    //   return NextResponse.json(latexValidationError, { status: 400 });
-    // }
+    const body = normalizeRequest(rawBody);
 
-    // Check cache
     const cacheKey = buildCacheKey(body);
     console.log('[COMPILE CACHE] Cache key generated:', cacheKey?.substring(0, 16) + '...');
 
@@ -50,13 +68,11 @@ export async function POST(request: Request) {
     console.log('[COMPILE CACHE] CACHE MISS - Compiling with octree-compile', {
       cacheKey: cacheKey?.substring(0, 16) + '...',
       projectId: body.projectId,
-      filesCount: body.files?.length,
+      filesCount: body.files.length,
     });
 
-    // Compile
     const compileResult = await compileLatex(body, COMPILE_SERVICE_URL);
 
-    // Handle compilation error
     if (!compileResult.success || !compileResult.base64PDF || !compileResult.pdfBuffer) {
       return NextResponse.json(
         {
@@ -67,7 +83,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build response payload
     const responsePayload: CompileCachePayload = {
       pdf: compileResult.base64PDF,
       size: compileResult.pdfBuffer.length,
@@ -82,7 +97,6 @@ export async function POST(request: Request) {
       },
     };
 
-    // Store in cache
     storeCachedResponse(cacheKey, responsePayload);
     const stats = getCacheStats();
     console.log('💾 [COMPILE CACHE] Stored in cache', {

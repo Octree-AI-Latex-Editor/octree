@@ -1,4 +1,4 @@
-import type { CompileRequest, FileEntry, CompilerResponse } from './types';
+import type { CompileRequest, CompilerResponse } from './types';
 
 const COMPILE_TIMEOUT_MS = 60000; // 60 seconds
 
@@ -9,29 +9,18 @@ export async function compileLatex(
   body: CompileRequest,
   compileServiceUrl: string
 ): Promise<CompilerResponse> {
-  const { content, files, projectId, lastModifiedFile } = body;
+  const { files, projectId, lastModifiedFile } = body;
 
-  // Prepare request
-  let requestBody: string;
-  let requestHeaders: Record<string, string>;
+  const requestBody = JSON.stringify({
+    files,
+    projectId,
+    lastModifiedFile,
+  });
+  const requestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
 
-  if (files && files.length > 0) {
-    // Multi-file mode: send JSON with files array
-    requestBody = JSON.stringify({
-      files,
-      projectId,
-      lastModifiedFile,
-    });
-    requestHeaders = { 'Content-Type': 'application/json' };
-    console.log(`Multi-file compilation: ${files.length} files`, files.map(f => f.path));
-    if (projectId) {
-      console.log(`Project ID: ${projectId}`);
-    }
-  } else {
-    // Single-file mode: send plain text (backward compatibility)
-    requestBody = content!;
-    requestHeaders = { 'Content-Type': 'text/plain' };
-    console.log('Single-file compilation');
+  console.log(`Multi-file compilation: ${files.length} files`, files.map(f => f.path));
+  if (projectId) {
+    console.log(`Project ID: ${projectId}`);
   }
 
   try {

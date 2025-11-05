@@ -9,7 +9,15 @@ export async function compilePdf(content: string): Promise<CompilationResult> {
     const response = await fetch('/api/compile-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        files: [
+          {
+            path: 'main.tex',
+            content,
+          },
+        ],
+        lastModifiedFile: 'main.tex',
+      }),
     });
 
     if (!response.ok) {
