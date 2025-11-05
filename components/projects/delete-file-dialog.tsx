@@ -15,6 +15,7 @@ import {
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Loader2, Trash2 } from 'lucide-react';
+import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 
 interface DeleteFileDialogProps {
   projectId: string;
@@ -32,6 +33,7 @@ export function DeleteFileDialog({
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { revalidate } = useProjectFilesRevalidation(projectId);
 
   const handleDelete = async () => {
     setIsLoading(true);
@@ -77,6 +79,8 @@ export function DeleteFileDialog({
       }
 
       toast.success('File deleted successfully');
+      revalidate();
+
       onDeleted?.();
       setOpen(false);
     } catch (error) {

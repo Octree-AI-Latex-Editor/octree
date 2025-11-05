@@ -29,7 +29,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { UserProfileDropdown } from '@/components/user/user-profile-dropdown';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useProjectRefresh } from '@/app/context/project';
 import { AddFileDialog } from '@/components/projects/add-file-dialog';
@@ -93,6 +93,8 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
   const { toggleSidebar } = useSidebar();
   const { mutate } = useSWRConfig();
   const { selectedFileId, setSelectedFileId } = useFileStore();
+  const pendingSelectionRef = useRef<string | null>(null);
+  const previousSelectedFileIdRef = useRef<string | null>(null);
 
   const { data: projectData, isLoading: isProjectLoading } = useSWR<Project>(
     projectId ? ['project', projectId] : null,
@@ -107,15 +109,39 @@ export function AppSidebar({ userName, projectId }: AppSidebarProps) {
   const isLoading = isProjectLoading || isFilesLoading;
 
   useEffect(() => {
-    if (filesData && filesData.length > 0) {
-      const mainTexFile = filesData.find((file) => file.name === 'main.tex');
-      if (mainTexFile) {
-        setSelectedFileId(mainTexFile.id);
-      } else {
-        setSelectedFileId(filesData[0].id);
-      }
+    if (!selectedFileId) {
+      pendingSelectionRef.current = null;
+    } else if (selectedFileId !== previousSelectedFileIdRef.current) {
+      pendingSelectionRef.current = selectedFileId;
     }
-  }, [filesData]);
+
+    previousSelectedFileIdRef.current = selectedFileId;
+  }, [selectedFileId]);
+
+  useEffect(() => {
+    if (!filesData || filesData.length === 0) {
+      return;
+    }
+
+    const selectedFileExists =
+      !!selectedFileId && filesData.some((file) => file.id === selectedFileId);
+
+    if (selectedFileExists) {
+      pendingSelectionRef.current = null;
+      return;
+    }
+
+    if (pendingSelectionRef.current) {
+      return;
+    }
+
+    const mainTexFile = filesData.find((file) => file.name === 'main.tex');
+    if (mainTexFile) {
+      setSelectedFileId(mainTexFile.id);
+    } else {
+      setSelectedFileId(filesData[0].id);
+    }
+  }, [filesData, selectedFileId, setSelectedFileId]);
 
   const refreshData = () => {
     if (projectId) {

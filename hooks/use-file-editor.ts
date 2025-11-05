@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { getProject, getProjectFiles } from '@/lib/requests/project';
 import type { Project } from '@/types/project';
 import { useFileStore } from '@/stores/file';
@@ -80,4 +80,12 @@ export function useFileEditor(): FileEditorState {
     isLoading,
     error,
   };
+}
+
+export function useProjectFilesRevalidation(projectId: string) {
+  const revalidate = () => {
+    mutate(['project-files', projectId]);
+  };
+
+  return { revalidate };
 }

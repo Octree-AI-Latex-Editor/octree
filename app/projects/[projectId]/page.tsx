@@ -123,6 +123,7 @@ export default function ProjectPage() {
     }
   }, [documentData?.content, setContent]);
 
+  // Compile PDF on initial load
   useEffect(() => {
     if (content && !compiling && !pdfData) {
       handleCompile();
