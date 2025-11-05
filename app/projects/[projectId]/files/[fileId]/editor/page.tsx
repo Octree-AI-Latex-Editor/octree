@@ -117,9 +117,9 @@ export default function FileEditorPage() {
 
   useEffect(() => {
     if (content && !compiling && !pdfData) {
-      void handleCompile();
+      handleCompile();
     }
-  }, [content, compiling, pdfData, handleCompile]);
+  }, [content]);
 
   const handleEditorChange = useCallback(
     (value: string) => {

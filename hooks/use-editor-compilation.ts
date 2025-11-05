@@ -68,7 +68,6 @@ export function useEditorCompilation({
 
     try {
       const supabase = createClient();
-      
       // Fetch all files in the project
       const { data: filesData, error: filesError } = await supabase
         .from('files')
@@ -80,8 +79,6 @@ export function useEditorCompilation({
         console.error('Error fetching project files:', filesError);
         return null;
       }
-
-      console.log(`Found ${filesData.length} files in project:`, filesData.map((f: any) => f.name));
 
       // Fetch document content for each file
       const filesWithContent = await Promise.all(
@@ -101,8 +98,6 @@ export function useEditorCompilation({
             return null;
           }
 
-          console.log(`Loaded content for ${file.name}: ${(docData as any).content?.length} bytes`);
-
           return {
             path: file.name,
             content: (docData as any).content as string,
@@ -111,9 +106,10 @@ export function useEditorCompilation({
       );
 
       // Filter out null entries and return
-      const validFiles = filesWithContent.filter((f): f is { path: string; content: string } => f !== null);
-      console.log(`Returning ${validFiles.length} files with content:`, validFiles.map(f => f.path));
-      
+      const validFiles = filesWithContent.filter(
+        (f): f is { path: string; content: string } => f !== null
+      );
+
       return validFiles;
     } catch (error) {
       console.error('Error fetching project files:', error);
@@ -139,10 +135,14 @@ export function useEditorCompilation({
 
         if (projectFiles && projectFiles.length > 0) {
           filesPayload = projectFiles.map((f) =>
-            f.path === normalizedFileName ? { ...f, content: currentContent } : f
+            f.path === normalizedFileName
+              ? { ...f, content: currentContent }
+              : f
           );
         } else {
-          filesPayload = [{ path: normalizedFileName, content: currentContent }];
+          filesPayload = [
+            { path: normalizedFileName, content: currentContent },
+          ];
         }
       } else {
         filesPayload = [{ path: normalizedFileName, content: currentContent }];
@@ -211,7 +211,15 @@ export function useEditorCompilation({
     } finally {
       setCompiling(false);
     }
-  }, [compiling, content, editorRef, projectId, fileName, fetchProjectFiles, normalizePath]);
+  }, [
+    compiling,
+    content,
+    editorRef,
+    projectId,
+    fileName,
+    fetchProjectFiles,
+    normalizePath,
+  ]);
 
   const handleExportPDF = useCallback(async () => {
     setExportingPDF(true);
@@ -227,10 +235,14 @@ export function useEditorCompilation({
 
         if (projectFiles && projectFiles.length > 0) {
           filesPayload = projectFiles.map((f) =>
-            f.path === normalizedFileName ? { ...f, content: currentContent } : f
+            f.path === normalizedFileName
+              ? { ...f, content: currentContent }
+              : f
           );
         } else {
-          filesPayload = [{ path: normalizedFileName, content: currentContent }];
+          filesPayload = [
+            { path: normalizedFileName, content: currentContent },
+          ];
         }
       } else {
         filesPayload = [{ path: normalizedFileName, content: currentContent }];
@@ -288,7 +300,14 @@ export function useEditorCompilation({
     } finally {
       setExportingPDF(false);
     }
-  }, [content, editorRef, fileName, projectId, fetchProjectFiles, normalizePath]);
+  }, [
+    content,
+    editorRef,
+    fileName,
+    projectId,
+    fetchProjectFiles,
+    normalizePath,
+  ]);
 
   // Auto-compile on content changes (debounced)
   const debouncedAutoCompile = useCallback((_content: string) => {
