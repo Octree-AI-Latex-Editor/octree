@@ -34,8 +34,8 @@ export default async function ProjectLayout({
   return (
     <SidebarProvider defaultOpen={false}>
       <AppSidebar userName={userName} projectId={projectId} />
-      <SidebarInset>
-        <header className="relative flex items-center justify-between border-b px-4 py-2">
+      <SidebarInset className="flex h-screen flex-col overflow-hidden">
+        <header className="relative flex flex-shrink-0 items-center justify-between border-b px-4 py-2">
           <div className="flex items-center gap-2">
             <SidebarTrigger />
             <span className="text-neutral-300">|</span>
@@ -47,7 +47,7 @@ export default async function ProjectLayout({
           </div>
         </header>
 
-        {children}
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
