@@ -28,6 +28,8 @@ interface ChatProps {
   } | null;
   isOpen: boolean;
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  autoSendMessage?: string | null;
+  setAutoSendMessage?: (message: string | null) => void;
 }
 
 interface ChatMessage {
@@ -46,6 +48,8 @@ export function Chat({
   textFromEditor,
   setTextFromEditor,
   selectionRange,
+  autoSendMessage,
+  setAutoSendMessage,
 }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -58,6 +62,7 @@ export function Chat({
   const shouldStickToBottomRef = useRef<boolean>(true);
   const currentAssistantIdRef = useRef<string | null>(null);
   const chatInputRef = useRef<ChatInputRef>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
@@ -69,6 +74,21 @@ export function Chat({
       scrollToBottom();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (autoSendMessage && isOpen && !isLoading) {
+      setInput(autoSendMessage);
+
+      if (setAutoSendMessage) {
+        setAutoSendMessage(null);
+      }
+      setTimeout(() => {
+        if (formRef.current) {
+          formRef.current.requestSubmit();
+        }
+      }, 100);
+    }
+  }, [autoSendMessage]);
 
   const { startStream, parseStream, stopStream } = useChatStream();
   const {
@@ -419,6 +439,7 @@ export function Chat({
 
         <ChatInput
           ref={chatInputRef}
+          formRef={formRef}
           input={input}
           isLoading={isLoading}
           textFromEditor={textFromEditor}

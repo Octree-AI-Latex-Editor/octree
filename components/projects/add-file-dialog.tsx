@@ -16,6 +16,9 @@ import {
 import { Plus, Upload, FileText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { TablesInsert } from '@/database.types';
+import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
+import { FileActions } from '@/stores/file';
+import { createDocumentForFile } from '@/lib/requests/project';
 
 interface AddFileDialogProps {
   projectId: string;
@@ -36,6 +39,7 @@ export function AddFileDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadMode, setUploadMode] = useState<'create' | 'upload'>('create');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { revalidate } = useProjectFilesRevalidation(projectId);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,32 +74,17 @@ export function AddFileDialog({
         type: selectedFile.type || 'text/plain',
         size: selectedFile.size,
       };
-      const { data: fileData, error: fileError } = await (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase.from('files') as any
-      )
-        .insert(fileInsert)
-        .select()
-        .single();
+      const { data: fileData, error: fileError } =
+        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase.from('files') as any).insert(fileInsert).select().single();
 
       if (fileError) {
         throw new Error('Failed to create file record');
       }
 
-      const docInsert: TablesInsert<'documents'> = {
-        title: fileName,
-        content: content,
-        owner_id: session.user.id,
-        project_id: projectId,
-        filename: fileName,
-        document_type: 'file',
-      };
-      const { error: documentError } = await (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase.from('documents') as any
-      ).insert(docInsert);
-
-      if (documentError) {
+      try {
+        await createDocumentForFile(projectId, fileName, content);
+      } catch (documentError) {
         console.warn('Failed to create document record:', documentError);
       }
 
@@ -104,6 +93,8 @@ export function AddFileDialog({
       setSelectedFile(null);
       setUploadMode('create');
       onFileAdded?.();
+      revalidate();
+      FileActions.setSelectedFile(fileData);
     } catch (error) {
       setError(
         error instanceof Error ? error.message : 'Failed to upload file'
@@ -136,41 +127,31 @@ export function AddFileDialog({
         type: 'text/plain',
         size: fileContent.length,
       };
-      const { data: fileData, error: fileError } = await (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase.from('files') as any
-      )
-        .insert(fileInsert2)
-        .select()
-        .single();
+      const { data: fileData, error: fileError } =
+        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase.from('files') as any).insert(fileInsert2).select().single();
 
       if (fileError) {
         throw new Error('Failed to create file record');
       }
 
-      if (fileContent.trim()) {
-        const docInsert2: TablesInsert<'documents'> = {
-          title: fileName,
-          content: fileContent,
-          owner_id: session.user.id,
-          project_id: projectId,
-          filename: fileName,
-          document_type: 'file',
-        };
-        const { error: documentError } = await (
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          supabase.from('documents') as any
-        ).insert(docInsert2);
-
-        if (documentError) {
-          console.warn('Failed to create document record:', documentError);
-        }
+      // Always create a document for the file
+      try {
+        await createDocumentForFile(
+          projectId,
+          fileName,
+          fileContent || undefined
+        );
+      } catch (documentError) {
+        console.warn('Failed to create document record:', documentError);
       }
 
       setOpen(false);
       setFileName('');
       setFileContent('');
       onFileAdded?.();
+      revalidate();
+      FileActions.setSelectedFile(fileData);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to add file');
     } finally {

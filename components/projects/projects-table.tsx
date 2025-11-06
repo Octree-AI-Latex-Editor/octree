@@ -45,7 +45,7 @@ export function ProjectsTable({ data }: { data: Project[] }) {
     if (!searchQuery.trim()) {
       setFilteredRows(rows);
     } else {
-      const filtered = rows.filter(project =>
+      const filtered = rows.filter((project) =>
         project.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredRows(filtered);
@@ -77,7 +77,9 @@ export function ProjectsTable({ data }: { data: Project[] }) {
     if (result.success) {
       // Optimistically remove the deleted row to avoid full reload and flicker
       setRows((prev) => prev.filter((p) => p.id !== selectedProject.id));
-      setFilteredRows((prev) => prev.filter((p) => p.id !== selectedProject.id));
+      setFilteredRows((prev) =>
+        prev.filter((p) => p.id !== selectedProject.id)
+      );
       // Notify other UI (e.g., sidebar) to refresh
       refreshProjects();
       closeDialog();
@@ -105,20 +107,25 @@ export function ProjectsTable({ data }: { data: Project[] }) {
             placeholder="Search projects..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 w-full"
+            className="w-full pl-10"
           />
         </div>
         {searchQuery && (
           <p className="mt-2 text-sm text-neutral-500">
-            {filteredRows.length} project{filteredRows.length !== 1 ? 's' : ''} found
+            {filteredRows.length} project{filteredRows.length !== 1 ? 's' : ''}{' '}
+            found
           </p>
         )}
       </div>
 
       <DataTable
-        columns={columns({ onDelete: handleDeleteClick, onRename: handleRenameClick })}
+        columns={columns({
+          onDelete: handleDeleteClick,
+          onRename: handleRenameClick,
+        })}
         data={filteredRows}
       />
+
       <Dialog
         open={isDeleteDialogOpen}
         onOpenChange={(isOpen) => setIsDeleteDialogOpen(isOpen)}
@@ -205,13 +212,29 @@ export function ProjectsTable({ data }: { data: Project[] }) {
                 setIsLoading(true);
                 setError(null);
                 // Optimistic update
-                setRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: nextTitle } : p)));
-                setFilteredRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: nextTitle } : p)));
+                setRows((prev) =>
+                  prev.map((p) =>
+                    p.id === id ? { ...p, title: nextTitle } : p
+                  )
+                );
+                setFilteredRows((prev) =>
+                  prev.map((p) =>
+                    p.id === id ? { ...p, title: nextTitle } : p
+                  )
+                );
                 const res = await renameProjectWithRefresh(id, nextTitle);
                 if (!res.success) {
                   // Rollback title if failed
-                  setRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: selectedProject.title } : p)));
-                  setFilteredRows((prev) => prev.map((p) => (p.id === id ? { ...p, title: selectedProject.title } : p)));
+                  setRows((prev) =>
+                    prev.map((p) =>
+                      p.id === id ? { ...p, title: selectedProject.title } : p
+                    )
+                  );
+                  setFilteredRows((prev) =>
+                    prev.map((p) =>
+                      p.id === id ? { ...p, title: selectedProject.title } : p
+                    )
+                  );
                   setError(res.message || 'Failed to rename project');
                 } else {
                   setIsRenameDialogOpen(false);

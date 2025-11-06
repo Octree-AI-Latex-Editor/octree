@@ -10,16 +10,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 
 interface DeleteFileDialogProps {
   projectId: string;
   fileId: string;
   fileName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onDeleted?: () => void;
 }
 
@@ -27,11 +28,13 @@ export function DeleteFileDialog({
   projectId,
   fileId,
   fileName,
+  open,
+  onOpenChange,
   onDeleted,
 }: DeleteFileDialogProps) {
-  const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { revalidate } = useProjectFilesRevalidation(projectId);
 
   const handleDelete = async () => {
     setIsLoading(true);
@@ -77,8 +80,9 @@ export function DeleteFileDialog({
       }
 
       toast.success('File deleted successfully');
+      revalidate();
       onDeleted?.();
-      setOpen(false);
+      onOpenChange(false);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to delete file';
@@ -90,17 +94,7 @@ export function DeleteFileDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <DropdownMenuItem
-          onSelect={(event) => event.preventDefault()}
-          className="cursor-pointer gap-2"
-          variant="destructive"
-        >
-          <Trash2 className="size-4 text-destructive" />
-          Delete
-        </DropdownMenuItem>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Delete File</DialogTitle>
@@ -118,7 +112,7 @@ export function DeleteFileDialog({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setOpen(false)}
+            onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
             Cancel

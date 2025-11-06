@@ -3,19 +3,9 @@
 import { useState, useCallback } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { createClient } from '@/lib/supabase/client';
-
-export interface CompilationError {
-  message: string;
-  details?: string;
-  log?: string;
-  stdout?: string;
-  stderr?: string;
-  code?: number;
-  requestId?: string | null;
-  queueMs?: number | null;
-  durationMs?: number | null;
-  summary?: string;
-}
+import { useProject } from '@/stores/project';
+import { useSelectedFile, useFileContent } from '@/stores/file';
+import type { CompilationError } from '@/types/compilation';
 
 export interface CompilationState {
   compiling: boolean;
@@ -34,7 +24,7 @@ interface UseEditorCompilationProps {
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
   fileName?: string;
   projectId?: string;
-  currentFileId?: string;
+  currentFileId?: string | null;
 }
 
 function summarizeLog(log?: string) {
@@ -47,10 +37,11 @@ function summarizeLog(log?: string) {
 export function useEditorCompilation({
   content,
   editorRef,
-  fileName = 'document',
-  projectId,
-  currentFileId: _currentFileId,
 }: UseEditorCompilationProps): CompilationState {
+  const project = useProject();
+  const selectedFile = useSelectedFile();
+  const projectId = project?.id;
+  const fileName = selectedFile?.name;
   const [compiling, setCompiling] = useState(false);
   const [pdfData, setPdfData] = useState<string | null>(null);
   const [compilationError, setCompilationError] =
@@ -64,7 +55,7 @@ export function useEditorCompilation({
 
   // Helper function to fetch all project files and their contents
   const fetchProjectFiles = useCallback(async () => {
-    if (!projectId) return null;
+    if (!project?.id) return null;
 
     try {
       const supabase = createClient();
@@ -72,7 +63,7 @@ export function useEditorCompilation({
       const { data: filesData, error: filesError } = await supabase
         .from('files')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('project_id', project.id)
         .order('uploaded_at', { ascending: false });
 
       if (filesError || !filesData) {
@@ -87,7 +78,7 @@ export function useEditorCompilation({
           const { data: docData, error: docError } = await supabase
             .from('documents')
             .select('content')
-            .eq('project_id', projectId)
+            .eq('project_id', project.id)
             .eq('filename', file.name)
             .order('updated_at', { ascending: false })
             .limit(1)
@@ -115,7 +106,7 @@ export function useEditorCompilation({
       console.error('Error fetching project files:', error);
       return null;
     }
-  }, [projectId]);
+  }, [project?.id]);
 
   const handleCompile = useCallback(async (): Promise<boolean> => {
     if (compiling) return false;
@@ -126,7 +117,7 @@ export function useEditorCompilation({
     let handled = false;
     try {
       const currentContent = editorRef.current?.getValue() || content;
-      const normalizedFileName = normalizePath(fileName);
+      const normalizedFileName = normalizePath(fileName || 'document');
 
       let filesPayload: Array<{ path: string; content: string }>;
 
@@ -226,7 +217,7 @@ export function useEditorCompilation({
 
     try {
       const currentContent = editorRef.current?.getValue() || content;
-      const normalizedFileName = normalizePath(fileName);
+      const normalizedFileName = normalizePath(fileName || 'document');
 
       let filesPayload: Array<{ path: string; content: string }>;
 

@@ -17,7 +17,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateProject } from '@/hooks/create-project-client';
-import { createClient } from '@/lib/supabase/client';
 
 export function CreateProjectDialog() {
   const [open, setOpen] = useState(false);
@@ -42,24 +41,7 @@ export function CreateProjectDialog() {
     if (result.success && result.projectId) {
       setOpen(false);
       setTitle('');
-
-      const supabase = createClient();
-      const filesRes = await supabase
-        .from('files' as const)
-        .select('id')
-        .eq('project_id', result.projectId)
-        .order('uploaded_at', { ascending: false })
-        .limit(1);
-
-      const files = (filesRes.data as { id: string }[] | null) ?? [];
-
-      if (files.length > 0) {
-        router.push(
-          `/projects/${result.projectId}/files/${files[0].id}/editor`
-        );
-      } else {
-        router.push(`/projects/${result.projectId}/files`);
-      }
+      router.push(`/projects/${result.projectId}`);
     } else {
       setError(result.message || 'Failed to create project');
     }
@@ -72,7 +54,7 @@ export function CreateProjectDialog() {
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="from-primary-light hover:from-primary-light/90 bg-gradient-to-b to-primary hover:bg-gradient-to-b hover:to-primary/90"
+          className="bg-gradient-to-b from-primary-light to-primary hover:bg-gradient-to-b hover:from-primary-light/90 hover:to-primary/90"
         >
           <PlusIcon />
           New Project

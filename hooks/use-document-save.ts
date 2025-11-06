@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import { saveDocument } from '@/lib/requests/document';
+import { useSelectedFile, useFileContent } from '@/stores/file';
+import { useProject } from '@/stores/project';
 
 export interface DocumentSaveState {
   isSaving: boolean;
@@ -12,67 +14,55 @@ export interface DocumentSaveState {
   setLastSaved: (date: Date | null) => void;
 }
 
-interface UseDocumentSaveProps {
-  projectId: string;
-  fileId: string;
-  content: string;
-}
+export function useDocumentSave(): DocumentSaveState {
+  const project = useProject();
+  const content = useFileContent();
+  const selectedFile = useSelectedFile();
 
-export function useDocumentSave({
-  projectId,
-  fileId,
-  content,
-}: UseDocumentSaveProps): DocumentSaveState {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  const handleSaveDocument = useCallback(
-    async (contentToSave?: string): Promise<boolean> => {
-      if (!projectId || !fileId) {
-        console.log('Cannot save: missing projectId or fileId', { projectId, fileId });
+  const handleSaveDocument = async (
+    contentToSave?: string
+  ): Promise<boolean> => {
+    try {
+      if (!project?.id || !selectedFile) {
         return false;
       }
 
       const contentToUse =
         contentToSave !== undefined ? contentToSave : content;
 
-      console.log('Saving document:', {
-        projectId,
-        fileId,
-        contentLength: contentToUse.length,
-        contentPreview: contentToUse.substring(0, 100)
-      });
-
-      try {
-        setIsSaving(true);
-
-        const result = await saveDocument(projectId, fileId, contentToUse);
-
-        if (!result.success) {
-          console.error('Error saving document:', result.error);
-          return false;
-        }
-
-        console.log('Document saved successfully');
-        setLastSaved(new Date());
-        return true;
-      } catch (error) {
-        console.error('Error saving document:', error);
+      if (!contentToUse) {
         return false;
-      } finally {
-        setIsSaving(false);
       }
-    },
-    [projectId, fileId, content]
-  );
 
-  // Debounced auto-save function
-  const debouncedSave = useDebouncedCallback(
-    (content: string) => {
-      handleSaveDocument(content);
-    },
-    2000 // Save after 2 seconds of inactivity
-  );
+      setIsSaving(true);
+
+      const result = await saveDocument(
+        project.id,
+        selectedFile.id,
+        contentToUse
+      );
+
+      if (!result.success) {
+        console.error('Error saving document:', result.error);
+        return false;
+      }
+
+      setLastSaved(new Date());
+      return true;
+    } catch (error) {
+      console.error('Error saving document:', error);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const debouncedSave = useDebouncedCallback((content: string) => {
+    handleSaveDocument(content);
+  }, 1000);
 
   return {
     isSaving,
