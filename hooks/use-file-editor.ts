@@ -27,7 +27,7 @@ export interface DocumentData {
   updated_at: string | null;
 }
 
-export interface FileApiResponse {
+export interface ProjectFile {
   file: FileData;
   document: DocumentData | null;
 }
@@ -44,8 +44,7 @@ export function useFileEditor(): FileEditorState {
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const { selectedFileId } = useFileStore();
-  const fileId = selectedFileId;
+  const { selectedFile } = useFileStore();
 
   const {
     data: projectData,
@@ -59,16 +58,16 @@ export function useFileEditor(): FileEditorState {
     data: filesData,
     isLoading: isFileLoading,
     error: fileError,
-  } = useSWR<FileApiResponse[]>(
+  } = useSWR<ProjectFile[]>(
     projectId ? ['project-files', projectId] : null,
     () => getProjectFiles(projectId)
   );
 
   const selectedFileResponse = filesData?.find(
-    (fileResponse) => fileResponse.file.id === fileId
+    (fileResponse) => fileResponse.file.id === selectedFile?.id
   );
 
-  const file = selectedFileResponse?.file ?? null;
+  const file = selectedFile ?? null;
   const documentData = selectedFileResponse?.document ?? null;
   const isLoading = isProjectLoading || isFileLoading;
   const error = projectError?.message || fileError?.message || null;
@@ -85,6 +84,7 @@ export function useFileEditor(): FileEditorState {
 export function useProjectFilesRevalidation(projectId: string) {
   const revalidate = () => {
     mutate(['project-files', projectId]);
+    mutate(['files', projectId]);
   };
 
   return { revalidate };

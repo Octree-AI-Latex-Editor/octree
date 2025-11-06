@@ -10,7 +10,7 @@ import {
   registerLatexCompletions,
 } from '@/lib/editor-config';
 import { EditSuggestion } from '@/types/edit';
-import { cn } from '@/lib/utils';
+import { cn, formatCompilationErrorForAI } from '@/lib/utils';
 
 import { useFileEditor } from '@/hooks/use-file-editor';
 import { useEditorState } from '@/hooks/use-editor-state';
@@ -223,7 +223,27 @@ export default function FileEditorPage() {
             'overflow-hidden border-l border-slate-200'
           )}
         >
-          <PDFViewer pdfData={pdfData} isLoading={compiling} />
+          {compilationError ? (
+            <div className="flex h-full items-start justify-center overflow-auto p-4">
+              <CompilationError
+                error={compilationError}
+                onRetry={() => {
+                  void handleCompile();
+                }}
+                onDismiss={() => setCompilationError(null)}
+                onFixWithAI={() => {
+                  const errorContext =
+                    formatCompilationErrorForAI(compilationError);
+                  setTextFromEditor(errorContext);
+                  setChatOpen(true);
+                  setCompilationError(null);
+                }}
+                className="w-full max-w-4xl"
+              />
+            </div>
+          ) : (
+            <PDFViewer pdfData={pdfData} isLoading={compiling} />
+          )}
         </div>
       </div>
 
@@ -238,35 +258,6 @@ export default function FileEditorPage() {
         setTextFromEditor={setTextFromEditor}
         selectionRange={selectionRange}
       />
-
-      {compilationError && (
-        <CompilationError
-          error={compilationError}
-          onRetry={() => {
-            void handleCompile();
-          }}
-          onDismiss={() => setCompilationError(null)}
-          onFixWithAI={() => {
-            // Format error details for AI
-            const errorContext = [
-              `LaTeX Compilation Error:`,
-              `${compilationError.message}`,
-              compilationError.details &&
-                `\nDetails: ${compilationError.details}`,
-              compilationError.summary &&
-                `\nError Summary:\n${compilationError.summary}`,
-              compilationError.log &&
-                `\nLog (last lines):\n${compilationError.log.split('\n').slice(-20).join('\n')}`,
-            ]
-              .filter(Boolean)
-              .join('\n');
-
-            setTextFromEditor(errorContext);
-            setChatOpen(true);
-            setCompilationError(null);
-          }}
-        />
-      )}
     </div>
   );
 }

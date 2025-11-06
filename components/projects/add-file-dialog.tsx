@@ -17,7 +17,7 @@ import { Plus, Upload, FileText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { TablesInsert } from '@/database.types';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
-import { useFileStore } from '@/stores/file';
+import { FileActions } from '@/stores/file';
 import { createDocumentForFile } from '@/lib/requests/project';
 
 interface AddFileDialogProps {
@@ -40,7 +40,6 @@ export function AddFileDialog({
   const [uploadMode, setUploadMode] = useState<'create' | 'upload'>('create');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { revalidate } = useProjectFilesRevalidation(projectId);
-  const { setSelectedFileId } = useFileStore();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -90,7 +89,7 @@ export function AddFileDialog({
       }
 
       // Select the newly created file
-      setSelectedFileId(fileData.id);
+      FileActions.setSelectedFileId(fileData.id);
 
       setOpen(false);
       setFileName('');
@@ -150,7 +149,7 @@ export function AddFileDialog({
       }
 
       // Select the newly created file
-      setSelectedFileId(fileData.id);
+      FileActions.setSelectedFileId(fileData.id);
 
       setOpen(false);
       setFileName('');

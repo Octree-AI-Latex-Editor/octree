@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import type { FileApiResponse } from '@/hooks/use-file-editor';
+import type { ProjectFile } from '@/hooks/use-file-editor';
 import type { Tables, TablesInsert } from '@/database.types';
 
 export const getProject = async (projectId: string) => {
@@ -22,35 +22,6 @@ export const getProject = async (projectId: string) => {
 
   if (error) throw error;
   return data;
-};
-
-const DEFAULT_LATEX_CONTENT = (fileName: string) => {
-  const cleanTitle = fileName.replace(/\.\w+$/, '');
-  return `% ${fileName}
-% Created on ${new Date().toISOString()}
-
-\\documentclass{article}
-\\usepackage[utf8]{inputenc}
-\\usepackage{amsmath}
-\\usepackage{amsfonts}
-\\usepackage{amssymb}
-\\usepackage{graphicx}
-\\usepackage{geometry}
-\\geometry{margin=1in}
-
-\\title{${cleanTitle}}
-\\author{}
-\\date{\\today}
-
-\\begin{document}
-
-\\maketitle
-
-\\section{Introduction}
-
-Your content here.
-
-\\end{document}`;
 };
 
 export const createDocumentForFile = async (
@@ -79,13 +50,9 @@ export const createDocumentForFile = async (
     document_type: fileName === 'main.tex' ? 'article' : 'file',
   };
 
-  const { data: newDocument, error: createError } = await (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase.from('documents') as any
-  )
-    .insert(insertDoc)
-    .select('*')
-    .single();
+  const { data: newDocument, error: createError } =
+    await // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.from('documents') as any).insert(insertDoc).select('*').single();
 
   if (createError) {
     throw new Error('Failed to create document');
@@ -96,7 +63,7 @@ export const createDocumentForFile = async (
 
 export const getProjectFiles = async (
   projectId: string
-): Promise<FileApiResponse[]> => {
+): Promise<ProjectFile[]> => {
   const supabase = createClient();
 
   const {
@@ -143,4 +110,33 @@ export const getProjectFiles = async (
   );
 
   return filesWithDocuments.filter((item) => item.document !== null);
+};
+
+const DEFAULT_LATEX_CONTENT = (fileName: string) => {
+  const cleanTitle = fileName.replace(/\.\w+$/, '');
+  return `% ${fileName}
+% Created on ${new Date().toISOString()}
+
+\\documentclass{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage{amsmath}
+\\usepackage{amsfonts}
+\\usepackage{amssymb}
+\\usepackage{graphicx}
+\\usepackage{geometry}
+\\geometry{margin=1in}
+
+\\title{${cleanTitle}}
+\\author{}
+\\date{\\today}
+
+\\begin{document}
+
+\\maketitle
+
+\\section{Introduction}
+
+Your content here.
+
+\\end{document}`;
 };

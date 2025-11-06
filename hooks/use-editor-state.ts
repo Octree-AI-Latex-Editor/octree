@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import type * as Monaco from 'monaco-editor';
+import { useFileContent, FileActions } from '@/stores/file';
 
 export interface EditorState {
   content: string;
@@ -13,8 +14,10 @@ export interface EditorState {
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
 }
 
-export function useEditorState(initialContent: string = ''): EditorState {
-  const [content, setContent] = useState<string>(initialContent);
+export function useEditorState(): EditorState {
+  const fileContent = useFileContent();
+  const content = fileContent ?? '';
+  const setContent = FileActions.setContent;
   const [editor, setEditor] =
     useState<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const [monacoInstance, setMonacoInstance] = useState<typeof Monaco | null>(
