@@ -88,15 +88,13 @@ export function AddFileDialog({
         console.warn('Failed to create document record:', documentError);
       }
 
-      // Select the newly created file
-      FileActions.setSelectedFileId(fileData.id);
-
       setOpen(false);
       setFileName('');
       setSelectedFile(null);
       setUploadMode('create');
       onFileAdded?.();
       revalidate();
+      FileActions.setSelectedFile(fileData);
     } catch (error) {
       setError(
         error instanceof Error ? error.message : 'Failed to upload file'
@@ -148,14 +146,12 @@ export function AddFileDialog({
         console.warn('Failed to create document record:', documentError);
       }
 
-      // Select the newly created file
-      FileActions.setSelectedFileId(fileData.id);
-
       setOpen(false);
       setFileName('');
       setFileContent('');
       onFileAdded?.();
       revalidate();
+      FileActions.setSelectedFile(fileData);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to add file');
     } finally {

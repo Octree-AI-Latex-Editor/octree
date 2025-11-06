@@ -47,20 +47,8 @@ export const FileActions = {
     setState({ selectedFile: file });
   },
 
-  setSelectedFileId: (fileId: string | null) => {
-    const state = getState();
-    const { projectFiles } = state;
-    if (!fileId || !projectFiles) {
-      setState({ selectedFile: null });
-      return;
-    }
-    const file = projectFiles.find((f) => f.file.id === fileId)?.file ?? null;
-    setState({ selectedFile: file });
-  },
-
   setContent: (content: string) => {
-    const state = getState();
-    const { selectedFile, projectFiles } = state;
+    const { selectedFile, projectFiles } = getState();
 
     if (!selectedFile || !projectFiles) {
       return;
@@ -80,7 +68,23 @@ export const FileActions = {
   },
 
   init: (files: ProjectFile[]) => {
-    const selectedFile = selectInitialFile(files);
+    const currentState = getState();
+    const currentSelectedFile = currentState.selectedFile;
+
+    let selectedFile: FileData | null = null;
+    if (currentSelectedFile) {
+      const existingFile = files.find(
+        (f) => f.file.id === currentSelectedFile.id
+      );
+      if (existingFile) {
+        selectedFile = existingFile.file;
+      }
+    }
+
+    if (!selectedFile) {
+      selectedFile = selectInitialFile(files);
+    }
+
     setState({ projectFiles: files, selectedFile });
   },
 };

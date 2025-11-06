@@ -10,18 +10,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Pencil } from 'lucide-react';
+import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 
 interface RenameFileDialogProps {
   projectId: string;
   fileId: string;
   currentName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onRenamed?: (newName: string) => void;
 }
 
@@ -29,12 +29,14 @@ export function RenameFileDialog({
   projectId,
   fileId,
   currentName,
+  open,
+  onOpenChange,
   onRenamed,
 }: RenameFileDialogProps) {
-  const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState(currentName);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { revalidate } = useProjectFilesRevalidation(projectId);
 
   useEffect(() => {
     if (open) {
@@ -53,7 +55,7 @@ export function RenameFileDialog({
     }
 
     if (trimmedName === currentName) {
-      setOpen(false);
+      onOpenChange(false);
       return;
     }
 
@@ -102,8 +104,9 @@ export function RenameFileDialog({
       }
 
       toast.success('File renamed successfully');
+      revalidate();
       onRenamed?.(trimmedName);
-      setOpen(false);
+      onOpenChange(false);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to rename file';
@@ -115,16 +118,7 @@ export function RenameFileDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <DropdownMenuItem
-          onSelect={(event) => event.preventDefault()}
-          className="cursor-pointer gap-2"
-        >
-          <Pencil className="size-4" />
-          Rename
-        </DropdownMenuItem>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Rename File</DialogTitle>
@@ -149,7 +143,7 @@ export function RenameFileDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => onOpenChange(false)}
               disabled={isLoading}
             >
               Cancel

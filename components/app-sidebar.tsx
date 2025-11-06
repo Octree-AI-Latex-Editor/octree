@@ -8,6 +8,8 @@ import {
   FolderOpen,
   MoreHorizontal,
   X,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -34,6 +36,7 @@ import { AddFileDialog } from '@/components/projects/add-file-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { RenameFileDialog } from '@/components/projects/rename-file-dialog';
@@ -46,12 +49,26 @@ interface AppSidebarProps {
   userName: string | null;
 }
 
+interface RenameDialogFile {
+  id: string;
+  name: string;
+}
+
+interface DeleteDialogFile {
+  id: string;
+  name: string;
+}
+
 export function AppSidebar({ userName }: AppSidebarProps) {
   const { toggleSidebar } = useSidebar();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { selectedFile } = useFileStore();
   const project = useProject();
   const projectFiles = useProjectFiles();
+  const [renameDialogFile, setRenameDialogFile] =
+    useState<RenameDialogFile | null>(null);
+  const [deleteDialogFile, setDeleteDialogFile] =
+    useState<DeleteDialogFile | null>(null);
 
   if (!project) return null;
 
@@ -153,22 +170,32 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                                           <MoreHorizontal className="h-4 w-4" />
                                         </button>
                                       </DropdownMenuTrigger>
-                                      <DropdownMenuContent
-                                        align="end"
-                                        onClick={(event) =>
-                                          event.stopPropagation()
-                                        }
-                                      >
-                                        <RenameFileDialog
-                                          projectId={project.id}
-                                          fileId={projectFile.file.id}
-                                          currentName={projectFile.file.name}
-                                        />
-                                        <DeleteFileDialog
-                                          projectId={project.id}
-                                          fileId={projectFile.file.id}
-                                          fileName={projectFile.file.name}
-                                        />
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                          className="cursor-pointer gap-2"
+                                          onSelect={() =>
+                                            setRenameDialogFile({
+                                              id: projectFile.file.id,
+                                              name: projectFile.file.name,
+                                            })
+                                          }
+                                        >
+                                          <Pencil className="size-4" />
+                                          Rename
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="cursor-pointer gap-2"
+                                          variant="destructive"
+                                          onSelect={() =>
+                                            setDeleteDialogFile({
+                                              id: projectFile.file.id,
+                                              name: projectFile.file.name,
+                                            })
+                                          }
+                                        >
+                                          <Trash2 className="size-4 text-destructive" />
+                                          Delete
+                                        </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                   </div>
@@ -207,6 +234,25 @@ export function AppSidebar({ userName }: AppSidebarProps) {
       <SidebarFooter className="border-t border-gray-100 p-4">
         <UserProfileDropdown userName={userName} />
       </SidebarFooter>
+
+      {renameDialogFile && (
+        <RenameFileDialog
+          projectId={project.id}
+          fileId={renameDialogFile.id}
+          currentName={renameDialogFile.name}
+          open={true}
+          onOpenChange={(open) => !open && setRenameDialogFile(null)}
+        />
+      )}
+      {deleteDialogFile && (
+        <DeleteFileDialog
+          projectId={project.id}
+          fileId={deleteDialogFile.id}
+          fileName={deleteDialogFile.name}
+          open={true}
+          onOpenChange={(open) => !open && setDeleteDialogFile(null)}
+        />
+      )}
     </Sidebar>
   );
 }
