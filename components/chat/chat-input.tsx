@@ -27,6 +27,7 @@ interface ChatInputProps {
   onRemoveAttachment?: (id: string) => void;
   onResetError?: () => void;
   onClearHistory?: () => void;
+  formRef?: React.RefObject<HTMLFormElement | null>;
 }
 
 export interface ChatInputRef {
@@ -49,6 +50,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       onRemoveAttachment,
       onResetError,
       onClearHistory,
+      formRef,
     },
     ref
   ) => {
@@ -129,6 +131,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         )}
 
         <form
+          ref={formRef}
           onSubmit={(event) => {
             onResetError?.();
             onSubmit(event);

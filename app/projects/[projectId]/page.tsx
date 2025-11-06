@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { useEditorState } from '@/hooks/use-editor-state';
 import { useDocumentSave } from '@/hooks/use-document-save';
@@ -98,6 +98,7 @@ export default function ProjectPage() {
   } = useEditorInteractions();
 
   const { open: sidebarOpen } = useSidebar();
+  const [autoSendMessage, setAutoSendMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (filesData) {
@@ -210,6 +211,7 @@ export default function ProjectPage() {
                     formatCompilationErrorForAI(compilationError);
                   setTextFromEditor(errorContext);
                   setChatOpen(true);
+                  setAutoSendMessage('Fix this error');
                   setCompilationError(null);
                 }}
                 className="w-full max-w-4xl"
@@ -231,6 +233,8 @@ export default function ProjectPage() {
         textFromEditor={textFromEditor}
         setTextFromEditor={setTextFromEditor}
         selectionRange={selectionRange}
+        autoSendMessage={autoSendMessage}
+        setAutoSendMessage={setAutoSendMessage}
       />
     </div>
   );
