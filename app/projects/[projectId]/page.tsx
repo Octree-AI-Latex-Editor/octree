@@ -99,6 +99,7 @@ export default function ProjectPage() {
 
   const { open: sidebarOpen } = useSidebar();
   const [autoSendMessage, setAutoSendMessage] = useState<string | null>(null);
+  const [hasCompiledOnMount, setHasCompiledOnMount] = useState(false);
 
   useEffect(() => {
     if (filesData) {
@@ -111,6 +112,13 @@ export default function ProjectPage() {
       ProjectActions.init(projectData);
     }
   }, [projectData]);
+
+  useEffect(() => {
+    if (content && !hasCompiledOnMount) {
+      setHasCompiledOnMount(true);
+      handleCompile();
+    }
+  }, [content, hasCompiledOnMount]);
 
   const handleEditorChange = (value: string) => {
     setContent(value);
