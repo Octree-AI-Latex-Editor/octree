@@ -27,6 +27,7 @@ export function CreateProjectDialog() {
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [activeTab, setActiveTab] = useState('create');
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { createProjectWithRefresh } = useCreateProject();
   const router = useRouter();
@@ -54,21 +55,49 @@ export function CreateProjectDialog() {
     setIsLoading(false);
   };
 
+  const validateAndSetFile = (file: File) => {
+    if (!file.name.endsWith('.zip')) {
+      setError('Please select a ZIP file');
+      setSelectedFile(null);
+      return false;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setError('File size must be less than 50MB');
+      setSelectedFile(null);
+      return false;
+    }
+    setSelectedFile(file);
+    setError(null);
+    return true;
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.name.endsWith('.zip')) {
-        setError('Please select a ZIP file');
-        setSelectedFile(null);
-        return;
-      }
-      if (file.size > 50 * 1024 * 1024) {
-        setError('File size must be less than 50MB');
-        setSelectedFile(null);
-        return;
-      }
-      setSelectedFile(file);
-      setError(null);
+      validateAndSetFile(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      validateAndSetFile(file);
     }
   };
 
@@ -98,9 +127,10 @@ export function CreateProjectDialog() {
       }
 
       if (data.success && data.projectId) {
-        toast.success(
-          `Project imported successfully! ${data.texFilesImported} LaTeX file(s) and ${data.filesImported} total file(s).`
-        );
+        const message = data.otherFiles > 0 
+          ? `Project imported successfully! ${data.texFiles} LaTeX file(s) and ${data.otherFiles} other file(s).`
+          : `Project imported successfully! ${data.texFiles} LaTeX file(s).`;
+        toast.success(message);
         setOpen(false);
         setSelectedFile(null);
         router.push(`/projects/${data.projectId}`);
@@ -120,6 +150,7 @@ export function CreateProjectDialog() {
       setSelectedFile(null);
       setError(null);
       setActiveTab('create');
+      setIsDragging(false);
     }
   };
 
@@ -179,7 +210,23 @@ export function CreateProjectDialog() {
             <form onSubmit={handleImportSubmit} className="grid gap-4">
               <div className="grid gap-3">
                 <Label htmlFor="zipFile">ZIP File</Label>
-                <div className="flex items-center gap-2">
+                
+                {/* Drag and Drop Zone */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`
+                    relative rounded-lg border-2 border-dashed p-8 text-center cursor-pointer
+                    transition-colors duration-200
+                    ${isDragging 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50'
+                    }
+                    ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
+                  `}
+                >
                   <Input
                     id="zipFile"
                     type="file"
@@ -187,14 +234,40 @@ export function CreateProjectDialog() {
                     ref={fileInputRef}
                     onChange={handleFileChange}
                     disabled={isLoading}
-                    className="cursor-pointer"
+                    className="hidden"
                   />
-                  {selectedFile && (
+                  
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className={`h-10 w-10 ${isDragging ? 'text-primary' : 'text-neutral-400'}`} />
+                    <div className="text-sm">
+                      <span className="font-medium text-primary">Click to upload</span>
+                      <span className="text-neutral-600"> or drag and drop</span>
+                    </div>
+                    <p className="text-xs text-neutral-500">
+                      ZIP files up to 50MB
+                    </p>
+                  </div>
+                </div>
+
+                {selectedFile && (
+                  <div className="flex items-center justify-between rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="rounded bg-primary/10 p-1">
+                        <Upload className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-neutral-900">{selectedFile.name}</p>
+                        <p className="text-xs text-neutral-500">
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setSelectedFile(null);
                         if (fileInputRef.current) {
                           fileInputRef.current.value = '';
@@ -202,20 +275,12 @@ export function CreateProjectDialog() {
                       }}
                       disabled={isLoading}
                     >
-                      Clear
+                      Remove
                     </Button>
-                  )}
-                </div>
-                {selectedFile && (
-                  <p className="text-sm text-neutral-600">
-                    Selected: {selectedFile.name} (
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
+                  </div>
                 )}
+                
                 {error && <p className="text-sm text-red-600">{error}</p>}
-                <p className="text-xs text-neutral-500">
-                  Upload a ZIP file containing your LaTeX project. Maximum size: 50MB
-                </p>
               </div>
 
               <DialogFooter>

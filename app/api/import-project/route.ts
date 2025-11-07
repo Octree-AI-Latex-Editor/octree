@@ -84,11 +84,15 @@ export async function POST(request: NextRequest) {
       const fileName = relativePath.split('/').pop() || relativePath;
       const isTexFile = fileName.endsWith('.tex');
       
+      // Determine if file is text-based (includes BibTeX files .bib and .bst)
+      const textExtensions = ['.tex', '.sty', '.bib', '.bst', '.cls', '.txt', '.md', '.csv', '.json', '.xml', '.log'];
+      const isTextFile = textExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+      
       try {
         let content: string | ArrayBuffer;
         let isText = false;
 
-        if (isTexFile || fileName.endsWith('.sty') || fileName.endsWith('.bib') || fileName.endsWith('.cls')) {
+        if (isTextFile) {
           content = await zipEntry.async('text');
           isText = true;
         } else {
@@ -136,8 +140,10 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
     };
 
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
+    const { data: project, error: projectError } = await (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase.from('projects') as any
+    )
       .insert(projectData)
       .select()
       .single();
@@ -150,18 +156,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create document records for all .tex files
-    const documentPromises = texFiles.map(async (texFile) => {
+    // Create document records for ALL files (text files as plain text, binary as base64)
+    const documentPromises = extractedFiles.map(async (file) => {
+      // Convert binary files to base64
+      let content: string;
+      if (file.isText) {
+        content = file.content as string;
+      } else {
+        // Convert ArrayBuffer to base64
+        const buffer = file.content as ArrayBuffer;
+        const bytes = new Uint8Array(buffer);
+        content = Buffer.from(bytes).toString('base64');
+      }
+
       const docData: TablesInsert<'documents'> = {
         title: projectTitle,
-        content: texFile.content as string,
+        content: content,
         owner_id: user.id,
         project_id: project.id,
-        filename: texFile.name,
-        document_type: 'article',
+        filename: file.name,
+        document_type: file.name.endsWith('.tex') ? 'article' : 'asset',
       };
 
-      return supabase.from('documents').insert(docData);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (supabase.from('documents') as any).insert(docData);
     });
 
     const documentResults = await Promise.all(documentPromises);
@@ -180,7 +198,8 @@ export async function POST(request: NextRequest) {
         size: extractedFile.size,
       };
 
-      return supabase.from('files').insert(fileData);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (supabase.from('files') as any).insert(fileData);
     });
 
     const fileResults = await Promise.all(filePromises);
@@ -193,8 +212,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       projectId: project.id,
-      filesImported: extractedFiles.length,
-      texFilesImported: texFiles.length,
+      totalFiles: extractedFiles.length,
+      texFiles: texFiles.length,
+      otherFiles: extractedFiles.length - texFiles.length,
     });
   } catch (error) {
     console.error('Import error:', error);

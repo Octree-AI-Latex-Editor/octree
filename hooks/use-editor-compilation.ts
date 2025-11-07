@@ -55,6 +55,16 @@ export function useEditorCompilation({
     return `${name}.tex`;
   }, []);
 
+  // Helper to determine if a file is binary based on extension
+  const isBinaryFile = useCallback((filename: string): boolean => {
+    const binaryExtensions = [
+      '.eps', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif',
+      '.pdf', '.ps', '.svg', '.webp', '.ico',
+    ];
+    const lowerName = filename.toLowerCase();
+    return binaryExtensions.some(ext => lowerName.endsWith(ext));
+  }, []);
+
   // Helper function to fetch all project files and their contents
   const fetchProjectFiles = useCallback(async () => {
     if (!project?.id) return null;
@@ -97,16 +107,23 @@ export function useEditorCompilation({
             contentLength: (docData as any).content?.length ?? 0,
           });
 
-          return {
+          const fileEntry: { path: string; content: string; encoding?: string } = {
             path: file.name,
             content: (docData as any).content as string,
           };
+
+          // Mark binary files with base64 encoding
+          if (isBinaryFile(file.name)) {
+            fileEntry.encoding = 'base64';
+          }
+
+          return fileEntry;
         })
       );
 
       // Filter out null entries and return
       const validFiles = filesWithContent.filter(
-        (f): f is { path: string; content: string } => f !== null
+        (f): f is { path: string; content: string; encoding?: string } => f !== null
       );
 
       console.log('[compile] Supabase project files resolved', {
@@ -120,13 +137,13 @@ export function useEditorCompilation({
       console.error('Error fetching project files:', error);
       return null;
     }
-  }, [project?.id]);
+  }, [project?.id, isBinaryFile]);
 
   const buildFilesPayload = useCallback(
     async (
       activePath: string,
       activeContent: string
-    ): Promise<Array<{ path: string; content: string }>> => {
+    ): Promise<Array<{ path: string; content: string; encoding?: string }>> => {
       // Use the in-memory files first to get up-to-date project content
       if (projectFilesState && projectFilesState.length > 0) {
         console.log('[compile] building payload from store', {
@@ -141,13 +158,24 @@ export function useEditorCompilation({
               path === activePath
                 ? activeContent
                 : projectFile.document.content;
-            return { path, content };
+            
+            const fileEntry: { path: string; content: string; encoding?: string } = {
+              path,
+              content,
+            };
+            
+            // Mark binary files with base64 encoding
+            if (isBinaryFile(path)) {
+              fileEntry.encoding = 'base64';
+            }
+            
+            return fileEntry;
           }
           return null;
         });
 
         const validPayload = payload.filter(
-          (entry): entry is { path: string; content: string } => entry !== null
+          (entry): entry is { path: string; content: string; encoding?: string } => entry !== null
         );
         if (validPayload.length > 0) {
           console.log('[compile] payload from store (filtered)', {
@@ -156,6 +184,7 @@ export function useEditorCompilation({
               path: file.path,
               contentLength: file.content.length,
               isActive: file.path === activePath,
+              encoding: file.encoding,
             })),
           });
           return validPayload;
@@ -181,7 +210,7 @@ export function useEditorCompilation({
       });
       return [{ path: activePath, content: activeContent }];
     },
-    [fetchProjectFiles, projectFilesState]
+    [fetchProjectFiles, projectFilesState, isBinaryFile]
   );
 
   const handleCompile = useCallback(async (): Promise<boolean> => {
