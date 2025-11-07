@@ -250,13 +250,18 @@ export function CreateProjectDialog() {
                 </div>
 
                 {selectedFile && (
-                  <div className="flex items-center justify-between rounded-md border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="flex items-center gap-2 text-sm">
+                  <div className="flex flex-col gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-1 items-center gap-2 text-sm min-w-0 overflow-hidden">
                       <div className="rounded bg-primary/10 p-1">
                         <Upload className="h-4 w-4 text-primary" />
                       </div>
-                      <div>
-                        <p className="font-medium text-neutral-900">{selectedFile.name}</p>
+                      <div className="min-w-0 max-w-full">
+                        <p
+                          className="block max-w-[220px] truncate font-medium text-neutral-900 sm:max-w-[320px]"
+                          title={selectedFile.name}
+                        >
+                          {selectedFile.name}
+                        </p>
                         <p className="text-xs text-neutral-500">
                           {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                         </p>
@@ -266,6 +271,7 @@ export function CreateProjectDialog() {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      className="self-end sm:self-auto"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedFile(null);
