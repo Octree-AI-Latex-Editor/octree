@@ -140,7 +140,8 @@ export function AddFileDialog({
         await createDocumentForFile(
           projectId,
           fileName,
-          fileContent || undefined
+          fileContent || undefined,
+          { useDefaultContent: false }
         );
       } catch (documentError) {
         console.warn('Failed to create document record:', documentError);
