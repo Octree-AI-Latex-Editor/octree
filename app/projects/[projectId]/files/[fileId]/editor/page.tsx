@@ -1,17 +1,27 @@
 'use client';
 
-import useSWR from 'swr';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useParams } from 'next/navigation';
+import { loader } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
+import {
+  latexLanguageConfiguration,
+  latexTokenProvider,
+  registerLatexCompletions,
+} from '@/lib/editor-config';
+import { EditSuggestion } from '@/types/edit';
+
+import { useFileEditor } from '@/hooks/use-file-editor';
 import { useEditorState } from '@/hooks/use-editor-state';
 import { useDocumentSave } from '@/hooks/use-document-save';
-import { useTextFormatting } from '@/hooks/use-text-formatting';
 import { useEditorCompilation } from '@/hooks/use-editor-compilation';
 import { useEditSuggestions } from '@/hooks/use-edit-suggestions';
-import { useEditorInteractions } from '@/hooks/use-editor-interactions';
 import { useEditorKeyboardShortcuts } from '@/hooks/use-editor-keyboard-shortcuts';
-import { MonacoEditor } from '@/components/editor/monaco-editor';
+import { useTextFormatting } from '@/hooks/use-text-formatting';
+import { useEditorInteractions } from '@/hooks/use-editor-interactions';
+
 import { EditorToolbar } from '@/components/editor/toolbar';
+import { MonacoEditor } from '@/components/editor/monaco-editor';
 import { SelectionButton } from '@/components/editor/selection-button';
 import { SuggestionActions } from '@/components/editor/suggestion-actions';
 import { LoadingState } from '@/components/editor/loading-state';
@@ -19,48 +29,25 @@ import { ErrorState } from '@/components/editor/error-state';
 import PDFViewer from '@/components/pdf-viewer';
 import { Chat } from '@/components/chat';
 import { CompilationError } from '@/components/latex/compilation-error';
-import { useSidebar } from '@/components/ui/sidebar';
-import { cn, formatCompilationErrorForAI } from '@/lib/utils';
-import { FileActions, useProjectFiles, useSelectedFile } from '@/stores/file';
-import { getProject, getProjectFiles } from '@/lib/requests/project';
-import type { ProjectFile } from '@/hooks/use-file-editor';
-import { useParams } from 'next/navigation';
-import type { Project } from '@/types/project';
-import { ProjectActions } from '@/stores/project';
-import type { EditSuggestion } from '@/types/edit';
 
-export default function ProjectPage() {
+export default function FileEditorPage() {
   const params = useParams();
   const projectId = params.projectId as string;
+  const fileId = params.fileId as string;
 
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
 
-  const { content, setContent } = useEditorState();
+  const { project, file, documentData, isLoading, error } = useFileEditor();
 
-  const projectFiles = useProjectFiles();
-  const selectedFile = useSelectedFile();
-
-  const {
-    data: projectData,
-    isLoading: isProjectLoading,
-    error: projectError,
-  } = useSWR<Project>(projectId ? ['project', projectId] : null, () =>
-    getProject(projectId)
-  );
-
-  const {
-    data: filesData,
-    isLoading: isFilesLoading,
-    error: filesError,
-  } = useSWR<ProjectFile[]>(projectId ? ['files', projectId] : null, () =>
-    getProjectFiles(projectId)
-  );
+  const { content, setContent } = useEditorState(documentData?.content || '');
 
   const { isSaving, lastSaved, handleSaveDocument, debouncedSave } =
-    useDocumentSave();
-
-  const { handleTextFormat } = useTextFormatting({ editorRef });
+    useDocumentSave({
+      projectId,
+      fileId,
+      content,
+    });
 
   const {
     compiling,
@@ -69,10 +56,14 @@ export default function ProjectPage() {
     exportingPDF,
     handleCompile,
     handleExportPDF,
+    debouncedAutoCompile,
     setCompilationError,
   } = useEditorCompilation({
     content,
     editorRef,
+    fileName: file?.name,
+    projectId,
+    currentFileId: fileId,
   });
 
   const {
@@ -87,6 +78,8 @@ export default function ProjectPage() {
     monacoInstance: monacoRef.current,
   });
 
+  const { handleTextFormat } = useTextFormatting({ editorRef });
+
   const {
     showButton,
     buttonPos,
@@ -95,58 +88,45 @@ export default function ProjectPage() {
     selectionRange,
     chatOpen,
     setChatOpen,
+    chatMinimized,
+    setChatMinimized,
     setTextFromEditor,
     handleCopy,
     setupEditorListeners,
   } = useEditorInteractions();
 
-  const { open: sidebarOpen } = useSidebar();
-  const [autoSendMessage, setAutoSendMessage] = useState<string | null>(null);
-  const [hasCompiledOnMount, setHasCompiledOnMount] = useState(false);
+  useEffect(() => {
+    loader.init().then((monaco) => {
+      monaco.languages.register({ id: 'latex' });
+      monaco.languages.setLanguageConfiguration(
+        'latex',
+        latexLanguageConfiguration
+      );
+      monaco.languages.setMonarchTokensProvider('latex', latexTokenProvider);
+      registerLatexCompletions(monaco);
+    });
+  }, []);
 
-  const projectFileContext = useMemo(
-    () =>
-      projectFiles
-        ? projectFiles.map((projectFile) => ({
-            path: projectFile.file.name,
-            content: projectFile.document?.content ?? '',
-          }))
-        : [],
-    [projectFiles]
+  useEffect(() => {
+    if (documentData?.content !== undefined) {
+      setContent(documentData.content);
+    }
+  }, [documentData?.content, setContent]);
+
+  useEffect(() => {
+    if (content && !compiling && !pdfData) {
+      void handleCompile();
+    }
+  }, [content, compiling, pdfData, handleCompile]);
+
+  const handleEditorChange = useCallback(
+    (value: string) => {
+      setContent(value);
+      debouncedSave(value);
+      debouncedAutoCompile(value);
+    },
+    [setContent, debouncedSave, debouncedAutoCompile]
   );
-
-  useEffect(() => {
-    if (filesData) {
-      FileActions.init(filesData);
-    }
-  }, [filesData]);
-
-  useEffect(() => {
-    if (projectData) {
-      ProjectActions.init(projectData);
-    }
-  }, [projectData]);
-
-  useEffect(() => {
-    if (content && !hasCompiledOnMount) {
-      setHasCompiledOnMount(true);
-      handleCompile();
-    }
-  }, [content, hasCompiledOnMount]);
-
-  const handleEditorChange = (value: string) => {
-    setContent(value);
-    debouncedSave(value);
-  };
-
-  const handleEditorMount = (
-    editor: Monaco.editor.IStandaloneCodeEditor,
-    monaco: typeof Monaco
-  ) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
-    setupEditorListeners(editor);
-  };
 
   const handleSuggestionFromChat = useCallback(
     (suggestions: EditSuggestion | EditSuggestion[]) => {
@@ -159,6 +139,8 @@ export default function ProjectPage() {
     editor: editorRef.current,
     monacoInstance: monacoRef.current,
     onSave: async (currentContent: string) => {
+      // Update content state first
+      setContent(currentContent);
       const compiled = await handleCompile();
       if (compiled) {
         await handleSaveDocument(currentContent);
@@ -168,27 +150,46 @@ export default function ProjectPage() {
       if (selectedText.trim()) {
         setTextFromEditor(selectedText);
         setChatOpen(true);
+        setChatMinimized(false);
       }
     },
     onTextFormat: handleTextFormat,
   });
 
-  if (isProjectLoading || isFilesLoading) return <LoadingState />;
-  if (projectError || filesError)
-    return <ErrorState error="Error fetching project" />;
-  if (!filesData) return <ErrorState error="No files found" />;
+  const handleEditorMount = useCallback(
+    (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
+
+      setupEditorListeners(editor);
+
+      editor.onDidChangeModelContent(() => {
+        const currentContent = editor.getValue();
+        debouncedAutoCompile(currentContent);
+      });
+    },
+    [setupEditorListeners, debouncedAutoCompile]
+  );
+
+  if (isLoading) return <LoadingState />;
+  if (error) return <ErrorState error={error} />;
+  if (!project || !documentData || !file)
+    return <ErrorState error="Project or file not found" />;
 
   return (
     <div className="flex h-[calc(100vh-45px)] flex-col bg-slate-100">
       <EditorToolbar
         onTextFormat={handleTextFormat}
-        onCompile={handleCompile}
+        onCompile={() => {
+          void handleCompile();
+        }}
         onExportPDF={handleExportPDF}
         onOpenChat={() => {
           if (selectedText.trim()) {
             setTextFromEditor(selectedText);
           }
           setChatOpen(true);
+          setChatMinimized(false);
         }}
         compiling={compiling}
         exportingPDF={exportingPDF}
@@ -216,32 +217,8 @@ export default function ProjectPage() {
           />
         </div>
 
-        <div
-          className={cn(
-            sidebarOpen ? 'w-[60%]' : 'flex-1',
-            'overflow-hidden border-l border-slate-200'
-          )}
-        >
-          {compilationError ? (
-            <div className="flex h-full items-start justify-center overflow-auto p-4">
-              <CompilationError
-                error={compilationError}
-                onRetry={handleCompile}
-                onDismiss={() => setCompilationError(null)}
-                onFixWithAI={() => {
-                  const errorContext =
-                    formatCompilationErrorForAI(compilationError);
-                  setTextFromEditor(errorContext);
-                  setChatOpen(true);
-                  setAutoSendMessage('Fix this error');
-                  setCompilationError(null);
-                }}
-                className="w-full max-w-4xl"
-              />
-            </div>
-          ) : (
-            <PDFViewer pdfData={pdfData} isLoading={compiling} />
-          )}
+        <div className="w-1/2 overflow-hidden border-l border-slate-200">
+          <PDFViewer pdfData={pdfData} isLoading={compiling} />
         </div>
       </div>
 
@@ -255,11 +232,37 @@ export default function ProjectPage() {
         textFromEditor={textFromEditor}
         setTextFromEditor={setTextFromEditor}
         selectionRange={selectionRange}
-        projectFiles={projectFileContext}
-        currentFilePath={selectedFile?.name ?? null}
-        autoSendMessage={autoSendMessage}
-        setAutoSendMessage={setAutoSendMessage}
       />
+
+      {compilationError && (
+        <CompilationError
+          error={compilationError}
+          onRetry={() => {
+            void handleCompile();
+          }}
+          onDismiss={() => setCompilationError(null)}
+          onFixWithAI={() => {
+            // Format error details for AI
+            const errorContext = [
+              `LaTeX Compilation Error:`,
+              `${compilationError.message}`,
+              compilationError.details &&
+                `\nDetails: ${compilationError.details}`,
+              compilationError.summary &&
+                `\nError Summary:\n${compilationError.summary}`,
+              compilationError.log &&
+                `\nLog (last lines):\n${compilationError.log.split('\n').slice(-20).join('\n')}`,
+            ]
+              .filter(Boolean)
+              .join('\n');
+
+            setTextFromEditor(errorContext);
+            setChatOpen(true);
+            setChatMinimized(false);
+            setCompilationError(null);
+          }}
+        />
+      )}
     </div>
   );
 }

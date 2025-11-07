@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { createClient } from '@/lib/supabase/client';
 import { useProject } from '@/stores/project';
-import { useSelectedFile, useFileContent } from '@/stores/file';
+import { useSelectedFile, useFileContent, useProjectFiles } from '@/stores/file';
 import type { CompilationError } from '@/types/compilation';
 
 export interface CompilationState {
@@ -40,6 +40,7 @@ export function useEditorCompilation({
 }: UseEditorCompilationProps): CompilationState {
   const project = useProject();
   const selectedFile = useSelectedFile();
+  const projectFilesState = useProjectFiles();
   const projectId = project?.id;
   const fileName = selectedFile?.name;
   const [compiling, setCompiling] = useState(false);
@@ -50,7 +51,8 @@ export function useEditorCompilation({
 
   const normalizePath = useCallback((name: string) => {
     if (!name) return 'document.tex';
-    return name.endsWith('.tex') ? name : `${name}.tex`;
+    if (name.includes('.')) return name;
+    return `${name}.tex`;
   }, []);
 
   // Helper function to fetch all project files and their contents
@@ -89,6 +91,12 @@ export function useEditorCompilation({
             return null;
           }
 
+          console.log('[compile] fetched document from Supabase', {
+            projectId: project.id,
+            path: file.name,
+            contentLength: (docData as any).content?.length ?? 0,
+          });
+
           return {
             path: file.name,
             content: (docData as any).content as string,
@@ -101,12 +109,80 @@ export function useEditorCompilation({
         (f): f is { path: string; content: string } => f !== null
       );
 
+      console.log('[compile] Supabase project files resolved', {
+        projectId: project.id,
+        total: filesData.length,
+        withContent: validFiles.length,
+      });
+
       return validFiles;
     } catch (error) {
       console.error('Error fetching project files:', error);
       return null;
     }
   }, [project?.id]);
+
+  const buildFilesPayload = useCallback(
+    async (
+      activePath: string,
+      activeContent: string
+    ): Promise<Array<{ path: string; content: string }>> => {
+      // Use the in-memory files first to get up-to-date project content
+      if (projectFilesState && projectFilesState.length > 0) {
+        console.log('[compile] building payload from store', {
+          count: projectFilesState.length,
+          activePath,
+        });
+
+        const payload = projectFilesState.map((projectFile) => {
+          const path = projectFile.file.name;
+          if (projectFile.document && typeof projectFile.document.content === 'string') {
+            const content =
+              path === activePath
+                ? activeContent
+                : projectFile.document.content;
+            return { path, content };
+          }
+          return null;
+        });
+
+        const validPayload = payload.filter(
+          (entry): entry is { path: string; content: string } => entry !== null
+        );
+        if (validPayload.length > 0) {
+          console.log('[compile] payload from store (filtered)', {
+            activePath,
+            files: validPayload.map((file) => ({
+              path: file.path,
+              contentLength: file.content.length,
+              isActive: file.path === activePath,
+            })),
+          });
+          return validPayload;
+        }
+      }
+
+      // Fall back to fetching from Supabase if the store is empty or missing content
+      const fetched = await fetchProjectFiles();
+      if (fetched && fetched.length > 0) {
+        console.log('[compile] payload from Supabase fetch', {
+          count: fetched.length,
+          activePath,
+        });
+        return fetched.map((file) =>
+          file.path === activePath ? { ...file, content: activeContent } : file
+        );
+      }
+
+      // Final fallback: single-file payload with the active document
+      console.warn('[compile] falling back to single-file payload', {
+        activePath,
+        activeContentLength: activeContent.length,
+      });
+      return [{ path: activePath, content: activeContent }];
+    },
+    [fetchProjectFiles, projectFilesState]
+  );
 
   const handleCompile = useCallback(async (): Promise<boolean> => {
     if (compiling) return false;
@@ -119,25 +195,20 @@ export function useEditorCompilation({
       const currentContent = editorRef.current?.getValue() || content;
       const normalizedFileName = normalizePath(fileName || 'document');
 
-      let filesPayload: Array<{ path: string; content: string }>;
+      const filesPayload = projectId
+        ? await buildFilesPayload(normalizedFileName, currentContent)
+        : [{ path: normalizedFileName, content: currentContent }];
 
-      if (projectId) {
-        const projectFiles = await fetchProjectFiles();
-
-        if (projectFiles && projectFiles.length > 0) {
-          filesPayload = projectFiles.map((f) =>
-            f.path === normalizedFileName
-              ? { ...f, content: currentContent }
-              : f
-          );
-        } else {
-          filesPayload = [
-            { path: normalizedFileName, content: currentContent },
-          ];
-        }
-      } else {
-        filesPayload = [{ path: normalizedFileName, content: currentContent }];
-      }
+      console.log('[compile] sending compile request', {
+        projectId,
+        lastModifiedFile: normalizedFileName,
+        files: filesPayload.map((file) => ({
+          path: file.path,
+          contentLength: file.content.length,
+          hasDocumentClass: file.content.includes('\n\\documentclass'),
+          hasBibliographyCommand: file.content.includes('\n\\bibliography'),
+        })),
+      });
 
       const requestBody = {
         files: filesPayload,
@@ -208,7 +279,7 @@ export function useEditorCompilation({
     editorRef,
     projectId,
     fileName,
-    fetchProjectFiles,
+    buildFilesPayload,
     normalizePath,
   ]);
 
@@ -219,25 +290,18 @@ export function useEditorCompilation({
       const currentContent = editorRef.current?.getValue() || content;
       const normalizedFileName = normalizePath(fileName || 'document');
 
-      let filesPayload: Array<{ path: string; content: string }>;
+      const filesPayload = projectId
+        ? await buildFilesPayload(normalizedFileName, currentContent)
+        : [{ path: normalizedFileName, content: currentContent }];
 
-      if (projectId) {
-        const projectFiles = await fetchProjectFiles();
-
-        if (projectFiles && projectFiles.length > 0) {
-          filesPayload = projectFiles.map((f) =>
-            f.path === normalizedFileName
-              ? { ...f, content: currentContent }
-              : f
-          );
-        } else {
-          filesPayload = [
-            { path: normalizedFileName, content: currentContent },
-          ];
-        }
-      } else {
-        filesPayload = [{ path: normalizedFileName, content: currentContent }];
-      }
+      console.log('[compile] sending export request', {
+        projectId,
+        lastModifiedFile: normalizedFileName,
+        files: filesPayload.map((file) => ({
+          path: file.path,
+          contentLength: file.content.length,
+        })),
+      });
 
       const requestBody = {
         files: filesPayload,
@@ -296,7 +360,7 @@ export function useEditorCompilation({
     editorRef,
     fileName,
     projectId,
-    fetchProjectFiles,
+    buildFilesPayload,
     normalizePath,
   ]);
 

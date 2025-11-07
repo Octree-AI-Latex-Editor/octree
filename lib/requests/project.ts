@@ -45,8 +45,29 @@ export const createDocumentForFile = async (
   }
 
   const shouldUseDefaultContent = options?.useDefaultContent ?? true;
-  const documentContent =
-    content ?? (shouldUseDefaultContent ? DEFAULT_LATEX_CONTENT(fileName) : '');
+
+  const documentContent = (() => {
+    console.log('[projects] createDocumentForFile', {
+      projectId,
+      fileName,
+      hasProvidedContent: typeof content === 'string',
+      useDefaultContent: shouldUseDefaultContent,
+    });
+
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    if (!shouldUseDefaultContent) {
+      return '';
+    }
+
+    if (fileName.endsWith('.bib')) {
+      return '';
+    }
+
+    return DEFAULT_LATEX_CONTENT(fileName);
+  })();
 
   const insertDoc: TablesInsert<'documents'> = {
     title: fileName,
@@ -64,6 +85,12 @@ export const createDocumentForFile = async (
   if (createError) {
     throw new Error('Failed to create document');
   }
+
+  console.log('[projects] createDocumentForFile: inserted document', {
+    projectId,
+    fileName,
+    contentLength: documentContent.length,
+  });
 
   return newDocument;
 };
@@ -147,3 +174,4 @@ Your content here.
 
 \\end{document}`;
 };
+

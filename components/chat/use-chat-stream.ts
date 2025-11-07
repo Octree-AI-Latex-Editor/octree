@@ -14,6 +14,16 @@ interface SelectionRange {
   endColumn: number;
 }
 
+interface ProjectFileContextPayload {
+  path: string;
+  content: string;
+}
+
+interface ProjectContextPayload {
+  currentFilePath: string | null;
+  projectFiles: ProjectFileContextPayload[];
+}
+
 interface StreamCallbacks {
   onTextUpdate: (text: string) => void;
   onEdits: (edits: LineEdit[]) => void;
@@ -38,6 +48,7 @@ export function useChatStream() {
       fileContent: string,
       textFromEditor: string | null,
       selectionRange: SelectionRange | null | undefined,
+      projectContext: ProjectContextPayload,
       callbacks: StreamCallbacks
     ) => {
       // Cancel existing stream
@@ -66,6 +77,8 @@ export function useChatStream() {
           fileContent,
           textFromEditor,
           selectionRange,
+          projectFiles: projectContext.projectFiles,
+          currentFilePath: projectContext.currentFilePath,
         }),
         signal: controller.signal,
       });
