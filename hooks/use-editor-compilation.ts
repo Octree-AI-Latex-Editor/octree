@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { createClient } from '@/lib/supabase/client';
-import { useProject } from '@/stores/project';
+import { useProject, useProjectStore } from '@/stores/project';
 import { useSelectedFile, useFileContent, useProjectFiles } from '@/stores/file';
 import type { CompilationError } from '@/types/compilation';
 
@@ -48,6 +48,8 @@ export function useEditorCompilation({
   const [compilationError, setCompilationError] =
     useState<CompilationError | null>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const compileControllerRef = useRef<AbortController | null>(null);
+  const requestProjectRef = useRef<string | null>(null);
 
   const normalizePath = useCallback((name: string) => {
     if (!name) return 'document.tex';
@@ -216,6 +218,14 @@ export function useEditorCompilation({
   const handleCompile = useCallback(async (): Promise<boolean> => {
     if (compiling) return false;
 
+    if (compileControllerRef.current) {
+      compileControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    compileControllerRef.current = controller;
+    const requestedProjectId = projectId ?? null;
+    requestProjectRef.current = requestedProjectId;
+
     setCompiling(true);
     setCompilationError(null);
 
@@ -249,6 +259,7 @@ export function useEditorCompilation({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
 
       const raw = await response.text();
@@ -274,32 +285,67 @@ export function useEditorCompilation({
           durationMs: data?.durationMs,
           summary: summarizeLog(data?.log || data?.stderr || data?.stdout),
         };
-        setCompilationError(structuredError);
+        const latestProjectId = useProjectStore.getState().project?.id ?? null;
+        if (requestedProjectId === latestProjectId) {
+          setCompilationError(structuredError);
+        } else {
+          console.info('[compile] Ignoring error from previous project', {
+            requestedProjectId,
+            currentProjectId: latestProjectId,
+            error: structuredError.message,
+          });
+        }
         handled = true;
         throw new Error(errorMessage);
       }
 
       if (data.pdf) {
-        setPdfData(data.pdf);
-        setCompilationError(null);
-        return true;
+        const latestProjectId = useProjectStore.getState().project?.id ?? null;
+        if (requestedProjectId === latestProjectId) {
+          setPdfData(data.pdf);
+          setCompilationError(null);
+          return true;
+        }
+
+        console.info('[compile] Ignoring PDF response for previous project', {
+          requestedProjectId,
+          currentProjectId: latestProjectId,
+        });
+        return false;
       }
 
       throw new Error('No PDF data received');
     } catch (error) {
       console.error('Compilation error:', error);
 
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return false;
+      }
+
       if (!handled) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown compilation error';
-        setCompilationError({
-          message: errorMessage,
-          details: error instanceof Error ? error.stack : undefined,
-        });
+        const latestProjectId = useProjectStore.getState().project?.id ?? null;
+        if (requestedProjectId === latestProjectId) {
+          setCompilationError({
+            message: errorMessage,
+            details: error instanceof Error ? error.stack : undefined,
+          });
+        } else {
+          console.info('[compile] Ignoring error from previous project', {
+            requestedProjectId,
+            currentProjectId: latestProjectId,
+            error: errorMessage,
+          });
+        }
       }
 
       return false;
     } finally {
+      if (compileControllerRef.current === controller) {
+        compileControllerRef.current = null;
+      }
+      requestProjectRef.current = null;
       setCompiling(false);
     }
   }, [
