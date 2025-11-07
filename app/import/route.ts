@@ -87,7 +87,5 @@ export async function GET(request: NextRequest) {
   // Delete draft (best effort)
   await (supabase.from('drafts' as any).delete().eq('id', draftId) as any);
 
-  return NextResponse.redirect(
-    new URL(`/projects/${project.id}/files/${file.id}/editor`, url.origin)
-  );
+  return NextResponse.redirect(new URL(`/projects/${project.id}`, url.origin));
 } 

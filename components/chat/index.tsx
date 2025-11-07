@@ -26,8 +26,8 @@ interface ChatProps {
     endLineNumber: number;
     endColumn: number;
   } | null;
-  projectFiles: Array<{ path: string; content: string }>;
-  currentFilePath: string | null;
+  projectFiles?: Array<{ path: string; content: string }>;
+  currentFilePath?: string | null;
   isOpen: boolean;
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   autoSendMessage?: string | null;
@@ -50,8 +50,8 @@ export function Chat({
   textFromEditor,
   setTextFromEditor,
   selectionRange,
-  projectFiles,
-  currentFilePath,
+  projectFiles = [],
+  currentFilePath = null,
   autoSendMessage,
   setAutoSendMessage,
 }: ChatProps) {
