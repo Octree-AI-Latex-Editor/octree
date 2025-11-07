@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { useEditorState } from '@/hooks/use-editor-state';
 import { useDocumentSave } from '@/hooks/use-document-save';
@@ -21,7 +21,7 @@ import { Chat } from '@/components/chat';
 import { CompilationError } from '@/components/latex/compilation-error';
 import { useSidebar } from '@/components/ui/sidebar';
 import { cn, formatCompilationErrorForAI } from '@/lib/utils';
-import { FileActions } from '@/stores/file';
+import { FileActions, useProjectFiles, useSelectedFile } from '@/stores/file';
 import { getProject, getProjectFiles } from '@/lib/requests/project';
 import type { ProjectFile } from '@/hooks/use-file-editor';
 import { useParams } from 'next/navigation';
@@ -37,6 +37,9 @@ export default function ProjectPage() {
   const monacoRef = useRef<typeof Monaco | null>(null);
 
   const { content, setContent } = useEditorState();
+
+  const projectFiles = useProjectFiles();
+  const selectedFile = useSelectedFile();
 
   const {
     data: projectData,
@@ -100,6 +103,17 @@ export default function ProjectPage() {
   const { open: sidebarOpen } = useSidebar();
   const [autoSendMessage, setAutoSendMessage] = useState<string | null>(null);
   const [hasCompiledOnMount, setHasCompiledOnMount] = useState(false);
+
+  const projectFileContext = useMemo(
+    () =>
+      projectFiles
+        ? projectFiles.map((projectFile) => ({
+            path: projectFile.file.name,
+            content: projectFile.document?.content ?? '',
+          }))
+        : [],
+    [projectFiles]
+  );
 
   useEffect(() => {
     if (filesData) {
@@ -241,6 +255,8 @@ export default function ProjectPage() {
         textFromEditor={textFromEditor}
         setTextFromEditor={setTextFromEditor}
         selectionRange={selectionRange}
+        projectFiles={projectFileContext}
+        currentFilePath={selectedFile?.name ?? null}
         autoSendMessage={autoSendMessage}
         setAutoSendMessage={setAutoSendMessage}
       />

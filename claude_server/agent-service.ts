@@ -1,4 +1,6 @@
+// @ts-expect-error - express types are provided at runtime on the server deployment
 import express from 'express';
+// @ts-expect-error - cors types are provided at runtime on the server deployment
 import cors from 'cors';
 import { query, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import {
@@ -6,17 +8,25 @@ import {
   inferIntent, createOctraTools, createMCPServerConfig,
   processStreamMessages,
 } from './lib/octra-agent';
+import type { ProjectFileContext } from './lib/octra-agent';
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
-app.post('/agent', async (req, res) => {
+app.post('/agent', async (req: any, res: any) => {
   try {
     const keyValidation = validateApiKeys();
     if (!keyValidation.isValid) return res.status(503).json({ error: keyValidation.error });
 
-    const { messages, fileContent, textFromEditor, selectionRange } = req.body || {};
+    const {
+      messages,
+      fileContent,
+      textFromEditor,
+      selectionRange,
+      projectFiles: projectFilesPayload,
+      currentFilePath,
+    } = req.body || {};
     if (!messages?.length || typeof fileContent !== 'string') return res.status(400).json({ error: 'Invalid request' });
 
     // Non-blocking operations to avoid blocking the event loop
@@ -24,6 +34,23 @@ app.post('/agent', async (req, res) => {
     const userText = typeof messages[messages.length - 1]?.content === 'string' ? messages[messages.length - 1].content : '';
     const intent = await inferIntent(userText);
     const collectedEdits: unknown[] = [];
+
+    const projectFiles: ProjectFileContext[] = Array.isArray(projectFilesPayload)
+      ? projectFilesPayload
+          .filter(
+            (file: unknown): file is { path: string; content: string } =>
+              !!file &&
+              typeof (file as { path?: unknown }).path === 'string' &&
+              typeof (file as { content?: unknown }).content === 'string'
+          )
+          .map((file) => ({
+            path: file.path,
+            content: file.content,
+          }))
+      : [];
+
+    const normalizedCurrentFilePath =
+      typeof currentFilePath === 'string' ? currentFilePath : null;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -35,9 +62,25 @@ app.post('/agent', async (req, res) => {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    const tools = createOctraTools({ fileContent, numberedContent: numbered, textFromEditor, selectionRange, collectedEdits, intent, writeEvent } as any);
+    const tools = createOctraTools({
+      fileContent,
+      numberedContent: numbered,
+      textFromEditor,
+      selectionRange,
+      collectedEdits: collectedEdits as any,
+      intent,
+      writeEvent,
+      projectFiles,
+      currentFilePath: normalizedCurrentFilePath,
+    } as any);
     const sdkServer = createSdkMcpServer(createMCPServerConfig(tools) as any);
-    const fullPrompt = `${buildSystemPrompt(numbered, textFromEditor, selectionRange)}\n\nUser request:\n${userText}`;
+    const fullPrompt = `${buildSystemPrompt(
+      numbered,
+      textFromEditor,
+      selectionRange,
+      projectFiles,
+      normalizedCurrentFilePath
+    )}\n\nUser request:\n${userText}`;
 
     const gen = query({
       prompt: fullPrompt,

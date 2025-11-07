@@ -24,10 +24,15 @@ export const getProject = async (projectId: string) => {
   return data;
 };
 
+type CreateDocumentOptions = {
+  useDefaultContent?: boolean;
+};
+
 export const createDocumentForFile = async (
   projectId: string,
   fileName: string,
-  content?: string
+  content?: string,
+  options?: CreateDocumentOptions
 ): Promise<Tables<'documents'>> => {
   const supabase = createClient();
 
@@ -39,7 +44,30 @@ export const createDocumentForFile = async (
     throw new Error('User not authenticated');
   }
 
-  const documentContent = content || DEFAULT_LATEX_CONTENT(fileName);
+  const shouldUseDefaultContent = options?.useDefaultContent ?? true;
+
+  const documentContent = (() => {
+    console.log('[projects] createDocumentForFile', {
+      projectId,
+      fileName,
+      hasProvidedContent: typeof content === 'string',
+      useDefaultContent: shouldUseDefaultContent,
+    });
+
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    if (!shouldUseDefaultContent) {
+      return '';
+    }
+
+    if (fileName.endsWith('.bib')) {
+      return '';
+    }
+
+    return DEFAULT_LATEX_CONTENT(fileName);
+  })();
 
   const insertDoc: TablesInsert<'documents'> = {
     title: fileName,
@@ -57,6 +85,12 @@ export const createDocumentForFile = async (
   if (createError) {
     throw new Error('Failed to create document');
   }
+
+  console.log('[projects] createDocumentForFile: inserted document', {
+    projectId,
+    fileName,
+    contentLength: documentContent.length,
+  });
 
   return newDocument;
 };
@@ -140,3 +174,4 @@ Your content here.
 
 \\end{document}`;
 };
+

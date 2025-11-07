@@ -7,6 +7,7 @@ import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { LineEdit, validateLineEdits } from './line-edits';
 import { IntentResult } from './intent-inference';
+import { ProjectFileContext } from './content-processing';
 
 export interface ToolContext {
   fileContent: string;
@@ -16,6 +17,8 @@ export interface ToolContext {
   collectedEdits: LineEdit[];
   intent: IntentResult;
   writeEvent: (event: string, data: unknown) => void;
+  projectFiles?: ProjectFileContext[];
+  currentFilePath?: string | null;
 }
 
 /**
@@ -43,6 +46,17 @@ export function createGetContextTool(context: ToolContext) {
       }
       if (context.selectionRange) {
         payload.selectionRange = context.selectionRange;
+      }
+      if (context.projectFiles?.length) {
+        payload.projectFiles = context.projectFiles.map((file) => ({
+          path: file.path,
+          content: file.content,
+          lineCount: file.content.split('\n').length,
+          isCurrent: context.currentFilePath ? context.currentFilePath === file.path : false,
+        }));
+      }
+      if (context.currentFilePath) {
+        payload.currentFilePath = context.currentFilePath;
       }
       context.writeEvent('tool', { name: 'get_context' });
       return {

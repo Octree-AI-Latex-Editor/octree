@@ -3,6 +3,11 @@
  * Handles file content formatting, numbering, and text processing
  */
 
+export interface ProjectFileContext {
+  path: string;
+  content: string;
+}
+
 /**
  * Build numbered content with line numbers for better editing precision
  * Non-blocking version using setImmediate for large documents
@@ -79,8 +84,29 @@ export function validateApiKeys(): { isValid: boolean; error?: string } {
 export function buildSystemPrompt(
   numberedContent: string,
   textFromEditor?: string | null,
-  selectionRange?: { startLineNumber: number; endLineNumber: number } | null
+  selectionRange?: { startLineNumber: number; endLineNumber: number } | null,
+  projectFiles?: ProjectFileContext[] | null,
+  currentFilePath?: string | null
 ): string {
+  const validProjectFiles =
+    projectFiles?.filter(
+      (file): file is ProjectFileContext =>
+        !!file && typeof file.path === 'string' && typeof file.content === 'string'
+    ) ?? [];
+
+  const projectSection = validProjectFiles.length
+    ? `
+
+Project files (full content provided for context):
+${validProjectFiles
+  .map((file) => {
+    const header = file.path === currentFilePath ? `${file.path} (currently open)` : file.path;
+    return `--- ${header} ---
+${file.content}`;
+  })
+  .join('\n\n')}`
+    : '';
+
   return `You are Octra, a LaTeX editing assistant. You edit LaTeX documents by calling the 'propose_edits' tool.
 
 ABSOLUTE RULE: For ANY editing request, you MUST:
@@ -120,5 +146,5 @@ Selected text:
 ${textFromEditor}
 ---` : ''}${selectionRange ? `
 
-Selection: lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}` : ''}`;
+Selection: lines ${selectionRange.startLineNumber}-${selectionRange.endLineNumber}` : ''}${projectSection}`;
 }

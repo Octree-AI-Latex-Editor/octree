@@ -1,23 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { hasUnlimitedEdits } from '@/lib/paywall';
 import type { TablesInsert } from '@/database.types';
 
 // Import helper modules
-import { 
-  validateApiKeys, 
-  buildNumberedContent, 
-  buildSystemPrompt,
-  inferIntent,
-  LineEdit,
-  createOctraTools,
-  createSSEStream, 
-  processStreamMessages, 
-  createSSEHeaders,
-  getExternalServerConfig, 
-  createMCPServerConfig
-} from '@/lib/octra-agent';
+import { createSSEHeaders } from '@/lib/octra-agent/stream-handling';
 import { FREE_DAILY_EDIT_LIMIT, PRO_MONTHLY_EDIT_LIMIT } from '@/data/constants';
 
 export const runtime = 'nodejs';
@@ -185,219 +172,119 @@ export async function POST(request: Request) {
     }
 
     const remoteUrl = process.env.CLAUDE_AGENT_SERVICE_URL;
-    if (remoteUrl) {
-      const body = await request.json();
-      console.log('[Octra Proxy] Forwarding authenticated request to remote Claude Code server:', remoteUrl);
-      
-      const res = await fetch(remoteUrl, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'accept': 'text/event-stream',
+    if (!remoteUrl) {
+      console.error('[Octra Proxy] CLAUDE_AGENT_SERVICE_URL is not configured');
+      return NextResponse.json(
+        {
+          error: 'Agent service unavailable',
+          details: 'CLAUDE_AGENT_SERVICE_URL is not configured on the server',
         },
-        body: JSON.stringify(body),
-      });
-      
-      if (!res.ok || !res.body) {
-        console.error('[Octra Proxy] Remote server failed:', res.status, res.statusText);
-        return NextResponse.json(
-          { error: 'Remote agent service failed', status: res.status },
-          { status: 502 }
-        );
-      }
-      
-      console.log('[Octra Proxy] Streaming response from remote server...');
-      
-      // Create a transform stream to log events as they pass through
-      const { readable, writable } = new TransformStream();
-      const reader = res.body.getReader();
-      const writer = writable.getWriter();
-      const decoder = new TextDecoder();
-      
-      // Stream and log events
-      (async () => {
-        try {
-          let buffer = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            // Pass through immediately
-            await writer.write(value);
-            
-            // Log events for debugging
-            const chunk = decoder.decode(value, { stream: true });
-            buffer += chunk;
-            
-            // Parse complete events (separated by \n\n)
-            let sepIndex;
-            while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
-              const event = buffer.slice(0, sepIndex);
-              buffer = buffer.slice(sepIndex + 2);
-              
-              // Log the event type
-              const eventMatch = event.match(/event:\s*(\S+)/);
-              const dataMatch = event.match(/data:\s*([\s\S]+)/);
-              if (eventMatch) {
-                const eventType = eventMatch[1];
-                console.log(`[Octra Proxy] Event received: ${eventType}`);
-                
-                // Log tool events in detail
-                if (eventType === 'tool' && dataMatch) {
-                  try {
-                    const data = JSON.parse(dataMatch[1]);
-                    console.log(`[Octra Proxy] Tool called: ${data.name}, count: ${data.count || 0}`);
-                  } catch {}
-                }
+        { status: 503 }
+      );
+    }
+
+    const body = await request.json();
+    console.log(
+      '[Octra Proxy] Forwarding authenticated request to remote Claude Code server:',
+      remoteUrl
+    );
+
+    const res = await fetch(remoteUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'text/event-stream',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok || !res.body) {
+      console.error('[Octra Proxy] Remote server failed:', res.status, res.statusText);
+      return NextResponse.json(
+        { error: 'Remote agent service failed', status: res.status },
+        { status: 502 }
+      );
+    }
+
+    console.log('[Octra Proxy] Streaming response from remote server...');
+
+    // Create a transform stream to log events as they pass through
+    const { readable, writable } = new TransformStream();
+    const reader = res.body.getReader();
+    const writer = writable.getWriter();
+    const decoder = new TextDecoder();
+
+    // Stream and log events
+    (async () => {
+      try {
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          // Pass through immediately
+          await writer.write(value);
+
+          // Log events for debugging
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+
+          // Parse complete events (separated by \n\n)
+          let sepIndex;
+          while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+            const event = buffer.slice(0, sepIndex);
+            buffer = buffer.slice(sepIndex + 2);
+
+            // Log the event type
+            const eventMatch = event.match(/event:\s*(\S+)/);
+            const dataMatch = event.match(/data:\s*([\s\S]+)/);
+            if (eventMatch) {
+              const eventType = eventMatch[1];
+              console.log(`[Octra Proxy] Event received: ${eventType}`);
+
+              // Log tool events in detail
+              if (eventType === 'tool' && dataMatch) {
+                try {
+                  const data = JSON.parse(dataMatch[1]);
+                  console.log(
+                    `[Octra Proxy] Tool called: ${data.name}, count: ${data.count || 0}`
+                  );
+                } catch {}
               }
             }
           }
-          // Close writer if not already closed
-          try {
-            await writer.close();
-          } catch (e) {
-            // Writer already closed, ignore
-          }
-        } catch (err) {
-          // Ignore abort errors (expected when client stops)
-          const error = err as Error;
-          if (error?.name === 'AbortError' || error?.constructor?.name === 'ResponseAborted') {
-            console.log('[Octra Proxy] Stream aborted by client');
-          } else {
-            console.error('[Octra Proxy] Stream error:', err);
-          }
-          // Try to abort writer if not already closed
-          try {
-            await writer.abort();
-          } catch {
-            // Already closed, ignore
-          }
-        } finally {
-          // Clean up reader
-          try {
-            await reader.cancel();
-          } catch {
-            // Already cancelled, ignore
-          }
         }
-      })();
-      
-      return new Response(readable, { headers: createSSEHeaders() });
-    }
-
-    // ====================================================================
-    // In-process mode: Validate API keys and parse request body
-    // ====================================================================
-    const keyValidation = validateApiKeys();
-    if (!keyValidation.isValid) {
-      return NextResponse.json(
-        { error: keyValidation.error },
-        { status: 503 }
-      );
-    }
-
-    // Parse request body
-    const body = await request.json();
-    const { messages, fileContent, textFromEditor, selectionRange } = body || {};
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid request: messages array is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!fileContent || typeof fileContent !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid request: fileContent is required' },
-        { status: 400 }
-      );
-    }
-
-    // Process content and infer intent (non-blocking)
-    const numberedContent = await buildNumberedContent(fileContent, textFromEditor);
-    const lastUser = messages[messages.length - 1];
-    const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
-    const intent = await inferIntent(userText);
-
-    // Collect AST-based edits
-    const collectedEdits: LineEdit[] = [];
-
-    // Create SSE stream
-    const { stream, writeEvent, cleanup } = createSSEStream();
-
-    // Create tool context
-    const toolContext = {
-      fileContent,
-      numberedContent,
-      textFromEditor,
-      selectionRange,
-      collectedEdits,
-      intent,
-      writeEvent,
-    };
-
-    // Create tools and MCP server
-    const tools = createOctraTools(toolContext);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sdkServer = createSdkMcpServer(createMCPServerConfig(tools) as any);
-
-    // Build system prompt
-    const systemPrompt = buildSystemPrompt(numberedContent, textFromEditor, selectionRange);
-    const fullPrompt = `${systemPrompt}\n\nUser request:\n${userText}`;
-
-    // Get configuration
-    const { queryOptions } = getExternalServerConfig();
-    console.log('Using in-process MCP server only');
-
-    // Configure query options
-    const finalQueryOptions = {
-      ...queryOptions,
-      mcpServers: {
-        'octra-tools': sdkServer,
-      },
-    };
-
-    // Initialize AI agent
-    let gen;
-    try {
-      gen = query({
-        prompt: fullPrompt,
-        options: {
-          ...finalQueryOptions,
-          model: 'claude-haiku-4-5-20251001',
-        },
-      });
-    } catch (error) {
-      console.error('Failed to initialize Claude Agent SDK:', error);
-      return NextResponse.json(
-        { 
-          error: 'Failed to initialize AI agent', 
-          details: error instanceof Error ? error.message : 'Unknown initialization error',
-          suggestion: 'The Claude Code server may not be available. Please check the external server status.'
-        },
-        { status: 503 }
-      );
-    }
-
-    // Start processing
-    writeEvent('status', { state: 'started' });
-
-    // Process stream messages
-    (async () => {
-      try {
-        const finalText = await processStreamMessages(gen, writeEvent, collectedEdits);
-        writeEvent('done', { text: finalText, edits: collectedEdits });
+        // Close writer if not already closed
+        try {
+          await writer.close();
+        } catch (e) {
+          // Writer already closed, ignore
+        }
       } catch (err) {
-        writeEvent('error', { message: (err as Error)?.message || 'Stream error' });
+        // Ignore abort errors (expected when client stops)
+        const error = err as Error;
+        if (error?.name === 'AbortError' || error?.constructor?.name === 'ResponseAborted') {
+          console.log('[Octra Proxy] Stream aborted by client');
+        } else {
+          console.error('[Octra Proxy] Stream error:', err);
+        }
+        // Try to abort writer if not already closed
+        try {
+          await writer.abort();
+        } catch {
+          // Already closed, ignore
+        }
       } finally {
-        cleanup();
+        // Clean up reader
+        try {
+          await reader.cancel();
+        } catch {
+          // Already cancelled, ignore
+        }
       }
     })();
 
-    return new Response(stream, {
-      headers: createSSEHeaders(),
-    });
+    return new Response(readable, { headers: createSSEHeaders() });
   } catch (error) {
     console.error('Octra Agent SDK error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
