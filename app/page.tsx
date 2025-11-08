@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { ProjectsTable } from '@/components/projects/projects-table';
 import Navbar from '@/components/navbar';
+import { useTranslations } from 'next-intl';
 
 export default async function Dashboard() {
   const supabase = await createClient();
@@ -44,19 +45,29 @@ export default async function Dashboard() {
       <Navbar userName={userName} />
 
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-neutral-900">Projects</h1>
-            <p className="text-sm text-neutral-500">
-              Manage and edit your projects
-            </p>
-          </div>
+        <DashboardContent data={data} />
+      </main>
+    </>
+  );
+}
 
-          <CreateProjectDialog />
+function DashboardContent({ data }: { data: any[] }) {
+  const t = useTranslations('projects');
+
+  return (
+    <>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-neutral-900">{t('title')}</h1>
+          <p className="text-sm text-neutral-500">
+            {t('description')}
+          </p>
         </div>
 
-        <ProjectsTable data={data} />
-      </main>
+        <CreateProjectDialog />
+      </div>
+
+      <ProjectsTable data={data} />
     </>
   );
 }

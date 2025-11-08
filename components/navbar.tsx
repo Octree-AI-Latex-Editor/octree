@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { OctreeLogo } from '@/components/icons/octree-logo';
 import { UserProfileDropdown } from '@/components/user/user-profile-dropdown';
+import { LanguageSelector } from '@/components/language-selector';
 import { DM_Sans } from 'next/font/google';
 import { cn } from '@/lib/utils';
 
@@ -31,7 +32,8 @@ export default function Navbar({ userName }: NavbarProps) {
               </span>
             </Link>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center gap-4">
+            <LanguageSelector />
             <UserProfileDropdown userName={userName} />
           </div>
         </div>

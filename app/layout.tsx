@@ -5,6 +5,8 @@ import { ProjectProvider } from '@/app/context/project';
 import { Toaster } from '@/components/ui/sonner';
 import localFont from 'next/font/local';
 import { PostHogProvider } from '@/components/providers/posthog';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 
 const satoshi = localFont({
   src: [
@@ -30,13 +32,18 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body className={satoshi.className}>
-        <ProjectProvider>
-          <PostHogProvider>{children}</PostHogProvider>
-        </ProjectProvider>
-        <Toaster position="top-center" />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ProjectProvider>
+            <PostHogProvider>{children}</PostHogProvider>
+          </ProjectProvider>
+          <Toaster position="top-center" />
+        </NextIntlClientProvider>
         <Analytics />
       </body>
     </html>

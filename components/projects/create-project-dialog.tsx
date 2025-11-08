@@ -19,6 +19,21 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCreateProject } from '@/hooks/create-project-client';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
+
+export function CreateProjectDialog() {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [activeTab, setActiveTab] = useState('create');
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { createProjectWithRefresh } = useCreateProject();
+  const router = useRouter();
+  const t = useTranslations('createProjectDialog');
+  const tCommon = useTranslations('common');
 
 export function CreateProjectDialog() {
   const [open, setOpen] = useState(false);
@@ -57,12 +72,12 @@ export function CreateProjectDialog() {
 
   const validateAndSetFile = (file: File) => {
     if (!file.name.endsWith('.zip')) {
-      setError('Please select a ZIP file');
+      setError(t('errorSelectZip'));
       setSelectedFile(null);
       return false;
     }
     if (file.size > 50 * 1024 * 1024) {
-      setError('File size must be less than 50MB');
+      setError(t('errorFileSizeLimit'));
       setSelectedFile(null);
       return false;
     }
@@ -104,7 +119,7 @@ export function CreateProjectDialog() {
   const handleImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
-      setError('Please select a file');
+      setError(t('errorSelectFile'));
       return;
     }
 
@@ -123,20 +138,20 @@ export function CreateProjectDialog() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to import project');
+        throw new Error(data.error || t('errorImportFailed'));
       }
 
       if (data.success && data.projectId) {
         const message = data.otherFiles > 0 
-          ? `Project imported successfully! ${data.texFiles} LaTeX file(s) and ${data.otherFiles} other file(s).`
-          : `Project imported successfully! ${data.texFiles} LaTeX file(s).`;
+          ? t('projectImportSuccessWithFiles', { texFiles: data.texFiles, otherFiles: data.otherFiles })
+          : t('projectImportSuccessTexOnly', { texFiles: data.texFiles });
         toast.success(message);
         setOpen(false);
         setSelectedFile(null);
         router.push(`/projects/${data.projectId}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to import project');
+      setError(err instanceof Error ? err.message : t('errorImportFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -162,32 +177,32 @@ export function CreateProjectDialog() {
           className="bg-gradient-to-b from-primary-light to-primary hover:bg-gradient-to-b hover:from-primary-light/90 hover:to-primary/90"
         >
           <PlusIcon />
-          New Project
+          {t('title')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
+          <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>
-            Create a new project or import from a ZIP file.
+            {t('description')}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="create">Create New</TabsTrigger>
-            <TabsTrigger value="import">Import ZIP</TabsTrigger>
+            <TabsTrigger value="create">{t('createNew')}</TabsTrigger>
+            <TabsTrigger value="import">{t('importZip')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="create" className="mt-4">
             <form onSubmit={handleSubmit} className="grid gap-4">
               <div className="grid gap-3">
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title">{t('projectTitle')}</Label>
                 <Input
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter project title"
+                  placeholder={t('projectTitlePlaceholder')}
                   disabled={isLoading}
                 />
                 {error && <p className="text-sm text-red-600">{error}</p>}
@@ -196,11 +211,11 @@ export function CreateProjectDialog() {
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="outline" disabled={isLoading}>
-                    Cancel
+                    {tCommon('cancel')}
                   </Button>
                 </DialogClose>
                 <Button type="submit" disabled={isLoading || !title.trim()}>
-                  {isLoading ? 'Creating...' : 'Create'}
+                  {isLoading ? t('creating') : tCommon('create')}
                 </Button>
               </DialogFooter>
             </form>
@@ -209,7 +224,7 @@ export function CreateProjectDialog() {
           <TabsContent value="import" className="mt-4">
             <form onSubmit={handleImportSubmit} className="grid gap-4">
               <div className="grid gap-3">
-                <Label htmlFor="zipFile">ZIP File</Label>
+                <Label htmlFor="zipFile">{t('zipFile')}</Label>
                 
                 {/* Drag and Drop Zone */}
                 <div
@@ -240,11 +255,11 @@ export function CreateProjectDialog() {
                   <div className="flex flex-col items-center gap-2">
                     <Upload className={`h-10 w-10 ${isDragging ? 'text-primary' : 'text-neutral-400'}`} />
                     <div className="text-sm">
-                      <span className="font-medium text-primary">Click to upload</span>
-                      <span className="text-neutral-600"> or drag and drop</span>
+                      <span className="font-medium text-primary">{t('clickToUpload')}</span>
+                      <span className="text-neutral-600"> {t('dragAndDrop')}</span>
                     </div>
                     <p className="text-xs text-neutral-500">
-                      ZIP files up to 50MB
+                      {t('zipFilesUpTo')}
                     </p>
                   </div>
                 </div>
@@ -281,7 +296,7 @@ export function CreateProjectDialog() {
                       }}
                       disabled={isLoading}
                     >
-                      Remove
+                      {tCommon('remove')}
                     </Button>
                   </div>
                 )}
@@ -292,7 +307,7 @@ export function CreateProjectDialog() {
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="outline" disabled={isLoading}>
-                    Cancel
+                    {tCommon('cancel')}
                   </Button>
                 </DialogClose>
                 <Button
@@ -301,11 +316,11 @@ export function CreateProjectDialog() {
                   className="gap-2"
                 >
                   {isLoading ? (
-                    'Importing...'
+                    t('importing')
                   ) : (
                     <>
                       <Upload className="h-4 w-4" />
-                      Import
+                      {t('import')}
                     </>
                   )}
                 </Button>
