@@ -24,6 +24,7 @@
   "projects": {
     "title": "Projects",
     "description": "Manage and edit your projects",
+    "back": "Back",
     "backToProjects": "Back to Projects",
     "newProject": "New Project",
     "createProject": "Create Project",

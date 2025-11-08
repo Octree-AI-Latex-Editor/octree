@@ -11,6 +11,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { useDeleteProject } from '@/hooks/delete-project-client';
+import { useTranslations } from 'next-intl';
 
 export function DeleteProjectDialog({
   row,
@@ -21,6 +22,8 @@ export function DeleteProjectDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { deleteProjectWithRefresh } = useDeleteProject();
+  const t = useTranslations('deleteProjectDialog');
+  const tCommon = useTranslations('common');
 
   const handleDelete = async () => {
     setIsLoading(true);
@@ -31,7 +34,7 @@ export function DeleteProjectDialog({
     if (result.success) {
       setOpen(false);
     } else {
-      setError(result.message || 'Failed to delete project');
+      setError(result.message || t('errorDeleteFailed'));
     }
 
     setIsLoading(false);
@@ -55,10 +58,9 @@ export function DeleteProjectDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Project</DialogTitle>
+          <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete "{row.title}"? This action cannot be
-            undone and will permanently remove the project and all its files.
+            {t('description', { title: row.title })}
           </DialogDescription>
         </DialogHeader>
         {error && (
@@ -72,14 +74,14 @@ export function DeleteProjectDialog({
             onClick={() => setOpen(false)}
             disabled={isLoading}
           >
-            Cancel
+            {tCommon('cancel')}
           </Button>
           <Button
             variant="destructive"
             onClick={handleDelete}
             disabled={isLoading}
           >
-            {isLoading ? 'Deleting...' : 'Delete Project'}
+            {isLoading ? t('deleting') : t('deleteProject')}
           </Button>
         </DialogFooter>
       </DialogContent>

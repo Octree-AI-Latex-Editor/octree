@@ -24,6 +24,7 @@
   "projects": {
     "title": "Projets",
     "description": "Gérez et modifiez vos projets",
+    "back": "Retour",
     "backToProjects": "Retour aux Projets",
     "newProject": "Nouveau Projet",
     "createProject": "Créer un Projet",
