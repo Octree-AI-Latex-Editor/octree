@@ -6,7 +6,7 @@ import {
   ChevronDown,
   DonutIcon as DocumentIcon,
   FolderOpen,
-  MoreHorizontal,
+  MoreVertical,
   X,
   Pencil,
   Trash2,
@@ -84,7 +84,7 @@ export function AppSidebar({ userName }: AppSidebarProps) {
           <X className="h-4 w-4 text-gray-500" />
         </button>
       </SidebarHeader>
-      <SidebarContent className="p-2">
+      <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -103,14 +103,17 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                 >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="group w-full justify-between rounded-lg p-3 hover:bg-gray-50">
-                        <div className="flex items-center gap-1.5">
+                      <SidebarMenuButton className="group w-full justify-between rounded-lg hover:bg-gray-50">
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
                           {isSidebarOpen ? (
-                            <FolderOpen className="h-4 w-4 text-blue-600" />
+                            <FolderOpen className="h-4 w-4 flex-shrink-0 text-blue-600" />
                           ) : (
-                            <Folder className="h-4 w-4 text-gray-500" />
+                            <Folder className="h-4 w-4 flex-shrink-0 text-gray-500" />
                           )}
-                          <span className="truncate font-medium text-gray-900">
+                          <span
+                            className="truncate font-medium text-gray-900"
+                            title={project?.title}
+                          >
                             {project?.title}
                           </span>
                         </div>
@@ -137,13 +140,13 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                                   asChild
                                   isActive={isActive}
                                   className={cn(
-                                    'transition-all duration-200',
+                                    'rounded-sm px-1 transition-all duration-200',
                                     isActive
                                       ? 'border border-blue-500 bg-blue-50 text-blue-700'
                                       : 'text-gray-700 hover:bg-gray-50'
                                   )}
                                 >
-                                  <div className="flex w-full items-center gap-2 hover:bg-gray-100 hover:ring-1 hover:ring-gray-200">
+                                  <div className="flex w-full items-center gap-1 hover:bg-gray-100 hover:ring-1 hover:ring-gray-200">
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -151,11 +154,14 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                                           projectFile.file
                                         )
                                       }
-                                      className="flex flex-1 items-center gap-1.5 overflow-hidden px-1 py-1 text-left"
+                                      className="flex flex-1 items-center gap-1.5 overflow-hidden text-left"
                                     >
                                       {getFileIcon(projectFile.file.name)}
                                       <div className="min-w-0 flex-1">
-                                        <span className="block truncate text-sm font-medium">
+                                        <span
+                                          className="block truncate text-sm font-medium"
+                                          title={projectFile.file.name}
+                                        >
                                           {projectFile.file.name}
                                         </span>
                                       </div>
@@ -164,10 +170,10 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                                       <DropdownMenuTrigger asChild>
                                         <button
                                           type="button"
-                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                          className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                                           aria-label={`Open options for ${projectFile.file.name}`}
                                         >
-                                          <MoreHorizontal className="h-4 w-4" />
+                                          <MoreVertical className="h-3.5 w-3.5" />
                                         </button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
@@ -261,13 +267,17 @@ const getFileIcon = (fileName: string) => {
   const extension = fileName.split('.').pop()?.toLowerCase();
   switch (extension) {
     case 'pdf':
-      return <DocumentIcon className="h-4 w-4 text-red-500" />;
+      return (
+        <DocumentIcon className="h-3.5 w-3.5 flex-shrink-0 text-red-500" />
+      );
     case 'doc':
     case 'docx':
-      return <DocumentIcon className="h-4 w-4 text-blue-500" />;
+      return (
+        <DocumentIcon className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />
+      );
     case 'txt':
-      return <FileText className="h-4 w-4 text-gray-500" />;
+      return <FileText className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />;
     default:
-      return <FileText className="h-4 w-4 text-gray-600" />;
+      return <FileText className="h-3.5 w-3.5 flex-shrink-0 text-gray-600" />;
   }
 };

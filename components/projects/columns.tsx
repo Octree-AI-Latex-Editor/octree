@@ -27,6 +27,14 @@ export const columns = ({
     accessorKey: 'title',
     header: 'Title',
     size: 1000,
+    cell: ({ row }) => {
+      const title = row.getValue('title') as string;
+      return (
+        <div className="max-w-[1000px] truncate" title={title}>
+          {title}
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'updated_at',

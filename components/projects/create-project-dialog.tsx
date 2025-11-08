@@ -45,6 +45,7 @@ export function CreateProjectDialog() {
     const result = await createProjectWithRefresh(formData);
 
     if (result.success && result.projectId) {
+      toast.success('Project created successfully!');
       setOpen(false);
       setTitle('');
       router.push(`/projects/${result.projectId}`);
@@ -127,9 +128,10 @@ export function CreateProjectDialog() {
       }
 
       if (data.success && data.projectId) {
-        const message = data.otherFiles > 0 
-          ? `Project imported successfully! ${data.texFiles} LaTeX file(s) and ${data.otherFiles} other file(s).`
-          : `Project imported successfully! ${data.texFiles} LaTeX file(s).`;
+        const message =
+          data.otherFiles > 0
+            ? `Project imported successfully! ${data.texFiles} LaTeX file(s) and ${data.otherFiles} other file(s).`
+            : `Project imported successfully! ${data.texFiles} LaTeX file(s).`;
         toast.success(message);
         setOpen(false);
         setSelectedFile(null);
@@ -210,22 +212,18 @@ export function CreateProjectDialog() {
             <form onSubmit={handleImportSubmit} className="grid gap-4">
               <div className="grid gap-3">
                 <Label htmlFor="zipFile">ZIP File</Label>
-                
+
                 {/* Drag and Drop Zone */}
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`
-                    relative rounded-lg border-2 border-dashed p-8 text-center cursor-pointer
-                    transition-colors duration-200
-                    ${isDragging 
-                      ? 'border-primary bg-primary/5' 
+                  className={`relative cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors duration-200 ${
+                    isDragging
+                      ? 'border-primary bg-primary/5'
                       : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50'
-                    }
-                    ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
-                  `}
+                  } ${isLoading ? 'cursor-not-allowed opacity-50' : ''} `}
                 >
                   <Input
                     id="zipFile"
@@ -236,12 +234,19 @@ export function CreateProjectDialog() {
                     disabled={isLoading}
                     className="hidden"
                   />
-                  
+
                   <div className="flex flex-col items-center gap-2">
-                    <Upload className={`h-10 w-10 ${isDragging ? 'text-primary' : 'text-neutral-400'}`} />
+                    <Upload
+                      className={`h-10 w-10 ${isDragging ? 'text-primary' : 'text-neutral-400'}`}
+                    />
                     <div className="text-sm">
-                      <span className="font-medium text-primary">Click to upload</span>
-                      <span className="text-neutral-600"> or drag and drop</span>
+                      <span className="font-medium text-primary">
+                        Click to upload
+                      </span>
+                      <span className="text-neutral-600">
+                        {' '}
+                        or drag and drop
+                      </span>
                     </div>
                     <p className="text-xs text-neutral-500">
                       ZIP files up to 50MB
@@ -251,7 +256,7 @@ export function CreateProjectDialog() {
 
                 {selectedFile && (
                   <div className="flex flex-col gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-1 items-center gap-2 text-sm min-w-0 overflow-hidden">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm">
                       <div className="rounded bg-primary/10 p-1">
                         <Upload className="h-4 w-4 text-primary" />
                       </div>
@@ -285,7 +290,7 @@ export function CreateProjectDialog() {
                     </Button>
                   </div>
                 )}
-                
+
                 {error && <p className="text-sm text-red-600">{error}</p>}
               </div>
 

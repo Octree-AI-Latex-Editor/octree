@@ -19,8 +19,12 @@ import { ErrorState } from '@/components/editor/error-state';
 import PDFViewer from '@/components/pdf-viewer';
 import { Chat } from '@/components/chat';
 import { CompilationError } from '@/components/latex/compilation-error';
-import { useSidebar } from '@/components/ui/sidebar';
-import { cn, formatCompilationErrorForAI } from '@/lib/utils';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
+import { formatCompilationErrorForAI } from '@/lib/utils';
 import { FileActions, useProjectFiles, useSelectedFile } from '@/stores/file';
 import { getProject, getProjectFiles } from '@/lib/requests/project';
 import type { ProjectFile } from '@/hooks/use-file-editor';
@@ -100,7 +104,6 @@ export default function ProjectPage() {
     setupEditorListeners,
   } = useEditorInteractions();
 
-  const { open: sidebarOpen } = useSidebar();
   const [autoSendMessage, setAutoSendMessage] = useState<string | null>(null);
   const [hasCompiledOnMount, setHasCompiledOnMount] = useState(false);
 
@@ -196,54 +199,58 @@ export default function ProjectPage() {
         lastSaved={lastSaved}
       />
 
-      <div className="flex min-h-0 flex-1">
-        <div className="relative flex-1 overflow-hidden">
-          <MonacoEditor
-            content={content}
-            onChange={handleEditorChange}
-            onMount={handleEditorMount}
-            className="h-full"
-          />
-          <SelectionButton
-            show={showButton}
-            position={buttonPos}
-            onCopy={() => handleCopy()}
-          />
-          <SuggestionActions
-            suggestions={editSuggestions}
-            onAccept={handleAcceptEdit}
-            onReject={handleRejectEdit}
-          />
-        </div>
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="flex min-h-0 flex-1"
+      >
+        <ResizablePanel defaultSize={50} minSize={30}>
+          <div className="relative h-full overflow-hidden">
+            <MonacoEditor
+              content={content}
+              onChange={handleEditorChange}
+              onMount={handleEditorMount}
+              className="h-full"
+            />
+            <SelectionButton
+              show={showButton}
+              position={buttonPos}
+              onCopy={() => handleCopy()}
+            />
+            <SuggestionActions
+              suggestions={editSuggestions}
+              onAccept={handleAcceptEdit}
+              onReject={handleRejectEdit}
+            />
+          </div>
+        </ResizablePanel>
 
-        <div
-          className={cn(
-            sidebarOpen ? 'w-[60%]' : 'flex-1',
-            'overflow-hidden border-l border-slate-200'
-          )}
-        >
-          {compilationError ? (
-            <div className="flex h-full items-start justify-center overflow-auto p-4">
-              <CompilationError
-                error={compilationError}
-                onRetry={handleCompile}
-                onDismiss={() => setCompilationError(null)}
-                onFixWithAI={() => {
-                  const errorContext =
-                    formatCompilationErrorForAI(compilationError);
-                  setTextFromEditor(errorContext);
-                  setChatOpen(true);
-                  setAutoSendMessage('Fix this error');
-                  setCompilationError(null);
-                }}
-                className="w-full max-w-4xl"
-              />
-            </div>
-          ) : (
-            <PDFViewer pdfData={pdfData} isLoading={compiling} />
-          )}
-        </div>
-      </div>
+        <ResizableHandle withHandle />
+
+        <ResizablePanel defaultSize={50} minSize={40}>
+          <div className="h-full overflow-hidden border-l border-slate-200">
+            {compilationError ? (
+              <div className="flex h-full items-start justify-center overflow-auto p-4">
+                <CompilationError
+                  error={compilationError}
+                  onRetry={handleCompile}
+                  onDismiss={() => setCompilationError(null)}
+                  onFixWithAI={() => {
+                    const errorContext =
+                      formatCompilationErrorForAI(compilationError);
+                    setTextFromEditor(errorContext);
+                    setChatOpen(true);
+                    setAutoSendMessage('Fix this error');
+                    setCompilationError(null);
+                  }}
+                  className="w-full max-w-4xl"
+                />
+              </div>
+            ) : (
+              <PDFViewer pdfData={pdfData} isLoading={compiling} />
+            )}
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <Chat
         isOpen={chatOpen}
