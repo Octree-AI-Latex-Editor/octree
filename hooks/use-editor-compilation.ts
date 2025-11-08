@@ -216,11 +216,10 @@ export function useEditorCompilation({
   );
 
   const handleCompile = useCallback(async (): Promise<boolean> => {
-    if (compiling) return false;
-
     if (compileControllerRef.current) {
       compileControllerRef.current.abort();
     }
+
     const controller = new AbortController();
     compileControllerRef.current = controller;
     const requestedProjectId = projectId ?? null;
