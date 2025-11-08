@@ -53,14 +53,14 @@ export function ProjectBreadcrumbs({ projectTitle }: ProjectBreadcrumbsProps) {
   }, [fileId, projectId]);
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList className="gap-1 text-sm">
+    <Breadcrumb className="min-w-0 max-w-full">
+      <BreadcrumbList className="flex-nowrap gap-1 text-sm">
         <BreadcrumbItem>
           <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>{projectTitle}</BreadcrumbPage>
+        <BreadcrumbItem className="w-full">
+          <BreadcrumbPage className="truncate">{projectTitle}</BreadcrumbPage>
         </BreadcrumbItem>
         {isFileEditor && (
           <>

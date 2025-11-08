@@ -35,14 +35,14 @@ export default async function ProjectLayout({
     <SidebarProvider defaultOpen={false}>
       <AppSidebar userName={userName} />
       <SidebarInset className="flex h-screen flex-col overflow-hidden">
-        <header className="relative flex flex-shrink-0 items-center justify-between border-b px-4 py-2">
-          <div className="flex items-center gap-2">
+        <header className="relative flex flex-shrink-0 items-center justify-between border-b px-4 py-3">
+          <div className="absolute left-2 flex items-center gap-2">
             <SidebarTrigger />
             <span className="text-neutral-300">|</span>
             <BackButton />
           </div>
 
-          <div className="absolute left-1/2 flex flex-1 -translate-x-1/2 justify-center">
+          <div className="flex w-full min-w-0 items-center justify-center px-[135px]">
             <ProjectBreadcrumbs projectTitle={project?.title || 'Project'} />
           </div>
         </header>
