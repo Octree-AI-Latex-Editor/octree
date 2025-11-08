@@ -67,9 +67,12 @@ export function useEditorInteractions(): EditorInteractionsState {
         });
 
         if (startCoords) {
+          const editorContainer = editor.getContainerDomNode();
+          const containerRect = editorContainer.getBoundingClientRect();
+
           setButtonPos({
-            top: startCoords.top - 30,
-            left: startCoords.left,
+            top: containerRect.top + startCoords.top - 30,
+            left: containerRect.left + startCoords.left,
           });
           setSelectedText(text);
           setSelectionRange(range);

@@ -2,6 +2,19 @@ import { createClient } from '@/lib/supabase/client';
 import type { ProjectFile } from '@/hooks/use-file-editor';
 import type { Tables, TablesInsert } from '@/database.types';
 
+export const getAllProjects = async (
+  supabase: Awaited<
+    ReturnType<typeof import('@/lib/supabase/server').createClient>
+  >
+): Promise<Tables<'projects'>[] | null> => {
+  const { data } = await supabase
+    .from('projects')
+    .select('*')
+    .order('updated_at', { ascending: false });
+
+  return data;
+};
+
 export const getProject = async (projectId: string) => {
   const supabase = createClient();
 
@@ -47,13 +60,6 @@ export const createDocumentForFile = async (
   const shouldUseDefaultContent = options?.useDefaultContent ?? true;
 
   const documentContent = (() => {
-    console.log('[projects] createDocumentForFile', {
-      projectId,
-      fileName,
-      hasProvidedContent: typeof content === 'string',
-      useDefaultContent: shouldUseDefaultContent,
-    });
-
     if (typeof content === 'string') {
       return content;
     }
@@ -85,12 +91,6 @@ export const createDocumentForFile = async (
   if (createError) {
     throw new Error('Failed to create document');
   }
-
-  console.log('[projects] createDocumentForFile: inserted document', {
-    projectId,
-    fileName,
-    contentLength: documentContent.length,
-  });
 
   return newDocument;
 };
@@ -174,4 +174,3 @@ Your content here.
 
 \\end{document}`;
 };
-

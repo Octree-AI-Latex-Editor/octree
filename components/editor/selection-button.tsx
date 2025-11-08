@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface SelectionButtonProps {
   show: boolean;
@@ -18,15 +19,16 @@ export function SelectionButton({
   className = '',
 }: SelectionButtonProps) {
   const [isMac, setIsMac] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Detect platform (Mac vs Windows/Linux)
+    setMounted(true);
     setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
   }, []);
 
-  if (!show) return null;
+  if (!show || !mounted) return null;
 
-  return (
+  const button = (
     <Button
       variant="outline"
       size="sm"
@@ -38,9 +40,9 @@ export function SelectionButton({
       }}
     >
       Edit
-      <kbd className="ml-1 text-xs opacity-60">
-        {isMac ? '⌘B' : 'Ctrl+B'}
-      </kbd>
+      <kbd className="ml-1 text-xs opacity-60">{isMac ? '⌘B' : 'Ctrl+B'}</kbd>
     </Button>
   );
+
+  return createPortal(button, document.body);
 }

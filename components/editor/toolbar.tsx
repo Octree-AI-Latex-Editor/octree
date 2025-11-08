@@ -76,23 +76,17 @@ export function EditorToolbar({
               Last saved: {lastSaved.toLocaleTimeString()}
             </span>
           )}
-          {/* {isSaving && (
-            <span className="flex items-center gap-1 text-sm text-blue-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Saving
-            </span>
-          )} */}
 
           <Button
             variant="ghost"
             size="sm"
             onClick={onCompile}
             disabled={compiling}
-            className="w-[90px] gap-1"
+            className="gap-1"
           >
             {compiling ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="size-4 animate-spin" />
                 Compiling
               </>
             ) : (
@@ -110,10 +104,11 @@ export function EditorToolbar({
             size="sm"
             onClick={onExportPDF}
             disabled={exportingPDF || isSaving}
+            className="gap-1"
           >
             {exportingPDF ? (
               <>
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                <Loader2 className="size-4 animate-spin" />
                 Exporting
               </>
             ) : (
