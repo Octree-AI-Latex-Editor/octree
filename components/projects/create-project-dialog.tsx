@@ -35,18 +35,6 @@ export function CreateProjectDialog() {
   const t = useTranslations('createProjectDialog');
   const tCommon = useTranslations('common');
 
-export function CreateProjectDialog() {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [activeTab, setActiveTab] = useState('create');
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { createProjectWithRefresh } = useCreateProject();
-  const router = useRouter();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;

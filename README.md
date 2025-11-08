@@ -143,6 +143,14 @@ ai-latex-editor/
 - 👥 **Authentication** - Secure user auth via Supabase
 - 💳 **Subscription Management** - Stripe integration for billing
 - 📊 **Usage Tracking** - Monitor API usage and limits
+- 🌍 **Internationalization** - Multi-language support (English, Spanish, French) with easy extensibility
+
+## Internationalization
+
+The application supports multiple languages. See [i18n documentation](./docs/i18n.md) for details on:
+- Adding new languages
+- Using translations in components
+- Translation file structure
 
 ## Troubleshooting
 

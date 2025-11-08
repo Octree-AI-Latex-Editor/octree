@@ -4,6 +4,7 @@ import { CreateProjectDialog } from '@/components/projects/create-project-dialog
 import { ProjectsTable } from '@/components/projects/projects-table';
 import Navbar from '@/components/navbar';
 import { useTranslations } from 'next-intl';
+import type { Project } from '@/types/project';
 
 export default async function Dashboard() {
   const supabase = await createClient();
@@ -51,7 +52,7 @@ export default async function Dashboard() {
   );
 }
 
-function DashboardContent({ data }: { data: any[] }) {
+function DashboardContent({ data }: { data: Project[] }) {
   const t = useTranslations('projects');
 
   return (
