@@ -18,14 +18,12 @@ export function SelectionButton({
   className = '',
 }: SelectionButtonProps) {
   const [isMac, setIsMac] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
   }, []);
 
-  if (!show || !mounted) return null;
+  if (!show) return null;
 
   return (
     <Button
