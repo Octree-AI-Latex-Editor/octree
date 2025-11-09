@@ -3,7 +3,6 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 
 interface SelectionButtonProps {
   show: boolean;
@@ -28,12 +27,12 @@ export function SelectionButton({
 
   if (!show || !mounted) return null;
 
-  const button = (
+  return (
     <Button
       variant="outline"
       size="sm"
       onClick={onCopy}
-      className={cn('absolute z-10 font-medium', className)}
+      className={cn('pointer-events-auto fixed z-50 font-medium', className)}
       style={{
         top: position.top,
         left: position.left,
@@ -43,6 +42,4 @@ export function SelectionButton({
       <kbd className="ml-1 text-xs opacity-60">{isMac ? '⌘B' : 'Ctrl+B'}</kbd>
     </Button>
   );
-
-  return createPortal(button, document.body);
 }

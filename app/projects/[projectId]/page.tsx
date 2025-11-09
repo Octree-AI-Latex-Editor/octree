@@ -212,6 +212,11 @@ export default function ProjectPage() {
                 onMount={handleEditorMount}
                 className="h-full"
               />
+              <SelectionButton
+                show={showButton}
+                position={buttonPos}
+                onCopy={() => handleCopy()}
+              />
               <SuggestionActions
                 suggestions={editSuggestions}
                 onAccept={handleAcceptEdit}
@@ -246,12 +251,6 @@ export default function ProjectPage() {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
-
-      <SelectionButton
-        show={showButton}
-        position={buttonPos}
-        onCopy={() => handleCopy()}
-      />
 
       <Chat
         isOpen={chatOpen}
