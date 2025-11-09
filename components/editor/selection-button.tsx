@@ -20,7 +20,6 @@ export function SelectionButton({
   const [isMac, setIsMac] = useState(true);
 
   useEffect(() => {
-    // Detect platform (Mac vs Windows/Linux)
     setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
   }, []);
 
@@ -31,16 +30,14 @@ export function SelectionButton({
       variant="outline"
       size="sm"
       onClick={onCopy}
-      className={cn('absolute z-10 font-medium', className)}
+      className={cn('pointer-events-auto fixed z-50 font-medium', className)}
       style={{
         top: position.top,
         left: position.left,
       }}
     >
       Edit
-      <kbd className="ml-1 text-xs opacity-60">
-        {isMac ? '⌘B' : 'Ctrl+B'}
-      </kbd>
+      <kbd className="ml-1 text-xs opacity-60">{isMac ? '⌘B' : 'Ctrl+B'}</kbd>
     </Button>
   );
 }

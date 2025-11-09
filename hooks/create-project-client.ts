@@ -8,14 +8,13 @@ export function useCreateProject() {
 
   const createProjectWithRefresh = async (formData: FormData) => {
     const result = await createProject({ projectId: null }, formData);
-    
+
     if (result.success) {
-      // Trigger sidebar refresh after successful project creation
       refreshProjects();
     }
-    
+
     return result;
   };
 
   return { createProjectWithRefresh };
-} 
+}

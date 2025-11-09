@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ProjectFile } from '@/hooks/use-file-editor';
 import type { Tables, TablesInsert } from '@/database.types';
+import { DEFAULT_LATEX_CONTENT_FROM_FILENAME } from '@/data/constants';
 
 export const getProject = async (projectId: string) => {
   const supabase = createClient();
@@ -47,13 +48,6 @@ export const createDocumentForFile = async (
   const shouldUseDefaultContent = options?.useDefaultContent ?? true;
 
   const documentContent = (() => {
-    console.log('[projects] createDocumentForFile', {
-      projectId,
-      fileName,
-      hasProvidedContent: typeof content === 'string',
-      useDefaultContent: shouldUseDefaultContent,
-    });
-
     if (typeof content === 'string') {
       return content;
     }
@@ -66,7 +60,7 @@ export const createDocumentForFile = async (
       return '';
     }
 
-    return DEFAULT_LATEX_CONTENT(fileName);
+    return DEFAULT_LATEX_CONTENT_FROM_FILENAME(fileName);
   })();
 
   const insertDoc: TablesInsert<'documents'> = {
@@ -85,12 +79,6 @@ export const createDocumentForFile = async (
   if (createError) {
     throw new Error('Failed to create document');
   }
-
-  console.log('[projects] createDocumentForFile: inserted document', {
-    projectId,
-    fileName,
-    contentLength: documentContent.length,
-  });
 
   return newDocument;
 };
@@ -146,32 +134,116 @@ export const getProjectFiles = async (
   return filesWithDocuments.filter((item) => item.document !== null);
 };
 
-const DEFAULT_LATEX_CONTENT = (fileName: string) => {
-  const cleanTitle = fileName.replace(/\.\w+$/, '');
-  return `% ${fileName}
-% Created on ${new Date().toISOString()}
+export interface ImportProjectResponse {
+  success: boolean;
+  projectId?: string;
+  totalFiles?: number;
+  texFiles?: number;
+  otherFiles?: number;
+  error?: string;
+}
 
-\\documentclass{article}
-\\usepackage[utf8]{inputenc}
-\\usepackage{amsmath}
-\\usepackage{amsfonts}
-\\usepackage{amssymb}
-\\usepackage{graphicx}
-\\usepackage{geometry}
-\\geometry{margin=1in}
+export const importProject = async (
+  file: File
+): Promise<ImportProjectResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
 
-\\title{${cleanTitle}}
-\\author{}
-\\date{\\today}
+  const response = await fetch('/api/import-project', {
+    method: 'POST',
+    body: formData,
+  });
 
-\\begin{document}
+  const data = await response.json();
 
-\\maketitle
+  if (!response.ok) {
+    return {
+      success: false,
+      error: data.error || 'Failed to import project',
+    };
+  }
 
-\\section{Introduction}
-
-Your content here.
-
-\\end{document}`;
+  return data;
 };
 
+export const renameFile = async (
+  projectId: string,
+  fileId: string,
+  currentName: string,
+  newName: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { error: updateFileError } = await (supabase.from('files') as any)
+    .update({ name: newName })
+    .eq('id', fileId)
+    .eq('project_id', projectId);
+
+  if (updateFileError) {
+    throw new Error('Failed to rename file');
+  }
+
+  const { error: updateDocumentError } = await (
+    supabase.from('documents') as any
+  )
+    .update({
+      title: newName,
+      filename: newName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('project_id', projectId)
+    .eq('filename', currentName)
+    .eq('owner_id', session.user.id);
+
+  if (updateDocumentError) {
+    console.warn(
+      'Failed to update associated document name:',
+      updateDocumentError
+    );
+  }
+};
+
+export const deleteFile = async (
+  projectId: string,
+  fileId: string,
+  fileName: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { error: deleteDocumentError } = await (
+    supabase.from('documents') as any
+  )
+    .delete()
+    .eq('project_id', projectId)
+    .eq('filename', fileName)
+    .eq('owner_id', session.user.id);
+
+  if (deleteDocumentError) {
+    console.warn('Failed to delete associated document:', deleteDocumentError);
+  }
+
+  const { error: deleteFileError } = await (supabase.from('files') as any)
+    .delete()
+    .eq('id', fileId)
+    .eq('project_id', projectId);
+
+  if (deleteFileError) {
+    throw new Error('Failed to delete file');
+  }
+};

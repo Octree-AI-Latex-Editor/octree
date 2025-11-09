@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { ProjectsTable } from '@/components/projects/projects-table';
 import Navbar from '@/components/navbar';
+import { getAllProjects } from '@/actions/get-projects';
+import { getUserUsage } from '@/lib/requests/user';
 
 export default async function Dashboard() {
   const supabase = await createClient();
@@ -14,15 +16,7 @@ export default async function Dashboard() {
     redirect('/auth/login');
   }
 
-  type UsageRecord = {
-    onboarding_completed: boolean | null;
-  };
-
-  const { data: usage } = await supabase
-    .from('user_usage')
-    .select('onboarding_completed')
-    .eq('user_id', user.id)
-    .maybeSingle<UsageRecord>();
+  const usage = await getUserUsage(supabase, user.id);
 
   if (!usage?.onboarding_completed) {
     redirect('/onboarding');
@@ -30,10 +24,7 @@ export default async function Dashboard() {
 
   const userName = user?.user_metadata?.name ?? user?.email ?? null;
 
-  const { data } = await supabase
-    .from('projects')
-    .select('*')
-    .order('updated_at', { ascending: false });
+  const data = await getAllProjects();
 
   if (!data) {
     return <div>No data</div>;

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -15,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
+import { renameFile } from '@/lib/requests/project';
 
 interface RenameFileDialogProps {
   projectId: string;
@@ -63,46 +63,7 @@ export function RenameFileDialog({
     setError(null);
 
     try {
-      const supabase = createClient();
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        throw new Error('User not authenticated');
-      }
-
-      const { error: updateFileError } =
-        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from('files') as any)
-          .update({ name: trimmedName })
-          .eq('id', fileId)
-          .eq('project_id', projectId);
-
-      if (updateFileError) {
-        throw new Error('Failed to rename file');
-      }
-
-      const { error: updateDocumentError } =
-        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from('documents') as any)
-          .update({
-            title: trimmedName,
-            filename: trimmedName,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('project_id', projectId)
-          .eq('filename', currentName)
-          .eq('owner_id', session.user.id);
-
-      if (updateDocumentError) {
-        console.warn(
-          'Failed to update associated document name:',
-          updateDocumentError
-        );
-      }
-
+      await renameFile(projectId, fileId, currentName, trimmedName);
       toast.success('File renamed successfully');
       revalidate();
       onRenamed?.(trimmedName);

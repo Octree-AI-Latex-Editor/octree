@@ -5,9 +5,10 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
-import { createClient } from '@/lib/supabase/server';
 import { BackButton } from '@/components/projects/back-button';
 import { ProjectBreadcrumbs } from '@/components/projects/project-breadcrumbs';
+import { getProjectById } from '@/actions/get-projects';
+import { getCurrentUser } from '@/actions/get-user';
 
 export default async function ProjectLayout({
   children,
@@ -17,19 +18,9 @@ export default async function ProjectLayout({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getCurrentUser();
   const userName = user?.user_metadata?.name ?? user?.email ?? null;
-
-  const { data: project } = await supabase
-    .from('projects' as const)
-    .select('title')
-    .eq('id', projectId)
-    .eq('user_id', user?.id || '')
-    .single<{ title: string }>();
+  const project = await getProjectById(projectId);
 
   return (
     <SidebarProvider defaultOpen={false}>

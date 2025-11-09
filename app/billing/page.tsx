@@ -148,9 +148,7 @@ export default function BillingPage() {
       <Navbar userName={userName} />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-neutral-900">
-            Billing History
-          </h1>
+          <h1 className="text-2xl font-bold text-neutral-900">Billing</h1>
           <p className="text-sm text-neutral-500">
             View your billing activity and payment methods
           </p>

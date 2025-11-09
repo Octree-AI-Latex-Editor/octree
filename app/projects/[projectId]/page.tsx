@@ -204,28 +204,28 @@ export default function ProjectPage() {
         className="flex min-h-0 flex-1"
       >
         <ResizablePanel defaultSize={50} minSize={30}>
-          <div className="relative h-full overflow-hidden">
-            <MonacoEditor
-              content={content}
-              onChange={handleEditorChange}
-              onMount={handleEditorMount}
-              className="h-full"
-            />
-            <SelectionButton
-              show={showButton}
-              position={buttonPos}
-              onCopy={() => handleCopy()}
-            />
-            <SuggestionActions
-              suggestions={editSuggestions}
-              onAccept={handleAcceptEdit}
-              onReject={handleRejectEdit}
-            />
+          <div className="relative h-full">
+            <div className="h-full overflow-hidden">
+              <MonacoEditor
+                content={content}
+                onChange={handleEditorChange}
+                onMount={handleEditorMount}
+                className="h-full"
+              />
+              <SelectionButton
+                show={showButton}
+                position={buttonPos}
+                onCopy={() => handleCopy()}
+              />
+              <SuggestionActions
+                suggestions={editSuggestions}
+                onAccept={handleAcceptEdit}
+                onReject={handleRejectEdit}
+              />
+            </div>
           </div>
         </ResizablePanel>
-
         <ResizableHandle withHandle />
-
         <ResizablePanel defaultSize={50} minSize={40}>
           <div className="h-full overflow-hidden border-l border-slate-200">
             {compilationError ? (

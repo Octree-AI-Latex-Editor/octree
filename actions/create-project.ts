@@ -45,9 +45,7 @@ export async function createProject(prevState: State, formData: FormData) {
       user_id: user.id,
     };
 
-    // Narrow typing only for the insert chain to avoid TS inference issues
-    const { data, error } = await (supabase
-      .from('projects') as any)
+    const { data, error } = await (supabase.from('projects') as any)
       .insert(projectData)
       .select()
       .single();
@@ -68,8 +66,9 @@ export async function createProject(prevState: State, formData: FormData) {
       document_type: 'article',
     };
 
-    const { data: documentData, error: documentError } = await (supabase
-      .from('documents') as any)
+    const { data: documentData, error: documentError } = await (
+      supabase.from('documents') as any
+    )
       .insert(documentToInsert)
       .select()
       .single();
@@ -79,7 +78,6 @@ export async function createProject(prevState: State, formData: FormData) {
       throw new Error('Failed to create document');
     }
 
-    // Create a file record for the main.tex file
     const fileToInsert: TablesInsert<'files'> = {
       project_id: data.id,
       name: 'main.tex',
@@ -87,13 +85,12 @@ export async function createProject(prevState: State, formData: FormData) {
       size: defaultContent.length,
     };
 
-    const { error: fileError } = await (supabase
-      .from('files') as any)
-      .insert(fileToInsert);
+    const { error: fileError } = await (supabase.from('files') as any).insert(
+      fileToInsert
+    );
 
     if (fileError) {
       console.error('Error creating file record:', fileError);
-      // Don't throw here as the document was created successfully
     }
 
     revalidatePath('/');
