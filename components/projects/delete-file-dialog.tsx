@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -14,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
+import { deleteFile } from '@/lib/requests/project';
 
 interface DeleteFileDialogProps {
   projectId: string;
@@ -41,43 +41,7 @@ export function DeleteFileDialog({
     setError(null);
 
     try {
-      const supabase = createClient();
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        throw new Error('User not authenticated');
-      }
-
-      // Delete associated document first
-      const { error: deleteDocumentError } =
-        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from('documents') as any)
-          .delete()
-          .eq('project_id', projectId)
-          .eq('filename', fileName)
-          .eq('owner_id', session.user.id);
-
-      if (deleteDocumentError) {
-        console.warn(
-          'Failed to delete associated document:',
-          deleteDocumentError
-        );
-      }
-
-      // Delete the file from the files table
-      const { error: deleteFileError } =
-        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from('files') as any)
-          .delete()
-          .eq('id', fileId)
-          .eq('project_id', projectId);
-
-      if (deleteFileError) {
-        throw new Error('Failed to delete file');
-      }
+      await deleteFile(projectId, fileId, fileName);
 
       toast.success('File deleted successfully');
       revalidate();

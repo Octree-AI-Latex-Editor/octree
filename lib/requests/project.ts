@@ -165,3 +165,85 @@ export const importProject = async (
 
   return data;
 };
+
+export const renameFile = async (
+  projectId: string,
+  fileId: string,
+  currentName: string,
+  newName: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { error: updateFileError } = await (supabase.from('files') as any)
+    .update({ name: newName })
+    .eq('id', fileId)
+    .eq('project_id', projectId);
+
+  if (updateFileError) {
+    throw new Error('Failed to rename file');
+  }
+
+  const { error: updateDocumentError } = await (
+    supabase.from('documents') as any
+  )
+    .update({
+      title: newName,
+      filename: newName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('project_id', projectId)
+    .eq('filename', currentName)
+    .eq('owner_id', session.user.id);
+
+  if (updateDocumentError) {
+    console.warn(
+      'Failed to update associated document name:',
+      updateDocumentError
+    );
+  }
+};
+
+export const deleteFile = async (
+  projectId: string,
+  fileId: string,
+  fileName: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { error: deleteDocumentError } = await (
+    supabase.from('documents') as any
+  )
+    .delete()
+    .eq('project_id', projectId)
+    .eq('filename', fileName)
+    .eq('owner_id', session.user.id);
+
+  if (deleteDocumentError) {
+    console.warn('Failed to delete associated document:', deleteDocumentError);
+  }
+
+  const { error: deleteFileError } = await (supabase.from('files') as any)
+    .delete()
+    .eq('id', fileId)
+    .eq('project_id', projectId);
+
+  if (deleteFileError) {
+    throw new Error('Failed to delete file');
+  }
+};

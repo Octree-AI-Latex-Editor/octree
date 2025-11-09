@@ -220,9 +220,7 @@ export default function ProjectPage() {
             </div>
           </div>
         </ResizablePanel>
-
         <ResizableHandle withHandle />
-
         <ResizablePanel defaultSize={50} minSize={40}>
           <div className="h-full overflow-hidden border-l border-slate-200">
             {compilationError ? (
