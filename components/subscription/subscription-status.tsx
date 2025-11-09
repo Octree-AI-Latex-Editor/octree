@@ -282,9 +282,6 @@ export function SubscriptionStatus() {
             ))}
 
           <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
-              <a href="/billing">View Billing</a>
-            </Button>
             <Button asChild size="sm">
               <a
                 href="https://buy.stripe.com/6oUdR9fyd8Sd6Cifd46oo00"
