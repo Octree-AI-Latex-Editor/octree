@@ -20,7 +20,7 @@ Before running this project locally, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Octree-AI-Latex-Editor/octree.git
+git clone https://github.com/octree-labs/octree.git
 cd octree
 ```
 
