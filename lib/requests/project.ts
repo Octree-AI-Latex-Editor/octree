@@ -1,19 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ProjectFile } from '@/hooks/use-file-editor';
 import type { Tables, TablesInsert } from '@/database.types';
-
-export const getAllProjects = async (
-  supabase: Awaited<
-    ReturnType<typeof import('@/lib/supabase/server').createClient>
-  >
-): Promise<Tables<'projects'>[] | null> => {
-  const { data } = await supabase
-    .from('projects')
-    .select('*')
-    .order('updated_at', { ascending: false });
-
-  return data;
-};
+import { DEFAULT_LATEX_CONTENT_FROM_FILENAME } from '@/data/constants';
 
 export const getProject = async (projectId: string) => {
   const supabase = createClient();
@@ -72,7 +60,7 @@ export const createDocumentForFile = async (
       return '';
     }
 
-    return DEFAULT_LATEX_CONTENT(fileName);
+    return DEFAULT_LATEX_CONTENT_FROM_FILENAME(fileName);
   })();
 
   const insertDoc: TablesInsert<'documents'> = {
@@ -146,31 +134,34 @@ export const getProjectFiles = async (
   return filesWithDocuments.filter((item) => item.document !== null);
 };
 
-const DEFAULT_LATEX_CONTENT = (fileName: string) => {
-  const cleanTitle = fileName.replace(/\.\w+$/, '');
-  return `% ${fileName}
-% Created on ${new Date().toISOString()}
+export interface ImportProjectResponse {
+  success: boolean;
+  projectId?: string;
+  totalFiles?: number;
+  texFiles?: number;
+  otherFiles?: number;
+  error?: string;
+}
 
-\\documentclass{article}
-\\usepackage[utf8]{inputenc}
-\\usepackage{amsmath}
-\\usepackage{amsfonts}
-\\usepackage{amssymb}
-\\usepackage{graphicx}
-\\usepackage{geometry}
-\\geometry{margin=1in}
+export const importProject = async (
+  file: File
+): Promise<ImportProjectResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
 
-\\title{${cleanTitle}}
-\\author{}
-\\date{\\today}
+  const response = await fetch('/api/import-project', {
+    method: 'POST',
+    body: formData,
+  });
 
-\\begin{document}
+  const data = await response.json();
 
-\\maketitle
+  if (!response.ok) {
+    return {
+      success: false,
+      error: data.error || 'Failed to import project',
+    };
+  }
 
-\\section{Introduction}
-
-Your content here.
-
-\\end{document}`;
+  return data;
 };

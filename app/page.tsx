@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { ProjectsTable } from '@/components/projects/projects-table';
 import Navbar from '@/components/navbar';
-import { getAllProjects } from '@/lib/requests/project';
+import { getAllProjects } from '@/actions/get-projects';
 import { getUserUsage } from '@/lib/requests/user';
 
 export default async function Dashboard() {
@@ -24,7 +24,7 @@ export default async function Dashboard() {
 
   const userName = user?.user_metadata?.name ?? user?.email ?? null;
 
-  const data = await getAllProjects(supabase);
+  const data = await getAllProjects();
 
   if (!data) {
     return <div>No data</div>;

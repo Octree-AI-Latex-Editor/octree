@@ -24,6 +24,35 @@ You can start writing your LaTeX content here.
 
 \\end{document}`;
 
+export const DEFAULT_LATEX_CONTENT_FROM_FILENAME = (fileName: string) => {
+  const cleanTitle = fileName.replace(/\.\w+$/, '');
+  return `% ${fileName}
+% Created on ${new Date().toISOString()}
+
+\\documentclass{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage{amsmath}
+\\usepackage{amsfonts}
+\\usepackage{amssymb}
+\\usepackage{graphicx}
+\\usepackage{geometry}
+\\geometry{margin=1in}
+
+\\title{${cleanTitle}}
+\\author{}
+\\date{\\today}
+
+\\begin{document}
+
+\\maketitle
+
+\\section{Introduction}
+
+Your content here.
+
+\\end{document}`;
+};
+
 export const NON_LATEX_FILE_CONTENT = (fileName: string, projectTitle: string, fileSize: number | null, fileType: string | null) => `// File: ${fileName}
 // Project: ${projectTitle}
 // Size: ${fileSize || 'Unknown'} bytes
