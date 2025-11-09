@@ -18,7 +18,6 @@ import {
   Settings,
   LogOut,
   ChevronDown,
-  Receipt,
   MessageCircle,
 } from 'lucide-react';
 
@@ -57,11 +56,6 @@ export function UserProfileDropdown({ userName }: UserProfileDropdownProps) {
           <DropdownMenuItem onClick={() => router.push('/settings')}>
             <Settings className="mr-2 h-4 w-4" />
             Settings
-          </DropdownMenuItem>
-
-          <DropdownMenuItem onClick={() => router.push('/billing')}>
-            <Receipt className="mr-2 h-4 w-4" />
-            Billing
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={() => router.push('/contact')}>
