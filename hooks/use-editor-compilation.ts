@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { createClient } from '@/lib/supabase/client';
 import { useProject } from '@/stores/project';
-import { useSelectedFile, useFileContent, useProjectFiles } from '@/stores/file';
+import { useSelectedFile, useProjectFiles } from '@/stores/file';
 import type { CompilationError } from '@/types/compilation';
 
 export interface CompilationState {
@@ -58,11 +58,22 @@ export function useEditorCompilation({
   // Helper to determine if a file is binary based on extension
   const isBinaryFile = useCallback((filename: string): boolean => {
     const binaryExtensions = [
-      '.eps', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif',
-      '.pdf', '.ps', '.svg', '.webp', '.ico',
+      '.eps',
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.gif',
+      '.bmp',
+      '.tiff',
+      '.tif',
+      '.pdf',
+      '.ps',
+      '.svg',
+      '.webp',
+      '.ico',
     ];
     const lowerName = filename.toLowerCase();
-    return binaryExtensions.some(ext => lowerName.endsWith(ext));
+    return binaryExtensions.some((ext) => lowerName.endsWith(ext));
   }, []);
 
   // Helper function to fetch all project files and their contents
@@ -101,13 +112,11 @@ export function useEditorCompilation({
             return null;
           }
 
-          console.log('[compile] fetched document from Supabase', {
-            projectId: project.id,
-            path: file.name,
-            contentLength: (docData as any).content?.length ?? 0,
-          });
-
-          const fileEntry: { path: string; content: string; encoding?: string } = {
+          const fileEntry: {
+            path: string;
+            content: string;
+            encoding?: string;
+          } = {
             path: file.name,
             content: (docData as any).content as string,
           };
@@ -123,14 +132,9 @@ export function useEditorCompilation({
 
       // Filter out null entries and return
       const validFiles = filesWithContent.filter(
-        (f): f is { path: string; content: string; encoding?: string } => f !== null
+        (f): f is { path: string; content: string; encoding?: string } =>
+          f !== null
       );
-
-      console.log('[compile] Supabase project files resolved', {
-        projectId: project.id,
-        total: filesData.length,
-        withContent: validFiles.length,
-      });
 
       return validFiles;
     } catch (error) {
@@ -146,68 +150,54 @@ export function useEditorCompilation({
     ): Promise<Array<{ path: string; content: string; encoding?: string }>> => {
       // Use the in-memory files first to get up-to-date project content
       if (projectFilesState && projectFilesState.length > 0) {
-        console.log('[compile] building payload from store', {
-          count: projectFilesState.length,
-          activePath,
-        });
-
         const payload = projectFilesState.map((projectFile) => {
           const path = projectFile.file.name;
-          if (projectFile.document && typeof projectFile.document.content === 'string') {
+          if (
+            projectFile.document &&
+            typeof projectFile.document.content === 'string'
+          ) {
             const content =
               path === activePath
                 ? activeContent
                 : projectFile.document.content;
-            
-            const fileEntry: { path: string; content: string; encoding?: string } = {
+
+            const fileEntry: {
+              path: string;
+              content: string;
+              encoding?: string;
+            } = {
               path,
               content,
             };
-            
+
             // Mark binary files with base64 encoding
             if (isBinaryFile(path)) {
               fileEntry.encoding = 'base64';
             }
-            
+
             return fileEntry;
           }
           return null;
         });
 
         const validPayload = payload.filter(
-          (entry): entry is { path: string; content: string; encoding?: string } => entry !== null
+          (
+            entry
+          ): entry is { path: string; content: string; encoding?: string } =>
+            entry !== null
         );
         if (validPayload.length > 0) {
-          console.log('[compile] payload from store (filtered)', {
-            activePath,
-            files: validPayload.map((file) => ({
-              path: file.path,
-              contentLength: file.content.length,
-              isActive: file.path === activePath,
-              encoding: file.encoding,
-            })),
-          });
           return validPayload;
         }
       }
 
-      // Fall back to fetching from Supabase if the store is empty or missing content
       const fetched = await fetchProjectFiles();
       if (fetched && fetched.length > 0) {
-        console.log('[compile] payload from Supabase fetch', {
-          count: fetched.length,
-          activePath,
-        });
         return fetched.map((file) =>
           file.path === activePath ? { ...file, content: activeContent } : file
         );
       }
 
-      // Final fallback: single-file payload with the active document
-      console.warn('[compile] falling back to single-file payload', {
-        activePath,
-        activeContentLength: activeContent.length,
-      });
       return [{ path: activePath, content: activeContent }];
     },
     [fetchProjectFiles, projectFilesState, isBinaryFile]
@@ -227,17 +217,6 @@ export function useEditorCompilation({
       const filesPayload = projectId
         ? await buildFilesPayload(normalizedFileName, currentContent)
         : [{ path: normalizedFileName, content: currentContent }];
-
-      console.log('[compile] sending compile request', {
-        projectId,
-        lastModifiedFile: normalizedFileName,
-        files: filesPayload.map((file) => ({
-          path: file.path,
-          contentLength: file.content.length,
-          hasDocumentClass: file.content.includes('\n\\documentclass'),
-          hasBibliographyCommand: file.content.includes('\n\\bibliography'),
-        })),
-      });
 
       const requestBody = {
         files: filesPayload,
@@ -287,8 +266,6 @@ export function useEditorCompilation({
 
       throw new Error('No PDF data received');
     } catch (error) {
-      console.error('Compilation error:', error);
-
       if (!handled) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown compilation error';
@@ -323,15 +300,6 @@ export function useEditorCompilation({
         ? await buildFilesPayload(normalizedFileName, currentContent)
         : [{ path: normalizedFileName, content: currentContent }];
 
-      console.log('[compile] sending export request', {
-        projectId,
-        lastModifiedFile: normalizedFileName,
-        files: filesPayload.map((file) => ({
-          path: file.path,
-          contentLength: file.content.length,
-        })),
-      });
-
       const requestBody = {
         files: filesPayload,
         projectId,
@@ -348,8 +316,8 @@ export function useEditorCompilation({
       let data: any;
       try {
         data = JSON.parse(rawText);
-      } catch (e) {
-        console.error('Failed to parse JSON:', e);
+      } catch (error) {
+        console.error('Failed to parse JSON:', error);
         throw new Error('Failed to parse server response');
       }
 
