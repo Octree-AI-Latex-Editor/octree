@@ -96,42 +96,83 @@ export const getProjectFiles = async (
     throw new Error('User not authenticated');
   }
 
-  const { data: filesData, error: filesError } = await supabase
-    .from('files')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('uploaded_at', { ascending: false });
+  const { data: storageFiles, error: storageError } = await supabase.storage
+    .from('octree')
+    .list(`projects/${projectId}`, {
+      sortBy: { column: 'created_at', order: 'desc' },
+    });
 
-  if (filesError) throw filesError;
-  if (!filesData) return [];
+  if (storageError) throw storageError;
+  if (!storageFiles || storageFiles.length === 0) return [];
 
-  const filesWithDocuments = await Promise.all(
-    filesData.map(async (file: Tables<'files'>) => {
-      const { data: documentData, error: documentError } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('filename', file.name)
-        .eq('owner_id', session.user.id)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const actualFiles = storageFiles.filter((item) => item.id !== null);
 
-      if (documentError || !documentData) {
+  const filesWithContent = await Promise.all(
+    actualFiles.map(async (storageFile) => {
+      try {
+        const { data: fileBlob, error: downloadError } = await supabase.storage
+          .from('octree')
+          .download(`projects/${projectId}/${storageFile.name}`);
+
+        if (downloadError || !fileBlob) {
+          console.warn(
+            `Failed to download file ${storageFile.name}:`,
+            downloadError
+          );
+          return {
+            file: {
+              id: storageFile.id,
+              name: storageFile.name,
+              project_id: projectId,
+              size: null,
+              type: null,
+              uploaded_at: storageFile.created_at,
+            },
+            document: null,
+          };
+        }
+
+        const content = await fileBlob.text();
+
         return {
-          file,
+          file: {
+            id: storageFile.id,
+            name: storageFile.name,
+            project_id: projectId,
+            size: storageFile.metadata?.size || null,
+            type: storageFile.metadata?.mimetype || null,
+            uploaded_at: storageFile.created_at,
+          },
+          document: {
+            id: storageFile.id,
+            title: storageFile.name,
+            content: content,
+            owner_id: session.user.id,
+            project_id: projectId,
+            filename: storageFile.name,
+            document_type: storageFile.name === 'main.tex' ? 'article' : 'file',
+            created_at: storageFile.created_at,
+            updated_at: storageFile.updated_at || storageFile.created_at,
+          },
+        };
+      } catch (error) {
+        console.error(`Error processing file ${storageFile.name}:`, error);
+        return {
+          file: {
+            id: storageFile.id,
+            name: storageFile.name,
+            project_id: projectId,
+            size: null,
+            type: null,
+            uploaded_at: storageFile.created_at,
+          },
           document: null,
         };
       }
-
-      return {
-        file,
-        document: documentData,
-      };
     })
   );
 
-  return filesWithDocuments.filter((item) => item.document !== null);
+  return filesWithContent.filter((item) => item.document !== null);
 };
 
 export interface ImportProjectResponse {
@@ -168,7 +209,6 @@ export const importProject = async (
 
 export const renameFile = async (
   projectId: string,
-  fileId: string,
   currentName: string,
   newName: string
 ): Promise<void> => {
@@ -182,32 +222,15 @@ export const renameFile = async (
     throw new Error('User not authenticated');
   }
 
-  const { error: updateFileError } = await (supabase.from('files') as any)
-    .update({ name: newName })
-    .eq('id', fileId)
-    .eq('project_id', projectId);
-
-  if (updateFileError) {
-    throw new Error('Failed to rename file');
-  }
-
-  const { error: updateDocumentError } = await (
-    supabase.from('documents') as any
-  )
-    .update({
-      title: newName,
-      filename: newName,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('project_id', projectId)
-    .eq('filename', currentName)
-    .eq('owner_id', session.user.id);
-
-  if (updateDocumentError) {
-    console.warn(
-      'Failed to update associated document name:',
-      updateDocumentError
+  const { error: moveError } = await supabase.storage
+    .from('octree')
+    .move(
+      `projects/${projectId}/${currentName}`,
+      `projects/${projectId}/${newName}`
     );
+
+  if (moveError) {
+    throw new Error('Failed to rename file');
   }
 };
 
@@ -226,24 +249,11 @@ export const deleteFile = async (
     throw new Error('User not authenticated');
   }
 
-  const { error: deleteDocumentError } = await (
-    supabase.from('documents') as any
-  )
-    .delete()
-    .eq('project_id', projectId)
-    .eq('filename', fileName)
-    .eq('owner_id', session.user.id);
+  const { error: deleteError } = await supabase.storage
+    .from('octree')
+    .remove([`projects/${projectId}/${fileName}`]);
 
-  if (deleteDocumentError) {
-    console.warn('Failed to delete associated document:', deleteDocumentError);
-  }
-
-  const { error: deleteFileError } = await (supabase.from('files') as any)
-    .delete()
-    .eq('id', fileId)
-    .eq('project_id', projectId);
-
-  if (deleteFileError) {
+  if (deleteError) {
     throw new Error('Failed to delete file');
   }
 };

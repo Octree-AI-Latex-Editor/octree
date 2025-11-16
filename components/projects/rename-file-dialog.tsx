@@ -63,7 +63,7 @@ export function RenameFileDialog({
     setError(null);
 
     try {
-      await renameFile(projectId, fileId, currentName, trimmedName);
+      await renameFile(projectId, currentName, trimmedName);
       toast.success('File renamed successfully');
       revalidate();
       onRenamed?.(trimmedName);

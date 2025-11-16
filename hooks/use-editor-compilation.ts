@@ -82,55 +82,62 @@ export function useEditorCompilation({
 
     try {
       const supabase = createClient();
-      // Fetch all files in the project
-      const { data: filesData, error: filesError } = await supabase
-        .from('files')
-        .select('*')
-        .eq('project_id', project.id)
-        .order('uploaded_at', { ascending: false });
+      
+      const { data: storageFiles, error: storageError } = await supabase.storage
+        .from('octree')
+        .list(`projects/${project.id}`);
 
-      if (filesError || !filesData) {
-        console.error('Error fetching project files:', filesError);
+      if (storageError || !storageFiles) {
+        console.error('Error fetching project files:', storageError);
         return null;
       }
 
-      // Fetch document content for each file
-      const filesWithContent = await Promise.all(
-        filesData.map(async (file: any) => {
-          // Get the most recent document for this file
-          const { data: docData, error: docError } = await supabase
-            .from('documents')
-            .select('content')
-            .eq('project_id', project.id)
-            .eq('filename', file.name)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+      const actualFiles = storageFiles.filter((item) => item.id !== null);
 
-          if (docError || !docData) {
-            console.warn(`No document found for file: ${file.name}`, docError);
+      const filesWithContent = await Promise.all(
+        actualFiles.map(async (file) => {
+          try {
+            const { data: fileBlob, error: downloadError } = await supabase.storage
+              .from('octree')
+              .download(`projects/${project.id}/${file.name}`);
+
+            if (downloadError || !fileBlob) {
+              console.warn(`No content found for file: ${file.name}`, downloadError);
+              return null;
+            }
+
+            const isBinary = isBinaryFile(file.name);
+            let content: string;
+
+            if (isBinary) {
+              const arrayBuffer = await fileBlob.arrayBuffer();
+              const uint8Array = new Uint8Array(arrayBuffer);
+              content = btoa(String.fromCharCode(...uint8Array));
+            } else {
+              content = await fileBlob.text();
+            }
+
+            const fileEntry: {
+              path: string;
+              content: string;
+              encoding?: string;
+            } = {
+              path: file.name,
+              content: content,
+            };
+
+            if (isBinary) {
+              fileEntry.encoding = 'base64';
+            }
+
+            return fileEntry;
+          } catch (error) {
+            console.warn(`Error processing file: ${file.name}`, error);
             return null;
           }
-
-          const fileEntry: {
-            path: string;
-            content: string;
-            encoding?: string;
-          } = {
-            path: file.name,
-            content: (docData as any).content as string,
-          };
-
-          // Mark binary files with base64 encoding
-          if (isBinaryFile(file.name)) {
-            fileEntry.encoding = 'base64';
-          }
-
-          return fileEntry;
         })
       );
 
-      // Filter out null entries and return
       const validFiles = filesWithContent.filter(
         (f): f is { path: string; content: string; encoding?: string } =>
           f !== null

@@ -15,16 +15,37 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Upload, FileText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import type { TablesInsert } from '@/database.types';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 import { FileActions } from '@/stores/file';
-import { createDocumentForFile } from '@/lib/requests/project';
 
 interface AddFileDialogProps {
   projectId: string;
   projectTitle: string;
   onFileAdded?: () => void;
 }
+
+const getMimeTypeFromFileName = (fileName: string): string => {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    tex: 'application/x-latex',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    json: 'application/json',
+    js: 'application/javascript',
+    ts: 'application/typescript',
+    py: 'text/x-python',
+    java: 'text/x-java',
+    cpp: 'text/x-c++src',
+    c: 'text/x-csrc',
+    html: 'text/html',
+    css: 'text/css',
+    xml: 'application/xml',
+    yaml: 'application/x-yaml',
+    yml: 'application/x-yaml',
+    bib: 'application/x-bibtex',
+  };
+  return mimeTypes[extension || ''] || 'text/plain';
+};
 
 export function AddFileDialog({
   projectId,
@@ -66,27 +87,24 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const content = await selectedFile.text();
+      const mimeType = getMimeTypeFromFileName(fileName);
+      const { error: uploadError } = await supabase.storage
+        .from('octree')
+        .upload(`projects/${projectId}/${fileName}`, selectedFile, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: mimeType,
+        });
 
-      const fileInsert: TablesInsert<'files'> = {
-        project_id: projectId,
-        name: fileName,
-        type: selectedFile.type || 'text/plain',
-        size: selectedFile.size,
-      };
-      const { data: fileData, error: fileError } =
-        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from('files') as any).insert(fileInsert).select().single();
-
-      if (fileError) {
-        throw new Error('Failed to create file record');
+      if (uploadError) {
+        throw new Error('Failed to upload file');
       }
 
-      try {
-        await createDocumentForFile(projectId, fileName, content);
-      } catch (documentError) {
-        console.warn('Failed to create document record:', documentError);
-      }
+      const { data: storageFiles } = await supabase.storage
+        .from('octree')
+        .list(`projects/${projectId}`);
+
+      const uploadedFile = storageFiles?.find((f) => f.name === fileName);
 
       setOpen(false);
       setFileName('');
@@ -94,7 +112,17 @@ export function AddFileDialog({
       setUploadMode('create');
       onFileAdded?.();
       revalidate();
-      FileActions.setSelectedFile(fileData);
+
+      if (uploadedFile) {
+        FileActions.setSelectedFile({
+          id: uploadedFile.id,
+          name: uploadedFile.name,
+          project_id: projectId,
+          size: uploadedFile.metadata?.size || null,
+          type: uploadedFile.metadata?.mimetype || null,
+          uploaded_at: uploadedFile.created_at,
+        });
+      }
     } catch (error) {
       setError(
         error instanceof Error ? error.message : 'Failed to upload file'
@@ -121,38 +149,44 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const fileInsert2: TablesInsert<'files'> = {
-        project_id: projectId,
-        name: fileName,
-        type: 'text/plain',
-        size: fileContent.length,
-      };
-      const { data: fileData, error: fileError } =
-        await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from('files') as any).insert(fileInsert2).select().single();
+      const content = fileContent || '';
+      const mimeType = getMimeTypeFromFileName(fileName);
+      const blob = new Blob([content], { type: mimeType });
 
-      if (fileError) {
-        throw new Error('Failed to create file record');
+      const { error: uploadError } = await supabase.storage
+        .from('octree')
+        .upload(`projects/${projectId}/${fileName}`, blob, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: mimeType,
+        });
+
+      if (uploadError) {
+        throw new Error('Failed to create file');
       }
 
-      // Always create a document for the file
-      try {
-        await createDocumentForFile(
-          projectId,
-          fileName,
-          fileContent || undefined,
-          { useDefaultContent: false }
-        );
-      } catch (documentError) {
-        console.warn('Failed to create document record:', documentError);
-      }
+      const { data: storageFiles } = await supabase.storage
+        .from('octree')
+        .list(`projects/${projectId}`);
+
+      const createdFile = storageFiles?.find((f) => f.name === fileName);
 
       setOpen(false);
       setFileName('');
       setFileContent('');
       onFileAdded?.();
       revalidate();
-      FileActions.setSelectedFile(fileData);
+
+      if (createdFile) {
+        FileActions.setSelectedFile({
+          id: createdFile.id,
+          name: createdFile.name,
+          project_id: projectId,
+          size: createdFile.metadata?.size || null,
+          type: createdFile.metadata?.mimetype || null,
+          uploaded_at: createdFile.created_at,
+        });
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to add file');
     } finally {
@@ -166,7 +200,7 @@ export function AddFileDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <div className="flex cursor-pointer items-center gap-3 rounded-md border-2 border-dashed border-gray-200 px-2 py-1 text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900">
+        <div className="flex cursor-pointer items-center gap-1.5 rounded-md border-2 border-dashed border-gray-200 px-1 py-0.5 text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900">
           <Plus className="h-4 w-4" />
           <span className="text-sm font-medium">Add File</span>
         </div>
