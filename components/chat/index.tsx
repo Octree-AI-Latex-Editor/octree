@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -373,7 +372,6 @@ export function Chat({
 
   return (
     <div className="fixed bottom-4 right-4 z-20 h-[610px] w-96 rounded-md border border-blue-100 bg-white shadow-2xl transition-all duration-200">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-blue-100/50 px-4 py-2">
         <div className="flex items-center space-x-3">
           <OctreeLogo className="h-6 w-6" />
@@ -434,7 +432,6 @@ export function Chat({
             />
           ))}
 
-          {/* Image Analysis Status Indicator (like propose_edits) */}
           {conversionStatus && (
             <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2">
               <div className="flex items-center gap-2 text-sm text-primary">
@@ -453,6 +450,7 @@ export function Chat({
           textFromEditor={textFromEditor}
           attachments={attachments}
           canAddMoreAttachments={canAddMoreAttachments}
+          hasMessages={messages.length > 0}
           onInputChange={setInput}
           onSubmit={handleSubmit}
           onClearEditor={() => setTextFromEditor(null)}
@@ -465,7 +463,6 @@ export function Chat({
             stopStream();
             clearAllProposalsAndTimeouts();
 
-            // Remove incomplete assistant message
             const messageIdToRemove = currentAssistantIdRef.current;
             if (messageIdToRemove) {
               setMessages((prev) => {

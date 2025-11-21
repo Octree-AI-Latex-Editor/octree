@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Upload } from 'lucide-react';
 import { DialogClose, DialogFooter } from '@/components/ui/dialog';
@@ -22,12 +23,12 @@ export function CreateProjectTabs({
   onError,
 }: CreateProjectTabsProps) {
   const [activeTab, setActiveTab] = useState('create');
+
   const [title, setTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { createProjectWithRefresh } = useCreateProject();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,51 +56,35 @@ export function CreateProjectTabs({
     setIsLoading(false);
   };
 
-  const validateAndSetFile = (file: File) => {
-    if (!file.name.endsWith('.zip')) {
-      setError('Please select a ZIP file');
+  const onDrop = (acceptedFiles: File[], rejectedFiles: any[]) => {
+    if (rejectedFiles.length > 0) {
+      const rejection = rejectedFiles[0];
+      if (rejection.errors[0]?.code === 'file-too-large') {
+        setError('File size must be less than 50MB');
+      } else if (rejection.errors[0]?.code === 'file-invalid-type') {
+        setError('Please select a ZIP file');
+      } else {
+        setError('Invalid file');
+      }
       setSelectedFile(null);
-      return false;
+      return;
     }
-    if (file.size > 50 * 1024 * 1024) {
-      setError('File size must be less than 50MB');
-      setSelectedFile(null);
-      return false;
-    }
-    setSelectedFile(file);
-    setError(null);
-    return true;
-  };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      validateAndSetFile(file);
+    if (acceptedFiles.length > 0) {
+      setSelectedFile(acceptedFiles[0]);
+      setError(null);
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      validateAndSetFile(file);
-    }
-  };
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/zip': ['.zip'],
+    },
+    maxSize: 50 * 1024 * 1024,
+    multiple: false,
+    disabled: isLoading,
+  });
 
   const handleImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,33 +161,22 @@ export function CreateProjectTabs({
             <Label htmlFor="zipFile">ZIP File</Label>
 
             <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+              {...getRootProps()}
               className={cn(
                 'relative cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors duration-200',
-                isDragging
+                isDragActive
                   ? 'border-primary bg-primary/5'
                   : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50',
                 isLoading && 'cursor-not-allowed opacity-50'
               )}
             >
-              <Input
-                id="zipFile"
-                type="file"
-                accept=".zip"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                disabled={isLoading}
-                className="hidden"
-              />
+              <input {...getInputProps()} />
 
               <div className="flex flex-col items-center gap-2">
                 <Upload
                   className={cn(
                     'h-10 w-10',
-                    isDragging ? 'text-primary' : 'text-neutral-400'
+                    isDragActive ? 'text-primary' : 'text-neutral-400'
                   )}
                 />
                 <div className="text-sm">
@@ -241,9 +215,6 @@ export function CreateProjectTabs({
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedFile(null);
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = '';
-                    }
                   }}
                   disabled={isLoading}
                 >

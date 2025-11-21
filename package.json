@@ -59,6 +59,7 @@
     "posthog-js": "^1.282.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-dropzone": "^14.3.8",
     "react-markdown": "^10.1.0",
     "react-pdf": "^9.2.1",
     "react-resizable-panels": "^3.0.6",
