@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,10 +14,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Upload, FileText } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 import { FileActions } from '@/stores/file';
+import { createDocumentForFile } from '@/lib/requests/project';
+import {
+  SUPPORTED_TEXT_FILE_TYPES,
+  SUPPORTED_TEXT_FILE_EXTENSIONS,
+  MAX_TEXT_FILE_SIZE,
+} from '@/lib/constants/file-types';
 
 interface AddFileDialogProps {
   projectId: string;
@@ -59,17 +68,32 @@ export function AddFileDialog({
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadMode, setUploadMode] = useState<'create' | 'upload'>('create');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { revalidate } = useProjectFilesRevalidation(projectId);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const onDrop = (acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
       setSelectedFile(file);
       setFileName(file.name);
       setUploadMode('upload');
+      setError(null);
     }
   };
+
+  const {
+    getRootProps,
+    getInputProps,
+    isDragActive,
+    open: openFileDialog,
+  } = useDropzone({
+    onDrop,
+    accept: SUPPORTED_TEXT_FILE_TYPES,
+    maxSize: MAX_TEXT_FILE_SIZE,
+    multiple: false,
+    disabled: isLoading,
+    noClick: true,
+    noKeyboard: true,
+  });
 
   const handleFileUpload = async () => {
     if (!selectedFile || !fileName.trim()) return;
@@ -213,117 +237,139 @@ export function AddFileDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mb-4 flex gap-2">
-          <Button
-            type="button"
-            variant={uploadMode === 'create' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setUploadMode('create')}
-            disabled={isLoading}
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Create New
-          </Button>
-          <Button
-            type="button"
-            variant={uploadMode === 'upload' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setUploadMode('upload')}
-            disabled={isLoading}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Upload File
-          </Button>
-        </div>
+        <Tabs
+          value={uploadMode}
+          onValueChange={(value) => setUploadMode(value as 'create' | 'upload')}
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="create" disabled={isLoading}>
+              <FileText className="h-4 w-4" />
+              Create New
+            </TabsTrigger>
+            <TabsTrigger value="upload" disabled={isLoading}>
+              <Upload className="h-4 w-4" />
+              Upload File
+            </TabsTrigger>
+          </TabsList>
 
-        {uploadMode === 'create' ? (
-          <form onSubmit={handleSubmit} className="grid gap-4">
-            <div className="grid gap-3">
-              <Label htmlFor="fileName">File Name</Label>
-              <Input
-                id="fileName"
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                placeholder="Enter file name (e.g., document.tex)"
-              />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+          <TabsContent value="create" className="mt-4">
+            <form onSubmit={handleSubmit} className="grid gap-4">
+              <div className="grid gap-3">
+                <Label htmlFor="fileName">Name</Label>
+                <Input
+                  id="fileName"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="Enter file name (e.g., document.tex)"
+                />
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Creating...' : 'Create File'}
-              </Button>
-            </DialogFooter>
-          </form>
-        ) : (
-          <div className="grid gap-4">
-            <div className="grid gap-3">
-              <Label htmlFor="fileUpload">Select File</Label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                id="fileUpload"
-                onChange={handleFileSelect}
-                className="hidden"
-                accept=".tex,.txt,.md,.json,.js,.ts,.py,.java,.cpp,.c,.html,.css,.xml,.yaml,.yml"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading}
-                className="w-full"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Choose File
-              </Button>
-              {selectedFile && (
-                <div className="text-sm text-green-600">
-                  Selected: {selectedFile.name} (
-                  {(selectedFile.size / 1024).toFixed(1)} KB)
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? 'Creating...' : 'Create File'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </TabsContent>
+
+          <TabsContent value="upload" className="mt-4">
+            <div className="grid gap-4">
+              <div className="grid gap-3">
+                <Label htmlFor="fileUpload">Select File</Label>
+                <div
+                  {...getRootProps()}
+                  className={cn(
+                    'relative cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors duration-200',
+                    isDragActive
+                      ? 'border-primary bg-primary/5'
+                      : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50',
+                    isLoading && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  <input {...getInputProps()} />
+
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload
+                      className={cn(
+                        'h-8 w-8',
+                        isDragActive ? 'text-primary' : 'text-neutral-400'
+                      )}
+                    />
+                    <div className="text-sm">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openFileDialog();
+                        }}
+                        className="font-medium text-primary hover:underline"
+                        disabled={isLoading}
+                      >
+                        Click to upload
+                      </button>
+                      <span className="text-neutral-600">
+                        {' '}
+                        or drag and drop
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-500">
+                      {SUPPORTED_TEXT_FILE_EXTENSIONS.join(', ')} (max{' '}
+                      {MAX_TEXT_FILE_SIZE / 1024 / 1024}MB)
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                {selectedFile && (
+                  <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                    <p className="font-medium">Selected: {selectedFile.name}</p>
+                    <p className="text-xs text-green-600">
+                      {(selectedFile.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-3">
+                <Label htmlFor="uploadFileName">Name (Optional)</Label>
+                <Input
+                  id="uploadFileName"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="Enter custom name or keep original"
+                />
+              </div>
+
+              {error && <p className="text-sm text-red-600">{error}</p>}
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isLoading || !selectedFile}
+                >
+                  {isLoading ? 'Uploading...' : 'Upload File'}
+                </Button>
+              </DialogFooter>
             </div>
-
-            <div className="grid gap-3">
-              <Label htmlFor="uploadFileName">File Name (Optional)</Label>
-              <Input
-                id="uploadFileName"
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                placeholder="Enter custom name or keep original"
-              />
-            </div>
-
-            {error && <p className="text-sm text-red-600">{error}</p>}
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isLoading || !selectedFile}
-              >
-                {isLoading ? 'Uploading...' : 'Upload File'}
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

@@ -1,15 +1,10 @@
-import {
-  useRef,
-  useState,
-  useCallback,
-  useImperativeHandle,
-  forwardRef,
-  type FormEvent,
-} from 'react';
+import { useRef, useImperativeHandle, forwardRef, type FormEvent } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { X, ArrowUp, Loader2, Upload, Square, Trash2 } from 'lucide-react';
 import { FileAttachment } from '@/types/attachment';
+import { MAX_FILE_SIZE } from '@/types/attachment';
 import { AttachmentUpload } from './attachment-upload';
 import { AttachmentList } from './attachment-list';
 
@@ -19,6 +14,7 @@ interface ChatInputProps {
   textFromEditor: string | null;
   attachments?: FileAttachment[];
   canAddMoreAttachments?: boolean;
+  hasMessages?: boolean;
   onInputChange: (value: string) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   onClearEditor: () => void;
@@ -42,6 +38,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       textFromEditor,
       attachments = [],
       canAddMoreAttachments = true,
+      hasMessages = false,
       onInputChange,
       onSubmit,
       onClearEditor,
@@ -61,7 +58,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         inputRef.current?.focus();
       },
     }));
-    const [isDragging, setIsDragging] = useState(false);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -70,45 +66,33 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           bubbles: true,
           cancelable: true,
         });
+
         const form = e.currentTarget.form;
+
         if (form) {
           form.dispatchEvent(formEvent);
         }
       }
     };
 
-    const handleDragOver = useCallback(
-      (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!isLoading && canAddMoreAttachments && onFilesSelected) {
-          setIsDragging(true);
-        }
-      },
-      [isLoading, canAddMoreAttachments, onFilesSelected]
-    );
+    const onDrop = (acceptedFiles: File[]) => {
+      if (
+        acceptedFiles.length > 0 &&
+        canAddMoreAttachments &&
+        onFilesSelected
+      ) {
+        onFilesSelected(acceptedFiles);
+      }
+    };
 
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-    }, []);
-
-    const handleDrop = useCallback(
-      (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-
-        if (isLoading || !canAddMoreAttachments || !onFilesSelected) return;
-
-        const { files } = e.dataTransfer;
-        if (files && files.length > 0) {
-          onFilesSelected(Array.from(files));
-        }
-      },
-      [isLoading, canAddMoreAttachments, onFilesSelected]
-    );
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+      onDrop,
+      maxSize: MAX_FILE_SIZE,
+      multiple: true,
+      disabled: isLoading || !canAddMoreAttachments || !onFilesSelected,
+      noClick: true,
+      noKeyboard: true,
+    });
 
     return (
       <div className="relative px-2 pb-2">
@@ -136,17 +120,17 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onResetError?.();
             onSubmit(event);
           }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          {...getRootProps()}
           className="relative flex w-full flex-col gap-2 rounded-md border p-2"
         >
-          {isDragging && (
+          <input {...getInputProps()} />
+
+          {isDragActive && (
             <div className="absolute inset-0 z-50 flex items-center justify-center rounded-md border-2 border-dashed border-blue-500 bg-blue-50/90 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-2">
                 <Upload className="h-8 w-8 text-blue-600" />
                 <span className="text-sm font-medium text-blue-600">
-                  Drop files here
+                  Drop files hereasdas
                 </span>
               </div>
             </div>
@@ -177,7 +161,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                   size="icon"
                   variant="ghost"
                   onClick={onClearHistory}
-                  disabled={isLoading}
+                  disabled={isLoading || !hasMessages}
                   className="size-6 rounded-full hover:text-red-600"
                   title="Clear chat history"
                   aria-label="Clear chat history"
