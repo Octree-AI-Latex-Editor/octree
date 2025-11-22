@@ -17,7 +17,7 @@ type State = {
   success?: boolean;
 };
 
-export async function createProject(prevState: State, formData: FormData) {
+export async function createProject(title: string) {
   try {
     const supabase = await createClient();
 
@@ -31,17 +31,17 @@ export async function createProject(prevState: State, formData: FormData) {
     }
 
     const validatedFields = CreateProject.safeParse({
-      title: formData.get('title') as string,
+      title,
     });
 
     if (!validatedFields.success) {
       throw new Error(validatedFields.error.errors[0].message);
     }
 
-    const { title } = validatedFields.data;
+    const { title: validatedTitle } = validatedFields.data;
 
     const projectData: TablesInsert<'projects'> = {
-      title,
+      title: validatedTitle,
       user_id: user.id,
     };
 
@@ -55,34 +55,31 @@ export async function createProject(prevState: State, formData: FormData) {
       throw new Error('Failed to create project');
     }
 
-    const defaultContent = DEFAULT_LATEX_CONTENT(title);
+    const defaultContent = DEFAULT_LATEX_CONTENT(validatedTitle);
+    const filePath = `projects/${data.id}/main.tex`;
 
-    const documentToInsert: TablesInsert<'documents'> = {
-      title: title,
-      content: defaultContent,
-      owner_id: user.id,
-      project_id: data.id,
-      filename: 'main.tex',
-      document_type: 'article',
-    };
+    const { error: storageError } = await supabase.storage
+      .from('octree')
+      .upload(filePath, defaultContent, {
+        contentType: 'text/x-tex',
+        upsert: false,
+      });
 
-    const { data: documentData, error: documentError } = await (
-      supabase.from('documents') as any
-    )
-      .insert(documentToInsert)
-      .select()
-      .single();
-
-    if (documentError) {
-      console.error('Error creating document:', documentError);
-      throw new Error('Failed to create document');
+    if (storageError) {
+      console.error('Error uploading file to storage:', storageError);
+      throw new Error('Failed to upload file to storage');
     }
+
+    const { data: urlData } = supabase.storage
+      .from('octree')
+      .getPublicUrl(filePath);
 
     const fileToInsert: TablesInsert<'files'> = {
       project_id: data.id,
       name: 'main.tex',
-      type: 'text/plain',
+      type: 'text/x-tex',
       size: defaultContent.length,
+      url: urlData.publicUrl,
     };
 
     const { error: fileError } = await (supabase.from('files') as any).insert(
@@ -91,6 +88,7 @@ export async function createProject(prevState: State, formData: FormData) {
 
     if (fileError) {
       console.error('Error creating file record:', fileError);
+      throw new Error('Failed to create file record');
     }
 
     revalidatePath('/');

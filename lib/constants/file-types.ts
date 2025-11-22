@@ -1,5 +1,9 @@
 export const SUPPORTED_TEXT_FILE_TYPES = {
-  'text/plain': ['.tex', '.txt', '.md'],
+  'text/x-tex': ['.tex'],
+  'text/x-bibtex': ['.bib'],
+  'text/x-latex': ['.sty', '.cls'],
+  'text/markdown': ['.md'],
+  'text/plain': ['.txt'],
   'application/json': ['.json'],
   'text/javascript': ['.js'],
   'text/typescript': ['.ts'],
@@ -15,6 +19,9 @@ export const SUPPORTED_TEXT_FILE_TYPES = {
 
 export const SUPPORTED_TEXT_FILE_EXTENSIONS = [
   '.tex',
+  '.bib',
+  '.sty',
+  '.cls',
   '.txt',
   '.md',
   '.json',
@@ -32,3 +39,15 @@ export const SUPPORTED_TEXT_FILE_EXTENSIONS = [
 ];
 
 export const MAX_TEXT_FILE_SIZE = 10 * 1024 * 1024;
+
+export function getContentTypeByFilename(filename: string): string {
+  const extension = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+  
+  for (const [contentType, extensions] of Object.entries(SUPPORTED_TEXT_FILE_TYPES)) {
+    if (extensions.includes(extension)) {
+      return contentType;
+    }
+  }
+  
+  return 'text/plain';
+}

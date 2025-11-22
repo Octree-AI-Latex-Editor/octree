@@ -15,7 +15,7 @@ export type State = {
   success?: boolean;
 };
 
-export async function deleteProject(prevState: State, formData: FormData) {
+export async function deleteProject(projectId: string) {
   try {
     const supabase = await createClient();
 
@@ -29,19 +29,19 @@ export async function deleteProject(prevState: State, formData: FormData) {
     }
 
     const validatedFields = DeleteProject.safeParse({
-      projectId: formData.get('projectId') as string,
+      projectId,
     });
 
     if (!validatedFields.success) {
       throw new Error(validatedFields.error.errors[0].message);
     }
 
-    const { projectId } = validatedFields.data;
+    const { projectId: validatedProjectId } = validatedFields.data;
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('id, title')
-      .eq('id', projectId)
+      .eq('id', validatedProjectId)
       .eq('user_id', user.id)
       .single();
 
@@ -51,10 +51,33 @@ export async function deleteProject(prevState: State, formData: FormData) {
       );
     }
 
+    const projectFolderPath = `projects/${validatedProjectId}`;
+
+    const { data: storageFiles, error: listError } = await supabase.storage
+      .from('octree')
+      .list(projectFolderPath);
+
+    if (listError) {
+      console.error('Error listing storage files:', listError);
+    } else if (storageFiles && storageFiles.length > 0) {
+      const filePaths = storageFiles.map(
+        (file) => `${projectFolderPath}/${file.name}`
+      );
+
+      const { error: storageDeleteError } = await supabase.storage
+        .from('octree')
+        .remove(filePaths);
+
+      if (storageDeleteError) {
+        console.error('Error deleting storage files:', storageDeleteError);
+        throw new Error('Failed to delete project files from storage');
+      }
+    }
+
     const { error: documentsError } = await supabase
       .from('documents')
       .delete()
-      .eq('project_id', projectId);
+      .eq('project_id', validatedProjectId);
 
     if (documentsError) {
       console.error('Error deleting project documents:', documentsError);
@@ -64,7 +87,7 @@ export async function deleteProject(prevState: State, formData: FormData) {
     const { error: filesError } = await supabase
       .from('files')
       .delete()
-      .eq('project_id', projectId);
+      .eq('project_id', validatedProjectId);
 
     if (filesError) {
       console.error('Error deleting project files:', filesError);
@@ -74,7 +97,7 @@ export async function deleteProject(prevState: State, formData: FormData) {
     const { error: deleteError } = await supabase
       .from('projects')
       .delete()
-      .eq('id', projectId)
+      .eq('id', validatedProjectId)
       .eq('user_id', user.id);
 
     if (deleteError) {
@@ -82,11 +105,10 @@ export async function deleteProject(prevState: State, formData: FormData) {
       throw new Error('Failed to delete project');
     }
 
-    // Revalidate the projects dashboard specifically
     revalidatePath('/projects');
 
     return {
-      projectId,
+      projectId: validatedProjectId,
       message: null,
       success: true,
     };

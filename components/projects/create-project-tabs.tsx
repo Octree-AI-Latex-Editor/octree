@@ -38,10 +38,7 @@ export function CreateProjectTabs({
     setIsLoading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append('title', title);
-
-    const result = await createProjectWithRefresh(formData);
+    const result = await createProjectWithRefresh(title);
 
     if (result.success && result.projectId) {
       toast.success('Project created successfully!');
