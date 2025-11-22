@@ -110,9 +110,10 @@ export const getProjectFiles = async (
   const filesWithContent = await Promise.all(
     actualFiles.map(async (storageFile) => {
       try {
+        const cacheBuster = `?t=${Date.now()}`;
         const { data: fileBlob, error: downloadError } = await supabase.storage
           .from('octree')
-          .download(`projects/${projectId}/${storageFile.name}`);
+          .download(`projects/${projectId}/${storageFile.name}${cacheBuster}`);
 
         if (downloadError || !fileBlob) {
           console.warn(

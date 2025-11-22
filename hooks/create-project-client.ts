@@ -6,8 +6,8 @@ import { useProjectRefresh } from '@/app/context/project';
 export function useCreateProject() {
   const { refreshProjects } = useProjectRefresh();
 
-  const createProjectWithRefresh = async (formData: FormData) => {
-    const result = await createProject({ projectId: null }, formData);
+  const createProjectWithRefresh = async (title: string) => {
+    const result = await createProject(title);
 
     if (result.success) {
       refreshProjects();

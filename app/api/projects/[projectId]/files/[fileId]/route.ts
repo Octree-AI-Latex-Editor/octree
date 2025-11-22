@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
+import { getContentTypeByFilename } from '@/lib/constants/file-types';
 
 export async function GET(
   request: NextRequest,
@@ -119,13 +120,15 @@ export async function PUT(
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    const blob = new Blob([content], { type: 'text/plain' });
+    const contentType = getContentTypeByFilename(file.name);
+    const blob = new Blob([content], { type: contentType });
 
     const { error: uploadError } = await supabase.storage
       .from('octree')
       .upload(`projects/${projectId}/${file.name}`, blob, {
         cacheControl: '3600',
         upsert: true,
+        contentType,
       });
 
     if (uploadError) {
