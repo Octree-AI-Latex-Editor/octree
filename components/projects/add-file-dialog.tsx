@@ -20,11 +20,11 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 import { FileActions } from '@/stores/file';
-import { createDocumentForFile } from '@/lib/requests/project';
 import {
   SUPPORTED_TEXT_FILE_TYPES,
   SUPPORTED_TEXT_FILE_EXTENSIONS,
   MAX_TEXT_FILE_SIZE,
+  getContentTypeByFilename,
 } from '@/lib/constants/file-types';
 
 interface AddFileDialogProps {
@@ -32,29 +32,6 @@ interface AddFileDialogProps {
   projectTitle: string;
   onFileAdded?: () => void;
 }
-
-const getMimeTypeFromFileName = (fileName: string): string => {
-  const extension = fileName.split('.').pop()?.toLowerCase();
-  const mimeTypes: Record<string, string> = {
-    tex: 'application/x-latex',
-    txt: 'text/plain',
-    md: 'text/markdown',
-    json: 'application/json',
-    js: 'application/javascript',
-    ts: 'application/typescript',
-    py: 'text/x-python',
-    java: 'text/x-java',
-    cpp: 'text/x-c++src',
-    c: 'text/x-csrc',
-    html: 'text/html',
-    css: 'text/css',
-    xml: 'application/xml',
-    yaml: 'application/x-yaml',
-    yml: 'application/x-yaml',
-    bib: 'application/x-bibtex',
-  };
-  return mimeTypes[extension || ''] || 'text/plain';
-};
 
 export function AddFileDialog({
   projectId,
@@ -111,7 +88,7 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const mimeType = getMimeTypeFromFileName(fileName);
+      const mimeType = getContentTypeByFilename(fileName);
       const { error: uploadError } = await supabase.storage
         .from('octree')
         .upload(`projects/${projectId}/${fileName}`, selectedFile, {
@@ -174,7 +151,7 @@ export function AddFileDialog({
       }
 
       const content = fileContent || '';
-      const mimeType = getMimeTypeFromFileName(fileName);
+      const mimeType = getContentTypeByFilename(fileName);
       const blob = new Blob([content], { type: mimeType });
 
       const { error: uploadError } = await supabase.storage

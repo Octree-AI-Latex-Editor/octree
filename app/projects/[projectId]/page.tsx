@@ -32,6 +32,8 @@ import { useParams } from 'next/navigation';
 import type { Project } from '@/types/project';
 import { ProjectActions } from '@/stores/project';
 import type { EditSuggestion } from '@/types/edit';
+import { isImageFile } from '@/lib/constants/file-types';
+import { ImageViewer } from '@/components/image-viewer';
 
 export default function ProjectPage() {
   const params = useParams();
@@ -181,6 +183,8 @@ export default function ProjectPage() {
     return <ErrorState error="Error fetching project" />;
   if (!filesData) return <ErrorState error="No files found" />;
 
+  const isImage = selectedFile ? isImageFile(selectedFile.name) : false;
+
   return (
     <div className="flex h-[calc(100vh-45px)] flex-col bg-slate-100">
       <EditorToolbar
@@ -206,22 +210,31 @@ export default function ProjectPage() {
         <ResizablePanel defaultSize={50} minSize={30}>
           <div className="relative h-full">
             <div className="h-full overflow-hidden">
-              <MonacoEditor
-                content={content}
-                onChange={handleEditorChange}
-                onMount={handleEditorMount}
-                className="h-full"
-              />
-              <SelectionButton
-                show={showButton}
-                position={buttonPos}
-                onCopy={() => handleCopy()}
-              />
-              <SuggestionActions
-                suggestions={editSuggestions}
-                onAccept={handleAcceptEdit}
-                onReject={handleRejectEdit}
-              />
+              {isImage && selectedFile ? (
+                <ImageViewer
+                  projectId={projectId}
+                  fileName={selectedFile.name}
+                />
+              ) : (
+                <>
+                  <MonacoEditor
+                    content={content}
+                    onChange={handleEditorChange}
+                    onMount={handleEditorMount}
+                    className="h-full"
+                  />
+                  <SelectionButton
+                    show={showButton}
+                    position={buttonPos}
+                    onCopy={() => handleCopy()}
+                  />
+                  <SuggestionActions
+                    suggestions={editSuggestions}
+                    onAccept={handleAcceptEdit}
+                    onReject={handleRejectEdit}
+                  />
+                </>
+              )}
             </div>
           </div>
         </ResizablePanel>

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { TablesInsert } from '@/database.types';
 import JSZip from 'jszip';
+import {
+  getContentTypeByFilename,
+  SUPPORTED_TEXT_FILE_EXTENSIONS,
+} from '@/lib/constants/file-types';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB limit
 const MAX_FILES = 100; // Maximum files per project
@@ -29,10 +33,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File;
 
     if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     // Check file type
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     const texFiles: ExtractedFile[] = [];
 
     const fileEntries = Object.entries(zipContent.files);
-    
+
     if (fileEntries.length > MAX_FILES) {
       return NextResponse.json(
         { error: `Too many files. Maximum ${MAX_FILES} files allowed.` },
@@ -83,11 +84,11 @@ export async function POST(request: NextRequest) {
 
       const fileName = relativePath.split('/').pop() || relativePath;
       const isTexFile = fileName.endsWith('.tex');
-      
-      // Determine if file is text-based (includes BibTeX files .bib and .bst)
-      const textExtensions = ['.tex', '.sty', '.bib', '.bst', '.cls', '.txt', '.md', '.csv', '.json', '.xml', '.log'];
-      const isTextFile = textExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
-      
+
+      const isTextFile = SUPPORTED_TEXT_FILE_EXTENSIONS.some((ext) =>
+        fileName.toLowerCase().endsWith(ext)
+      );
+
       try {
         let content: string | ArrayBuffer;
         let isText = false;
@@ -104,7 +105,9 @@ export async function POST(request: NextRequest) {
           name: fileName,
           content,
           isText,
-          size: isText ? (content as string).length : (content as ArrayBuffer).byteLength,
+          size: isText
+            ? (content as string).length
+            : (content as ArrayBuffer).byteLength,
         };
 
         extractedFiles.push(extractedFile);
@@ -126,10 +129,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find main.tex or use the first .tex file
-    const mainTexFile =
-      texFiles.find((f) => f.name === 'main.tex') || texFiles[0];
-
     // Determine project title from filename
     const projectTitle =
       file.name.replace('.zip', '').slice(0, 120) || 'Imported Project';
@@ -140,13 +139,9 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
     };
 
-    const { data: project, error: projectError } = await (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      supabase.from('projects') as any
-    )
-      .insert(projectData)
-      .select()
-      .single();
+    const { data: project, error: projectError } =
+      await // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from('projects') as any).insert(projectData).select().single();
 
     if (projectError || !project) {
       console.error('Error creating project:', projectError);
@@ -156,57 +151,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create document records for ALL files (text files as plain text, binary as base64)
-    const documentPromises = extractedFiles.map(async (file) => {
-      // Convert binary files to base64
-      let content: string;
-      if (file.isText) {
-        content = file.content as string;
-      } else {
-        // Convert ArrayBuffer to base64
-        const buffer = file.content as ArrayBuffer;
-        const bytes = new Uint8Array(buffer);
-        content = Buffer.from(bytes).toString('base64');
+    // Upload all files to Supabase Storage
+    const uploadPromises = extractedFiles.map(async (file) => {
+      try {
+        const mimeType = getContentTypeByFilename(file.name);
+        let blob: Blob;
+
+        if (file.isText) {
+          blob = new Blob([file.content as string], { type: mimeType });
+        } else {
+          blob = new Blob([file.content as ArrayBuffer], { type: mimeType });
+        }
+
+        const { error: uploadError } = await supabase.storage
+          .from('octree')
+          .upload(`projects/${project.id}/${file.name}`, blob, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: mimeType,
+          });
+
+        if (uploadError) {
+          console.error(`Failed to upload file ${file.name}:`, uploadError);
+          return { success: false, error: uploadError, fileName: file.name };
+        }
+
+        return { success: true, fileName: file.name };
+      } catch (error) {
+        console.error(`Error uploading file ${file.name}:`, error);
+        return { success: false, error, fileName: file.name };
       }
-
-      const docData: TablesInsert<'documents'> = {
-        title: projectTitle,
-        content: content,
-        owner_id: user.id,
-        project_id: project.id,
-        filename: file.name,
-        document_type: file.name.endsWith('.tex') ? 'article' : 'asset',
-      };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (supabase.from('documents') as any).insert(docData);
     });
 
-    const documentResults = await Promise.all(documentPromises);
-    const documentErrors = documentResults.filter((r) => r.error);
+    const uploadResults = await Promise.all(uploadPromises);
+    const uploadErrors = uploadResults.filter((r) => !r.success);
 
-    if (documentErrors.length > 0) {
-      console.error('Some documents failed to create:', documentErrors);
-    }
-
-    // Create file records for all extracted files
-    const filePromises = extractedFiles.map(async (extractedFile) => {
-      const fileData: TablesInsert<'files'> = {
-        project_id: project.id,
-        name: extractedFile.name,
-        type: extractedFile.isText ? 'text/plain' : 'application/octet-stream',
-        size: extractedFile.size,
-      };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (supabase.from('files') as any).insert(fileData);
-    });
-
-    const fileResults = await Promise.all(filePromises);
-    const fileErrors = fileResults.filter((r) => r.error);
-
-    if (fileErrors.length > 0) {
-      console.error('Some files failed to create:', fileErrors);
+    if (uploadErrors.length > 0) {
+      console.error('Some files failed to upload:', uploadErrors);
     }
 
     return NextResponse.json({
@@ -224,4 +205,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

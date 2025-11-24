@@ -10,6 +10,7 @@ import {
   X,
   Pencil,
   Trash2,
+  Image,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -266,6 +267,15 @@ export function AppSidebar({ userName }: AppSidebarProps) {
 const getFileIcon = (fileName: string) => {
   const extension = fileName.split('.').pop()?.toLowerCase();
   switch (extension) {
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'svg':
+    case 'webp':
+    case 'bmp':
+    case 'ico':
+      return <Image className="h-3.5 w-3.5 flex-shrink-0 text-gray-600" />;
     case 'pdf':
       return (
         <DocumentIcon className="h-3.5 w-3.5 flex-shrink-0 text-red-500" />

@@ -1,7 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import { getContentTypeByFilename } from '@/lib/constants/file-types';
+import {
+  getContentTypeByFilename,
+  isBinaryFile,
+} from '@/lib/constants/file-types';
 
 export async function GET(
   request: NextRequest,
@@ -47,7 +50,14 @@ export async function GET(
       );
     }
 
-    const content = await fileBlob.text();
+    let content: string;
+    if (isBinaryFile(file.name)) {
+      const arrayBuffer = await fileBlob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      content = btoa(String.fromCharCode(...uint8Array));
+    } else {
+      content = await fileBlob.text();
+    }
 
     return NextResponse.json({
       file: {
@@ -121,7 +131,18 @@ export async function PUT(
     }
 
     const contentType = getContentTypeByFilename(file.name);
-    const blob = new Blob([content], { type: contentType });
+    let blob: Blob;
+
+    if (isBinaryFile(file.name)) {
+      const binaryString = atob(content);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      blob = new Blob([bytes], { type: contentType });
+    } else {
+      blob = new Blob([content], { type: contentType });
+    }
 
     const { error: uploadError } = await supabase.storage
       .from('octree')

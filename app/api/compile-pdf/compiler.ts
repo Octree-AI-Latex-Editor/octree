@@ -1,15 +1,15 @@
 import type { CompileRequest, CompilerResponse } from './types';
 
-const COMPILE_TIMEOUT_MS = 60000; // 60 seconds
+const COMPILE_TIMEOUT_MS = 60_000;
 
-/**
- * Compiles LaTeX using the octree-compile service
- */
 export async function compileLatex(
   body: CompileRequest,
   compileServiceUrl: string
 ): Promise<CompilerResponse> {
   const { files, projectId, lastModifiedFile } = body;
+  console.log('🔨 [COMPILE LATEX] Compiling LaTeX with octree-compile', {
+    files,
+  });
 
   const requestBody = JSON.stringify({
     files,
