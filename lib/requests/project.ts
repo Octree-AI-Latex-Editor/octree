@@ -24,6 +24,42 @@ export const getProject = async (projectId: string) => {
   return data;
 };
 
+async function listAllFiles(
+  supabase: any,
+  projectId: string,
+  path: string = ''
+): Promise<any[]> {
+  const listPath = path
+    ? `projects/${projectId}/${path}`
+    : `projects/${projectId}`;
+
+  const { data: items, error } = await supabase.storage
+    .from('octree')
+    .list(listPath, {
+      sortBy: { column: 'created_at', order: 'desc' },
+    });
+
+  if (error || !items) return [];
+
+  const allFiles: any[] = [];
+
+  for (const item of items) {
+    if (item.id) {
+      const fullPath = path ? `${path}/${item.name}` : item.name;
+      allFiles.push({
+        ...item,
+        name: fullPath,
+      });
+    } else if (item.name !== '.emptyFolderPlaceholder') {
+      const subPath = path ? `${path}/${item.name}` : item.name;
+      const subFiles = await listAllFiles(supabase, projectId, subPath);
+      allFiles.push(...subFiles);
+    }
+  }
+
+  return allFiles;
+}
+
 export const getProjectFiles = async (
   projectId: string
 ): Promise<ProjectFile[]> => {
@@ -37,13 +73,8 @@ export const getProjectFiles = async (
     throw new Error('User not authenticated');
   }
 
-  const { data: storageFiles, error: storageError } = await supabase.storage
-    .from('octree')
-    .list(`projects/${projectId}`, {
-      sortBy: { column: 'created_at', order: 'desc' },
-    });
+  const storageFiles = await listAllFiles(supabase, projectId);
 
-  if (storageError) throw storageError;
   if (!storageFiles || storageFiles.length === 0) return [];
 
   const actualFiles = storageFiles.filter((item) => item.id !== null);

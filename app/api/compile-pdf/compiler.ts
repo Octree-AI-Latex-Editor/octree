@@ -7,9 +7,6 @@ export async function compileLatex(
   compileServiceUrl: string
 ): Promise<CompilerResponse> {
   const { files, projectId, lastModifiedFile } = body;
-  console.log('🔨 [COMPILE LATEX] Compiling LaTeX with octree-compile', {
-    files,
-  });
 
   const requestBody = JSON.stringify({
     files,

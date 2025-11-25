@@ -33,15 +33,6 @@ export const useFileContent = () => {
 const getState = useFileStore.getState;
 const setState = useFileStore.setState;
 
-const selectInitialFile = (files: ProjectFile[]): FileData | null => {
-  const mainTexFile = files.find((f) => f.file.name === 'main.tex');
-  return mainTexFile
-    ? mainTexFile.file
-    : files.length > 0
-      ? files[0].file
-      : null;
-};
-
 export const FileActions = {
   setSelectedFile: (file: FileData | null) => {
     setState({ selectedFile: file });
@@ -68,23 +59,16 @@ export const FileActions = {
   },
 
   init: (files: ProjectFile[]) => {
-    const currentState = getState();
-    const currentSelectedFile = currentState.selectedFile;
-
-    let selectedFile: FileData | null = null;
-    if (currentSelectedFile) {
-      const existingFile = files.find(
-        (f) => f.file.id === currentSelectedFile.id
-      );
-      if (existingFile) {
-        selectedFile = existingFile.file;
-      }
-    }
-
-    if (!selectedFile) {
-      selectedFile = selectInitialFile(files);
-    }
-
+    const selectedFile = selectInitialFile(files);
     setState({ projectFiles: files, selectedFile });
   },
+};
+
+const selectInitialFile = (files: ProjectFile[]): FileData | null => {
+  const mainTexFile = files.find((f) => f.file.name === 'main.tex');
+  return mainTexFile
+    ? mainTexFile.file
+    : files.length > 0
+      ? files[0].file
+      : null;
 };

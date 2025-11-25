@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Upload, FileText } from 'lucide-react';
+import { Plus, Upload, FileText, FolderPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
@@ -31,14 +31,22 @@ interface AddFileDialogProps {
   projectId: string;
   projectTitle: string;
   onFileAdded?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  targetFolder?: string | null;
 }
 
 export function AddFileDialog({
   projectId,
   projectTitle,
   onFileAdded,
+  open: controlledOpen,
+  onOpenChange,
+  targetFolder = null,
 }: AddFileDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [fileName, setFileName] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -88,10 +96,13 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
+      const fullPath = targetFolder
+        ? `${targetFolder}/${fileName}`
+        : fileName;
       const mimeType = getContentTypeByFilename(fileName);
       const { error: uploadError } = await supabase.storage
         .from('octree')
-        .upload(`projects/${projectId}/${fileName}`, selectedFile, {
+        .upload(`projects/${projectId}/${fullPath}`, selectedFile, {
           cacheControl: '3600',
           upsert: false,
           contentType: mimeType,
@@ -107,10 +118,7 @@ export function AddFileDialog({
 
       const uploadedFile = storageFiles?.find((f) => f.name === fileName);
 
-      setOpen(false);
-      setFileName('');
-      setSelectedFile(null);
-      setUploadMode('create');
+      handleOpenChange(false);
       onFileAdded?.();
       revalidate();
 
@@ -150,13 +158,16 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
+      const fullPath = targetFolder
+        ? `${targetFolder}/${fileName}`
+        : fileName;
       const content = fileContent || '';
       const mimeType = getContentTypeByFilename(fileName);
       const blob = new Blob([content], { type: mimeType });
 
       const { error: uploadError } = await supabase.storage
         .from('octree')
-        .upload(`projects/${projectId}/${fileName}`, blob, {
+        .upload(`projects/${projectId}/${fullPath}`, blob, {
           cacheControl: '3600',
           upsert: false,
           contentType: mimeType,
@@ -172,9 +183,7 @@ export function AddFileDialog({
 
       const createdFile = storageFiles?.find((f) => f.name === fileName);
 
-      setOpen(false);
-      setFileName('');
-      setFileContent('');
+      handleOpenChange(false);
       onFileAdded?.();
       revalidate();
 
@@ -195,37 +204,107 @@ export function AddFileDialog({
     }
   };
 
+  const handleCreateFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!folderName.trim()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) {
+        throw new Error('User not authenticated');
+      }
+
+      const sanitizedFolderName = folderName.trim().replace(/\/+$/, '');
+      const placeholderContent = '';
+      const blob = new Blob([placeholderContent], { type: 'text/plain' });
+
+      const { error: uploadError } = await supabase.storage
+        .from('octree')
+        .upload(`projects/${projectId}/${sanitizedFolderName}/.gitkeep`, blob, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: 'text/plain',
+        });
+
+      if (uploadError) {
+        throw new Error('Failed to create folder');
+      }
+
+      handleOpenChange(false);
+      onFileAdded?.();
+      revalidate();
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : 'Failed to create folder'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit =
-    uploadMode === 'upload' ? handleFileUpload : handleCreateFile;
+    uploadMode === 'upload'
+      ? handleFileUpload
+      : uploadMode === 'folder'
+        ? handleCreateFolder
+        : handleCreateFile;
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      setFileName('');
+      setFileContent('');
+      setFolderName('');
+      setSelectedFile(null);
+      setError(null);
+      setUploadMode('create');
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <div className="flex cursor-pointer items-center gap-1.5 rounded-md border-2 border-dashed border-gray-200 px-1 py-0.5 text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900">
+        <button
+          type="button"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+        >
           <Plus className="h-4 w-4" />
-          <span className="text-sm font-medium">Add File</span>
-        </div>
+        </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add File to {projectTitle}</DialogTitle>
+          <DialogTitle>Add to {projectTitle}</DialogTitle>
           <DialogDescription>
-            Create a new file or upload an existing file to this project.
+            Create a new file or folder, or upload an existing file to this
+            project.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs
           value={uploadMode}
-          onValueChange={(value) => setUploadMode(value as 'create' | 'upload')}
+          onValueChange={(value) =>
+            setUploadMode(value as 'create' | 'upload' | 'folder')
+          }
         >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="create" disabled={isLoading}>
               <FileText className="h-4 w-4" />
-              Create New
+              Create File
             </TabsTrigger>
             <TabsTrigger value="upload" disabled={isLoading}>
               <Upload className="h-4 w-4" />
               Upload File
+            </TabsTrigger>
+            <TabsTrigger value="folder" disabled={isLoading}>
+              <FolderPlus className="h-4 w-4" />
+              Create Folder
             </TabsTrigger>
           </TabsList>
 
@@ -246,7 +325,7 @@ export function AddFileDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setOpen(false)}
+                  onClick={() => handleOpenChange(false)}
                   disabled={isLoading}
                 >
                   Cancel
@@ -331,7 +410,7 @@ export function AddFileDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setOpen(false)}
+                  onClick={() => handleOpenChange(false)}
                   disabled={isLoading}
                 >
                   Cancel
@@ -345,6 +424,41 @@ export function AddFileDialog({
                 </Button>
               </DialogFooter>
             </div>
+          </TabsContent>
+
+          <TabsContent value="folder" className="mt-4">
+            <form onSubmit={handleSubmit} className="grid gap-4">
+              <div className="grid gap-3">
+                <Label htmlFor="folderName">Folder Name</Label>
+                <Input
+                  id="folderName"
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  placeholder="Enter folder name (e.g., images)"
+                />
+                <p className="text-xs text-neutral-500">
+                  A folder will be created in your project root
+                </p>
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isLoading || !folderName.trim()}
+                >
+                  {isLoading ? 'Creating...' : 'Create Folder'}
+                </Button>
+              </DialogFooter>
+            </form>
           </TabsContent>
         </Tabs>
       </DialogContent>

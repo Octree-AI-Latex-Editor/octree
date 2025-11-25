@@ -23,7 +23,7 @@ export default async function ProjectLayout({
   const project = await getProjectById(projectId);
 
   return (
-    <SidebarProvider defaultOpen={false}>
+    <SidebarProvider defaultOpen={true}>
       <AppSidebar userName={userName} />
       <SidebarInset className="flex h-screen flex-col overflow-hidden">
         <header className="relative flex flex-shrink-0 items-center justify-between border-b px-4 py-3">

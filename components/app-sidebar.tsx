@@ -1,49 +1,22 @@
 'use client';
 
-import {
-  Folder,
-  FileText,
-  ChevronDown,
-  DonutIcon as DocumentIcon,
-  FolderOpen,
-  MoreVertical,
-  X,
-  Pencil,
-  Trash2,
-  Image,
-} from 'lucide-react';
+import { FileText, X, Plus } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
   SidebarFooter,
   SidebarHeader,
   useSidebar,
 } from '@/components/ui/sidebar';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { UserProfileDropdown } from '@/components/user/user-profile-dropdown';
 import { useState } from 'react';
 import { AddFileDialog } from '@/components/projects/add-file-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { RenameFileDialog } from '@/components/projects/rename-file-dialog';
 import { DeleteFileDialog } from '@/components/projects/delete-file-dialog';
+import { FileTree } from '@/components/projects/file-tree';
 import { useFileStore, FileActions, useProjectFiles } from '@/stores/file';
-import { cn } from '@/lib/utils';
 import { useProject } from '@/stores/project';
 
 interface AppSidebarProps {
@@ -62,7 +35,6 @@ interface DeleteDialogFile {
 
 export function AppSidebar({ userName }: AppSidebarProps) {
   const { toggleSidebar } = useSidebar();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { selectedFile } = useFileStore();
   const project = useProject();
   const projectFiles = useProjectFiles();
@@ -70,6 +42,8 @@ export function AppSidebar({ userName }: AppSidebarProps) {
     useState<RenameDialogFile | null>(null);
   const [deleteDialogFile, setDeleteDialogFile] =
     useState<DeleteDialogFile | null>(null);
+  const [addFileDialogOpen, setAddFileDialogOpen] = useState(false);
+  const [targetFolder, setTargetFolder] = useState<string | null>(null);
 
   if (!project) return null;
 
@@ -88,152 +62,63 @@ export function AppSidebar({ userName }: AppSidebarProps) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {!projectFiles ? (
-                <div className="p-6 text-center">
-                  <div className="animate-pulse space-y-3">
-                    <div className="h-4 w-3/4 rounded bg-gray-200"></div>
-                    <div className="h-3 w-1/2 rounded bg-gray-200"></div>
-                    <div className="h-3 w-2/3 rounded bg-gray-200"></div>
-                  </div>
+            {!projectFiles ? (
+              <div className="p-6 text-center">
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 w-3/4 rounded bg-gray-200"></div>
+                  <div className="h-3 w-1/2 rounded bg-gray-200"></div>
+                  <div className="h-3 w-2/3 rounded bg-gray-200"></div>
                 </div>
-              ) : (
-                <Collapsible
-                  open={isSidebarOpen}
-                  onOpenChange={setIsSidebarOpen}
-                >
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="group w-full justify-between rounded-lg hover:bg-gray-50">
-                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                          {isSidebarOpen ? (
-                            <FolderOpen className="h-4 w-4 flex-shrink-0 text-blue-600" />
-                          ) : (
-                            <Folder className="h-4 w-4 flex-shrink-0 text-gray-500" />
-                          )}
-                          <span
-                            className="truncate font-medium text-gray-900"
-                            title={project?.title}
-                          >
-                            {project?.title}
-                          </span>
-                        </div>
-                        <ChevronDown
-                          className={cn(
-                            'h-4 w-4 text-gray-400 transition-transform',
-                            isSidebarOpen && 'rotate-180'
-                          )}
-                        />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                  </SidebarMenuItem>
-
-                  <CollapsibleContent>
-                    <SidebarMenuSub className="ml-4 mt-1 space-y-1">
-                      {projectFiles && projectFiles.length > 0 ? (
-                        <>
-                          {projectFiles.map((projectFile) => {
-                            const isActive =
-                              selectedFile?.id === projectFile.file.id;
-                            return (
-                              <SidebarMenuItem key={projectFile.file.id}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={isActive}
-                                  className={cn(
-                                    'rounded-sm px-1 transition-all duration-200',
-                                    isActive
-                                      ? 'border border-blue-500 bg-blue-50 text-blue-700'
-                                      : 'text-gray-700 hover:bg-gray-50'
-                                  )}
-                                >
-                                  <div className="flex w-full items-center gap-1 hover:bg-gray-100 hover:ring-1 hover:ring-gray-200">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        FileActions.setSelectedFile(
-                                          projectFile.file
-                                        )
-                                      }
-                                      className="flex flex-1 items-center gap-1.5 overflow-hidden text-left"
-                                    >
-                                      {getFileIcon(projectFile.file.name)}
-                                      <div className="min-w-0 flex-1">
-                                        <span
-                                          className="block truncate text-sm font-medium"
-                                          title={projectFile.file.name}
-                                        >
-                                          {projectFile.file.name}
-                                        </span>
-                                      </div>
-                                    </button>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <button
-                                          type="button"
-                                          className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                                          aria-label={`Open options for ${projectFile.file.name}`}
-                                        >
-                                          <MoreVertical className="h-3.5 w-3.5" />
-                                        </button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem
-                                          className="cursor-pointer gap-2"
-                                          onSelect={() =>
-                                            setRenameDialogFile({
-                                              id: projectFile.file.id,
-                                              name: projectFile.file.name,
-                                            })
-                                          }
-                                        >
-                                          <Pencil className="size-4" />
-                                          Rename
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          className="cursor-pointer gap-2"
-                                          variant="destructive"
-                                          onSelect={() =>
-                                            setDeleteDialogFile({
-                                              id: projectFile.file.id,
-                                              name: projectFile.file.name,
-                                            })
-                                          }
-                                        >
-                                          <Trash2 className="size-4 text-destructive" />
-                                          Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuItem>
-                            );
-                          })}
-                          <SidebarMenuItem>
-                            <AddFileDialog
-                              projectId={project.id}
-                              projectTitle={project.title}
-                            />
-                          </SidebarMenuItem>
-                        </>
-                      ) : (
-                        <div className="p-4 text-center">
-                          <FileText className="mx-auto mb-2 h-8 w-8 text-gray-300" />
-                          <p className="mb-3 text-sm text-gray-500">
-                            No files yet
-                          </p>
-                          <AddFileDialog
-                            projectId={project.id}
-                            projectTitle={project.title}
-                          />
-                        </div>
-                      )}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </SidebarMenu>
+              </div>
+            ) : projectFiles.length > 0 ? (
+              <>
+                <FileTree
+                  files={projectFiles}
+                  selectedFileId={selectedFile?.id || null}
+                  onFileSelect={(file) => FileActions.setSelectedFile(file)}
+                  onFileRename={(fileId, fileName) =>
+                    setRenameDialogFile({ id: fileId, name: fileName })
+                  }
+                  onFileDelete={(fileId, fileName) =>
+                    setDeleteDialogFile({ id: fileId, name: fileName })
+                  }
+                  rootFolderName={project.title}
+                  projectId={project.id}
+                  rootAction={
+                    <button
+                      type="button"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                      onClick={() => {
+                        setTargetFolder(null);
+                        setAddFileDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  }
+                  onFolderAction={(folderPath) => {
+                    setTargetFolder(folderPath);
+                    setAddFileDialogOpen(true);
+                  }}
+                />
+                <AddFileDialog
+                  projectId={project.id}
+                  projectTitle={project.title}
+                  open={addFileDialogOpen}
+                  onOpenChange={setAddFileDialogOpen}
+                  targetFolder={targetFolder}
+                />
+              </>
+            ) : (
+              <div className="p-4 text-center">
+                <FileText className="mx-auto mb-2 h-8 w-8 text-gray-300" />
+                <p className="mb-3 text-sm text-gray-500">No files yet</p>
+                <AddFileDialog
+                  projectId={project.id}
+                  projectTitle={project.title}
+                />
+              </div>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
@@ -263,31 +148,3 @@ export function AppSidebar({ userName }: AppSidebarProps) {
     </Sidebar>
   );
 }
-
-const getFileIcon = (fileName: string) => {
-  const extension = fileName.split('.').pop()?.toLowerCase();
-  switch (extension) {
-    case 'png':
-    case 'jpg':
-    case 'jpeg':
-    case 'gif':
-    case 'svg':
-    case 'webp':
-    case 'bmp':
-    case 'ico':
-      return <Image className="h-3.5 w-3.5 flex-shrink-0 text-gray-600" />;
-    case 'pdf':
-      return (
-        <DocumentIcon className="h-3.5 w-3.5 flex-shrink-0 text-red-500" />
-      );
-    case 'doc':
-    case 'docx':
-      return (
-        <DocumentIcon className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />
-      );
-    case 'txt':
-      return <FileText className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />;
-    default:
-      return <FileText className="h-3.5 w-3.5 flex-shrink-0 text-gray-600" />;
-  }
-};
