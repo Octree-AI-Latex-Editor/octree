@@ -69,6 +69,27 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     setZoom(1.0);
   }
 
+  // keyboard shortcuts for zoom
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          handleZoomIn();
+        } else if (e.key === '-') {
+          e.preventDefault();
+          handleZoomOut();
+        } else if (e.key === '0') {
+          e.preventDefault();
+          handleResetZoom();
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   function previousPage(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
