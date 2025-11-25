@@ -1,8 +1,8 @@
 'use client';
 
 import '@/lib/promise-polyfill';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PageCallback } from 'react-pdf/dist/esm/shared/types.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -19,6 +19,10 @@ const options = {
   standardFontDataUrl: '/standard_fonts/',
 };
 
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3.0;
+const ZOOM_STEP = 0.1;
+
 interface PDFViewerProps {
   pdfData?: string | null; // Accept null as a possible value
   isLoading?: boolean;
@@ -32,6 +36,12 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     width: number;
     height: number;
   } | null>(null);
+  const [zoom, setZoom] = useState<number>(1.0);
+
+  // zoom reset
+  useEffect(() => {
+    setZoom(1.0);
+  }, [pdfData]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -45,6 +55,18 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     );
     setPageNumber(newPageNumber);
     setPageLoading(true);
+  }
+
+  function handleZoomIn() {
+    setZoom((prev) => Math.min(MAX_ZOOM, prev + ZOOM_STEP));
+  }
+
+  function handleZoomOut() {
+    setZoom((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP));
+  }
+
+  function handleResetZoom() {
+    setZoom(1.0);
   }
 
   function previousPage(e: React.MouseEvent) {
@@ -134,9 +156,10 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
             }
           >
             <Page
-              key={`page_${pageNumber}_${pdfData?.substring(0, 50)}`} // Key includes PDF data to force re-render when PDF changes
+              key={`page_${pageNumber}_${pdfData?.substring(0, 50)}`}
               pageNumber={pageNumber}
               width={pageWidth}
+              scale={zoom}
               className="border border-slate-200 shadow-sm"
               onLoadSuccess={onPageLoadSuccess}
               renderTextLayer={false} // Disable text layer for better performance
@@ -151,40 +174,82 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
         </div>
       </div>
 
-      {/* Fixed pagination controls at the bottom */}
-      {numPages && numPages > 1 && (
-        <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 transform items-center rounded-md border border-slate-100 bg-white/90 px-1.5 py-1 shadow-md backdrop-blur-sm">
-          <button
-            onClick={previousPage}
-            disabled={pageNumber <= 1}
-            className={`rounded-full p-0.5 transition-colors ${
-              pageNumber <= 1
-                ? 'text-slate-300'
-                : 'text-slate-500 hover:text-blue-500'
-            }`}
-            aria-label="Previous page"
-          >
-            <ChevronLeft size={16} />
-          </button>
+      {/* Fixed controls at the bottom */}
+      {pdfData && (
+        <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 transform gap-2">
+          {/* Zoom controls */}
+          <div className="flex items-center rounded-md border border-slate-100 bg-white/90 px-1.5 py-1 shadow-md backdrop-blur-sm">
+            <button
+              onClick={handleZoomOut}
+              disabled={zoom <= MIN_ZOOM}
+              className={`rounded-full p-0.5 transition-colors ${
+                zoom <= MIN_ZOOM
+                  ? 'text-slate-300'
+                  : 'text-slate-500 hover:text-blue-500'
+              }`}
+              aria-label="Zoom out"
+            >
+              <ZoomOut size={16} />
+            </button>
 
-          <p className="mx-2 text-xs text-slate-600">
-            <span className="font-medium">{pageNumber}</span>
-            <span className="mx-1">/</span>
-            <span>{numPages}</span>
-          </p>
+            <button
+              onClick={handleResetZoom}
+              className="mx-1 min-w-[3rem] rounded px-1.5 py-0.5 text-xs text-slate-600 transition-colors hover:bg-slate-100 hover:text-blue-500"
+              aria-label="Reset zoom"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
 
-          <button
-            onClick={nextPage}
-            disabled={pageNumber >= numPages}
-            className={`rounded-full p-0.5 transition-colors ${
-              pageNumber >= numPages
-                ? 'text-slate-300'
-                : 'text-slate-400 hover:text-blue-500'
-            }`}
-            aria-label="Next page"
-          >
-            <ChevronRight size={16} />
-          </button>
+            <button
+              onClick={handleZoomIn}
+              disabled={zoom >= MAX_ZOOM}
+              className={`rounded-full p-0.5 transition-colors ${
+                zoom >= MAX_ZOOM
+                  ? 'text-slate-300'
+                  : 'text-slate-500 hover:text-blue-500'
+              }`}
+              aria-label="Zoom in"
+            >
+              <ZoomIn size={16} />
+            </button>
+          </div>
+
+          {/* Pagination controls */}
+          {numPages && numPages > 1 && (
+          <div className="flex items-center rounded-md border border-slate-100 bg-white/90 px-1.5 py-1 shadow-md backdrop-blur-sm">
+            <button
+              onClick={previousPage}
+              disabled={pageNumber <= 1}
+              className={`rounded-full p-0.5 transition-colors ${
+                pageNumber <= 1
+                  ? 'text-slate-300'
+                  : 'text-slate-500 hover:text-blue-500'
+              }`}
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            <p className="mx-2 text-xs text-slate-600">
+              <span className="font-medium">{pageNumber}</span>
+              <span className="mx-1">/</span>
+              <span>{numPages}</span>
+            </p>
+
+            <button
+              onClick={nextPage}
+              disabled={pageNumber >= numPages}
+              className={`rounded-full p-0.5 transition-colors ${
+                pageNumber >= numPages
+                  ? 'text-slate-300'
+                  : 'text-slate-400 hover:text-blue-500'
+              }`}
+              aria-label="Next page"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
         </div>
       )}
     </div>
