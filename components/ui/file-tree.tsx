@@ -153,7 +153,7 @@ const Tree = forwardRef<HTMLDivElement, TreeViewProps>(
         <div className={cn('size-full', className)}>
           <ScrollArea
             ref={ref}
-            className="relative h-full px-2"
+            className="relative h-full px-2 [&_[data-radix-scroll-area-viewport]]:!overflow-visible"
             dir={dir as Direction}
           >
             <AccordionPrimitive.Root
@@ -238,7 +238,7 @@ const Folder = forwardRef<
       <AccordionPrimitive.Item
         {...props}
         value={value}
-        className="relative h-full overflow-hidden"
+        className="relative h-full overflow-visible"
       >
         <div className="flex items-center justify-between gap-1">
           <AccordionPrimitive.Trigger
@@ -261,7 +261,7 @@ const Folder = forwardRef<
           </AccordionPrimitive.Trigger>
           {action}
         </div>
-        <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down relative h-full overflow-hidden text-sm">
+        <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down relative h-full overflow-visible text-sm">
           {element && indicator && <TreeIndicator aria-hidden="true" />}
           <AccordionPrimitive.Root
             dir={direction}

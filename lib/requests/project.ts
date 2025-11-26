@@ -39,6 +39,8 @@ async function listAllFiles(
       sortBy: { column: 'created_at', order: 'desc' },
     });
 
+  console.log('items', items);
+
   if (error || !items) return [];
 
   const allFiles: any[] = [];
@@ -235,5 +237,90 @@ export const deleteFile = async (
 
   if (deleteError) {
     throw new Error('Failed to delete file');
+  }
+};
+
+export const createFolder = async (
+  projectId: string,
+  folderPath: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const gitkeepPath = `${folderPath}/.gitkeep`;
+  const blob = new Blob([''], { type: 'text/plain' });
+
+  const { error: uploadError } = await supabase.storage
+    .from('octree')
+    .upload(`projects/${projectId}/${gitkeepPath}`, blob, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: 'text/plain',
+    });
+
+  if (uploadError) {
+    throw new Error('Failed to create folder');
+  }
+};
+
+export const renameFolder = async (
+  projectId: string,
+  currentPath: string,
+  newPath: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { data: files, error: listError } = await supabase.storage
+    .from('octree')
+    .list(`projects/${projectId}`, {
+      search: currentPath,
+    });
+
+  if (listError || !files) {
+    throw new Error('Failed to list folder contents');
+  }
+
+  const filesToMove = files.filter((file) => 
+    file.name.startsWith(currentPath + '/')
+  );
+
+  for (const file of filesToMove) {
+    const relativePath = file.name.substring(currentPath.length + 1);
+    const oldPath = `projects/${projectId}/${currentPath}/${relativePath}`;
+    const newFilePath = `projects/${projectId}/${newPath}/${relativePath}`;
+
+    const { error: moveError } = await supabase.storage
+      .from('octree')
+      .move(oldPath, newFilePath);
+
+    if (moveError) {
+      throw new Error(`Failed to move file: ${file.name}`);
+    }
+  }
+
+  const gitkeepOldPath = `projects/${projectId}/${currentPath}/.gitkeep`;
+  const gitkeepNewPath = `projects/${projectId}/${newPath}/.gitkeep`;
+
+  const { error: gitkeepMoveError } = await supabase.storage
+    .from('octree')
+    .move(gitkeepOldPath, gitkeepNewPath);
+
+  if (gitkeepMoveError) {
+    throw new Error('Failed to rename folder');
   }
 };

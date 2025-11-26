@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, X, Plus } from 'lucide-react';
+import { FileText, X } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -13,7 +13,9 @@ import {
 import { UserProfileDropdown } from '@/components/user/user-profile-dropdown';
 import { useState } from 'react';
 import { AddFileDialog } from '@/components/projects/add-file-dialog';
+import { AddFolderDialog } from '@/components/projects/add-folder-dialog';
 import { RenameFileDialog } from '@/components/projects/rename-file-dialog';
+import { RenameFolderDialog } from '@/components/projects/rename-folder-dialog';
 import { DeleteFileDialog } from '@/components/projects/delete-file-dialog';
 import { FileTree } from '@/components/projects/file-tree';
 import { useFileStore, FileActions, useProjectFiles } from '@/stores/file';
@@ -43,6 +45,8 @@ export function AppSidebar({ userName }: AppSidebarProps) {
   const [deleteDialogFile, setDeleteDialogFile] =
     useState<DeleteDialogFile | null>(null);
   const [addFileDialogOpen, setAddFileDialogOpen] = useState(false);
+  const [addFolderDialogOpen, setAddFolderDialogOpen] = useState(false);
+  const [renameFolderPath, setRenameFolderPath] = useState<string | null>(null);
   const [targetFolder, setTargetFolder] = useState<string | null>(null);
 
   if (!project) return null;
@@ -84,21 +88,16 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                   }
                   rootFolderName={project.title}
                   projectId={project.id}
-                  rootAction={
-                    <button
-                      type="button"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
-                      onClick={() => {
-                        setTargetFolder(null);
-                        setAddFileDialogOpen(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  }
-                  onFolderAction={(folderPath) => {
-                    setTargetFolder(folderPath);
+                  onAddFile={(folderPath) => {
+                    setTargetFolder(folderPath || null);
                     setAddFileDialogOpen(true);
+                  }}
+                  onAddFolder={(folderPath) => {
+                    setTargetFolder(folderPath || null);
+                    setAddFolderDialogOpen(true);
+                  }}
+                  onFolderRename={(folderPath) => {
+                    setRenameFolderPath(folderPath);
                   }}
                 />
                 <AddFileDialog
@@ -108,6 +107,21 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                   onOpenChange={setAddFileDialogOpen}
                   targetFolder={targetFolder}
                 />
+                <AddFolderDialog
+                  projectId={project.id}
+                  projectTitle={project.title}
+                  open={addFolderDialogOpen}
+                  onOpenChange={setAddFolderDialogOpen}
+                  targetFolder={targetFolder}
+                />
+                {renameFolderPath && (
+                  <RenameFolderDialog
+                    projectId={project.id}
+                    currentPath={renameFolderPath}
+                    open={true}
+                    onOpenChange={(open) => !open && setRenameFolderPath(null)}
+                  />
+                )}
               </>
             ) : (
               <div className="p-4 text-center">
