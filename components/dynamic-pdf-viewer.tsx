@@ -2,7 +2,7 @@
 
 import '@/lib/promise-polyfill';
 import { ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PageCallback } from 'react-pdf/dist/esm/shared/types.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -104,17 +104,11 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
 
   const onPageLoadSuccess = useCallback((page: PageCallback) => {
     setPageLoading(false);
+    const { width, height } = page.getViewport({ scale: 1 });
     
-    const viewport = page.getViewport?.({ scale: 1 });
-    const width = viewport?.width ?? page.originalWidth ?? page.width;
-    const height = viewport?.height ?? page.originalHeight ?? page.height;
-    
-    setPageDimensions((prev) => {
-      if (prev?.width === width && prev?.height === height) {
-        return prev;
-      }
-      return { width, height };
-    });
+    setPageDimensions((prev) => 
+      prev?.width === width && prev?.height === height ? prev : { width, height }
+    );
   }, []);
 
   if (isLoading && !pdfData) {
