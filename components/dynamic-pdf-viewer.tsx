@@ -2,7 +2,7 @@
 
 import '@/lib/promise-polyfill';
 import { ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PageCallback } from 'react-pdf/dist/esm/shared/types.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -29,6 +29,7 @@ interface PDFViewerProps {
 }
 
 function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [pageLoading, setPageLoading] = useState<boolean>(false);
@@ -37,11 +38,25 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     height: number;
   } | null>(null);
   const [zoom, setZoom] = useState<number>(1.0);
+  const [containerWidth, setContainerWidth] = useState<number>(800);
 
   // zoom reset
   useEffect(() => {
     setZoom(1.0);
   }, [pdfData]);
+
+  // Track container width
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -137,17 +152,8 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
       return 595;
     }
 
-    const aspectRatio = pageDimensions.width / pageDimensions.height;
-    const viewportWidth =
-      typeof window !== 'undefined' ? window.innerWidth : 1200;
-
-    if (aspectRatio > 1.2) {
-      return Math.min(pageDimensions.width, viewportWidth * 0.9);
-    } else if (aspectRatio < 0.9) {
-      return Math.min(pageDimensions.width, 595);
-    } else {
-      return Math.min(pageDimensions.width, 650);
-    }
+    // I set it to 98% to account for padding and stuff
+    return containerWidth * 0.98;
   };
 
   const pageWidth = calculatePageWidth();
@@ -160,7 +166,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
         </div>
       )}
       {/* Main PDF viewer area with scrolling */}
-      <div className="flex flex-1 justify-center overflow-auto py-2">
+      <div ref={containerRef} className="flex flex-1 justify-center overflow-auto py-2">
         {pageLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50">
             <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
