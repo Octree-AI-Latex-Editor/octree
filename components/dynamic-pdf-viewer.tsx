@@ -30,9 +30,9 @@ interface PDFViewerProps {
 
 function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
-  const [pageLoading, setPageLoading] = useState<boolean>(false);
   const [pageDimensions, setPageDimensions] = useState<{
     width: number;
     height: number;
@@ -58,9 +58,45 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
+  // Track which page is currently visible
+  useEffect(() => {
+    if (!containerRef.current || !numPages) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const page = Number(entry.target.getAttribute('data-page-number'));
+            if (page) {
+              setPageNumber(page);
+            }
+          }
+        });
+      },
+      {
+        root: containerRef.current,
+        threshold: 0.5,
+      }
+    );
+
+    pageRefs.current.forEach((element) => {
+      observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [numPages]);
+
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
     setPageNumber(1);
+  }
+
+  function scrollToPage(targetPage: number) {
+    const pageElement = pageRefs.current.get(targetPage);
+    if (pageElement && containerRef.current) {
+      pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPageNumber(targetPage);
+    }
   }
 
   function changePage(offset: number) {
@@ -68,8 +104,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
       1,
       Math.min(numPages || 1, pageNumber + offset)
     );
-    setPageNumber(newPageNumber);
-    setPageLoading(true);
+    scrollToPage(newPageNumber);
   }
 
   function handleZoomIn() {
@@ -117,14 +152,19 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     changePage(1);
   }
 
-  const onPageLoadSuccess = useCallback((page: PageCallback) => {
-    setPageLoading(false);
-    const { width, height } = page.getViewport({ scale: 1 });
-    
-    setPageDimensions((prev) => 
-      prev?.width === width && prev?.height === height ? prev : { width, height }
-    );
-  }, []);
+  const onPageLoadSuccess = useCallback(
+    (pageNum: number) => (page: PageCallback) => {
+      if (pageNum === 1) {
+        const { width, height } = page.getViewport({ scale: 1 });
+        setPageDimensions((prev) =>
+          prev?.width === width && prev?.height === height
+            ? prev
+            : { width, height }
+        );
+      }
+    },
+    []
+  );
 
   if (isLoading && !pdfData) {
     return (
@@ -167,13 +207,8 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
       )}
       {/* Main PDF viewer area with scrolling */}
       <div ref={containerRef} className="flex flex-1 justify-center overflow-auto py-2">
-        {pageLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-          </div>
-        )}
 
-        <div className="flex items-start justify-center">
+        <div className="flex flex-col items-center gap-4">
           <Document
             key={pdfData?.substring(0, 100)} // Force re-render when PDF data changes
             file={pdfUrl}
@@ -185,21 +220,37 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
               </div>
             }
           >
-            <Page
-              key={`page_${pageNumber}_${pdfData?.substring(0, 50)}`}
-              pageNumber={pageNumber}
-              width={pageWidth}
-              scale={zoom}
-              className="border border-slate-200 shadow-sm"
-              onLoadSuccess={onPageLoadSuccess}
-              renderTextLayer={false} // Disable text layer for better performance
-              renderAnnotationLayer={false} // Disable annotations for better performance
-              loading={
-                <div className="flex items-center justify-center p-4">
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-500" />
-                </div>
-              }
-            />
+            {numPages &&
+              Array.from(new Array(numPages), (_, index) => {
+                const pageNum = index + 1;
+                return (
+                  <div
+                    key={`page_${pageNum}`}
+                    ref={(el) => {
+                      if (el) {
+                        pageRefs.current.set(pageNum, el);
+                      }
+                    }}
+                    data-page-number={pageNum}
+                    className="mb-4"
+                  >
+                    <Page
+                      pageNumber={pageNum}
+                      width={pageWidth}
+                      scale={zoom}
+                      className="border border-slate-200 shadow-sm"
+                      onLoadSuccess={onPageLoadSuccess(pageNum)}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      loading={
+                        <div className="flex items-center justify-center p-4">
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin text-blue-500" />
+                        </div>
+                      }
+                    />
+                  </div>
+                );
+              })}
           </Document>
         </div>
       </div>
