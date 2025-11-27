@@ -59,7 +59,10 @@ export const FileActions = {
   },
 
   init: (files: ProjectFile[]) => {
-    const selectedFile = selectInitialFile(files);
+    const currentState = getState();
+    const selectedFile = currentState.selectedFile
+      ? currentState.selectedFile
+      : selectInitialFile(files);
     setState({ projectFiles: files, selectedFile });
   },
 };
