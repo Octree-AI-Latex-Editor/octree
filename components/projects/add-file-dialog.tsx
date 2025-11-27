@@ -21,9 +21,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 import { FileActions } from '@/stores/file';
 import {
-  SUPPORTED_TEXT_FILE_TYPES,
-  SUPPORTED_TEXT_FILE_EXTENSIONS,
-  MAX_TEXT_FILE_SIZE,
+  ALL_SUPPORTED_FILE_TYPES,
+  MAX_BINARY_FILE_SIZE,
   getContentTypeByFilename,
 } from '@/lib/constants/file-types';
 import { toast } from 'sonner';
@@ -73,8 +72,8 @@ export function AddFileDialog({
     open: openFileDialog,
   } = useDropzone({
     onDrop,
-    accept: SUPPORTED_TEXT_FILE_TYPES,
-    maxSize: MAX_TEXT_FILE_SIZE,
+    accept: ALL_SUPPORTED_FILE_TYPES,
+    maxSize: MAX_BINARY_FILE_SIZE,
     multiple: false,
     disabled: isLoading,
     noClick: true,
@@ -234,7 +233,8 @@ export function AddFileDialog({
         <DialogHeader>
           <DialogTitle>Add File to {projectTitle}</DialogTitle>
           <DialogDescription>
-            Create a new file or upload an existing file to this project.
+            Create a new LaTeX file or upload files (PDFs, images, etc.) to this
+            project.
           </DialogDescription>
         </DialogHeader>
 
@@ -323,8 +323,8 @@ export function AddFileDialog({
                       </span>
                     </div>
                     <p className="text-xs text-neutral-500">
-                      {SUPPORTED_TEXT_FILE_EXTENSIONS.join(', ')} (max{' '}
-                      {MAX_TEXT_FILE_SIZE / 1024 / 1024}MB)
+                      Supports LaTeX files, PDFs, and images (max{' '}
+                      {MAX_BINARY_FILE_SIZE / 1024 / 1024}MB)
                     </p>
                   </div>
                 </div>

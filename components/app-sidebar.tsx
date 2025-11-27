@@ -11,28 +11,29 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { UserProfileDropdown } from '@/components/user/user-profile-dropdown';
-import { useState } from 'react';
 import { AddFileDialog } from '@/components/projects/add-file-dialog';
 import { AddFolderDialog } from '@/components/projects/add-folder-dialog';
 import { RenameFileDialog } from '@/components/projects/rename-file-dialog';
 import { RenameFolderDialog } from '@/components/projects/rename-folder-dialog';
 import { DeleteFileDialog } from '@/components/projects/delete-file-dialog';
+import { RenameProjectDialog } from '@/components/projects/rename-project-dialog';
 import { FileTree } from '@/components/projects/file-tree';
 import { useFileStore, FileActions, useProjectFiles } from '@/stores/file';
 import { useProject } from '@/stores/project';
+import { mutate } from 'swr';
+import {
+  FileTreeActions,
+  useRenameDialogFile,
+  useDeleteDialogFile,
+  useAddFileDialogOpen,
+  useAddFolderDialogOpen,
+  useRenameFolderPath,
+  useTargetFolder,
+  useRenameProjectDialog,
+} from '@/stores/file-tree';
 
 interface AppSidebarProps {
   userName: string | null;
-}
-
-interface RenameDialogFile {
-  id: string;
-  name: string;
-}
-
-interface DeleteDialogFile {
-  id: string;
-  name: string;
 }
 
 export function AppSidebar({ userName }: AppSidebarProps) {
@@ -40,14 +41,13 @@ export function AppSidebar({ userName }: AppSidebarProps) {
   const { selectedFile } = useFileStore();
   const project = useProject();
   const projectFiles = useProjectFiles();
-  const [renameDialogFile, setRenameDialogFile] =
-    useState<RenameDialogFile | null>(null);
-  const [deleteDialogFile, setDeleteDialogFile] =
-    useState<DeleteDialogFile | null>(null);
-  const [addFileDialogOpen, setAddFileDialogOpen] = useState(false);
-  const [addFolderDialogOpen, setAddFolderDialogOpen] = useState(false);
-  const [renameFolderPath, setRenameFolderPath] = useState<string | null>(null);
-  const [targetFolder, setTargetFolder] = useState<string | null>(null);
+  const renameDialogFile = useRenameDialogFile();
+  const deleteDialogFile = useDeleteDialogFile();
+  const addFileDialogOpen = useAddFileDialogOpen();
+  const addFolderDialogOpen = useAddFolderDialogOpen();
+  const renameFolderPath = useRenameFolderPath();
+  const targetFolder = useTargetFolder();
+  const renameProjectDialog = useRenameProjectDialog();
 
   if (!project) return null;
 
@@ -80,38 +80,33 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                   files={projectFiles}
                   selectedFileId={selectedFile?.id || null}
                   onFileSelect={(file) => FileActions.setSelectedFile(file)}
-                  onFileRename={(fileId, fileName) =>
-                    setRenameDialogFile({ id: fileId, name: fileName })
-                  }
-                  onFileDelete={(fileId, fileName) =>
-                    setDeleteDialogFile({ id: fileId, name: fileName })
-                  }
                   rootFolderName={project.title}
                   projectId={project.id}
-                  onAddFile={(folderPath) => {
-                    setTargetFolder(folderPath || null);
-                    setAddFileDialogOpen(true);
-                  }}
-                  onAddFolder={(folderPath) => {
-                    setTargetFolder(folderPath || null);
-                    setAddFolderDialogOpen(true);
-                  }}
-                  onFolderRename={(folderPath) => {
-                    setRenameFolderPath(folderPath);
-                  }}
                 />
                 <AddFileDialog
                   projectId={project.id}
                   projectTitle={project.title}
                   open={addFileDialogOpen}
-                  onOpenChange={setAddFileDialogOpen}
+                  onOpenChange={(open) =>
+                    open
+                      ? FileTreeActions.openAddFileDialog(
+                          targetFolder || undefined
+                        )
+                      : FileTreeActions.closeAddFileDialog()
+                  }
                   targetFolder={targetFolder}
                 />
                 <AddFolderDialog
                   projectId={project.id}
                   projectTitle={project.title}
                   open={addFolderDialogOpen}
-                  onOpenChange={setAddFolderDialogOpen}
+                  onOpenChange={(open) =>
+                    open
+                      ? FileTreeActions.openAddFolderDialog(
+                          targetFolder || undefined
+                        )
+                      : FileTreeActions.closeAddFolderDialog()
+                  }
                   targetFolder={targetFolder}
                 />
                 {renameFolderPath && (
@@ -119,7 +114,9 @@ export function AppSidebar({ userName }: AppSidebarProps) {
                     projectId={project.id}
                     currentPath={renameFolderPath}
                     open={true}
-                    onOpenChange={(open) => !open && setRenameFolderPath(null)}
+                    onOpenChange={(open) =>
+                      !open && FileTreeActions.closeRenameFolderDialog()
+                    }
                   />
                 )}
               </>
@@ -147,7 +144,9 @@ export function AppSidebar({ userName }: AppSidebarProps) {
           fileId={renameDialogFile.id}
           currentName={renameDialogFile.name}
           open={true}
-          onOpenChange={(open) => !open && setRenameDialogFile(null)}
+          onOpenChange={(open) =>
+            !open && FileTreeActions.closeRenameFileDialog()
+          }
         />
       )}
       {deleteDialogFile && (
@@ -156,7 +155,20 @@ export function AppSidebar({ userName }: AppSidebarProps) {
           fileId={deleteDialogFile.id}
           fileName={deleteDialogFile.name}
           open={true}
-          onOpenChange={(open) => !open && setDeleteDialogFile(null)}
+          onOpenChange={(open) =>
+            !open && FileTreeActions.closeDeleteFileDialog()
+          }
+        />
+      )}
+      {renameProjectDialog && (
+        <RenameProjectDialog
+          open={true}
+          onOpenChange={(open) =>
+            !open && FileTreeActions.closeRenameProjectDialog()
+          }
+          project={renameProjectDialog}
+          onSuccess={() => mutate(['project', project?.id])}
+          onError={() => {}}
         />
       )}
     </Sidebar>

@@ -32,8 +32,9 @@ import { useParams } from 'next/navigation';
 import type { Project } from '@/types/project';
 import { ProjectActions } from '@/stores/project';
 import type { EditSuggestion } from '@/types/edit';
-import { isImageFile } from '@/lib/constants/file-types';
+import { isImageFile, isPDFFile } from '@/lib/constants/file-types';
 import { ImageViewer } from '@/components/image-viewer';
+import { SimplePDFViewer } from '@/components/simple-pdf-viewer';
 
 export default function ProjectPage() {
   const params = useParams();
@@ -184,6 +185,7 @@ export default function ProjectPage() {
   if (!filesData) return <ErrorState error="No files found" />;
 
   const isImage = selectedFile ? isImageFile(selectedFile.name) : false;
+  const isPDF = selectedFile ? isPDFFile(selectedFile.name) : false;
 
   return (
     <div className="flex h-[calc(100vh-45px)] flex-col bg-slate-100">
@@ -212,6 +214,11 @@ export default function ProjectPage() {
             <div className="h-full overflow-hidden">
               {isImage && selectedFile ? (
                 <ImageViewer
+                  projectId={projectId}
+                  fileName={selectedFile.name}
+                />
+              ) : isPDF && selectedFile ? (
+                <SimplePDFViewer
                   projectId={projectId}
                   fileName={selectedFile.name}
                 />

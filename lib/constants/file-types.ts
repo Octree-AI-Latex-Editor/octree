@@ -59,6 +59,7 @@ export const BINARY_FILE_EXTENSIONS = [
 ] as const;
 
 export const MAX_TEXT_FILE_SIZE = 10 * 1024 * 1024;
+export const MAX_BINARY_FILE_SIZE = 50 * 1024 * 1024;
 
 export const IMAGE_FILE_EXTENSIONS = [
   '.png',
@@ -71,6 +72,28 @@ export const IMAGE_FILE_EXTENSIONS = [
   '.ico',
 ] as const;
 
+export const SUPPORTED_BINARY_FILE_TYPES = {
+  'application/pdf': ['.pdf'],
+  'image/png': ['.png'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/gif': ['.gif'],
+  'image/svg+xml': ['.svg'],
+  'image/webp': ['.webp'],
+  'image/bmp': ['.bmp'],
+  'image/x-icon': ['.ico'],
+};
+
+export const ALL_SUPPORTED_FILE_TYPES = {
+  ...SUPPORTED_TEXT_FILE_TYPES,
+  ...SUPPORTED_BINARY_FILE_TYPES,
+};
+
+export const ALL_SUPPORTED_FILE_EXTENSIONS = [
+  ...SUPPORTED_TEXT_FILE_EXTENSIONS,
+  '.pdf',
+  ...IMAGE_FILE_EXTENSIONS,
+];
+
 export function isBinaryFile(filename: string): boolean {
   const lowerName = filename.toLowerCase();
   return BINARY_FILE_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
@@ -79,6 +102,10 @@ export function isBinaryFile(filename: string): boolean {
 export function isImageFile(filename: string): boolean {
   const lowerName = filename.toLowerCase();
   return IMAGE_FILE_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+}
+
+export function isPDFFile(filename: string): boolean {
+  return filename.toLowerCase().endsWith('.pdf');
 }
 
 const BINARY_FILE_MIME_TYPES: Record<string, string> = {

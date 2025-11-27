@@ -1,35 +1,46 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
   DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
+import { Loader2 } from 'lucide-react';
 import { useDeleteProject } from '@/hooks/delete-project-client';
 
+interface DeleteProjectDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  project: { id: string; title: string } | null;
+  onSuccess: (id: string) => void;
+}
+
 export function DeleteProjectDialog({
-  row,
-}: {
-  row: { id: string; title: string };
-}) {
-  const [open, setOpen] = useState(false);
+  open,
+  onOpenChange,
+  project,
+  onSuccess,
+}: DeleteProjectDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { deleteProjectWithRefresh } = useDeleteProject();
 
   const handleDelete = async () => {
+    if (!project) return;
+
     setIsLoading(true);
     setError(null);
 
-    const result = await deleteProjectWithRefresh(row.id);
+    const result = await deleteProjectWithRefresh(project.id);
 
     if (result.success) {
-      setOpen(false);
+      onSuccess(project.id);
+      onOpenChange(false);
     } else {
       setError(result.message || 'Failed to delete project');
     }
@@ -37,28 +48,24 @@ export function DeleteProjectDialog({
     setIsLoading(false);
   };
 
-  useEffect(() => {
-    if (open) {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
       setError(null);
     }
-  }, [open]);
+    onOpenChange(isOpen);
+  };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-        if (!nextOpen) {
-          setError(null);
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Project</DialogTitle>
+          <DialogTitle className="pr-6">Delete Project</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete "{row.title}"? This action cannot be
-            undone and will permanently remove the project and all its files.
+            Are you sure you want to delete{' '}
+            <span className="break-all font-semibold">
+              &quot;{project?.title}&quot;
+            </span>
+            ? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         {error && (
@@ -68,8 +75,8 @@ export function DeleteProjectDialog({
         )}
         <DialogFooter>
           <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
             Cancel
@@ -79,7 +86,14 @@ export function DeleteProjectDialog({
             onClick={handleDelete}
             disabled={isLoading}
           >
-            {isLoading ? 'Deleting...' : 'Delete Project'}
+            {isLoading ? (
+              <>
+                <Loader2 className="animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              'Delete'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

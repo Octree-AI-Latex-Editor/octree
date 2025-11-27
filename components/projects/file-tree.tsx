@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import type { ProjectFile } from '@/hooks/use-file-editor';
-import { useFileTreeStore } from '@/stores/file-tree';
+import { useFileTreeStore, FileTreeActions } from '@/stores/file-tree';
 
 interface FileNode {
   name: string;
@@ -33,13 +33,8 @@ interface FileTreeProps {
   files: ProjectFile[];
   selectedFileId: string | null;
   onFileSelect: (file: ProjectFile['file']) => void;
-  onFileRename: (fileId: string, fileName: string) => void;
-  onFileDelete: (fileId: string, fileName: string) => void;
   rootFolderName: string;
   projectId: string;
-  onAddFile?: (folderPath?: string) => void;
-  onAddFolder?: (folderPath?: string) => void;
-  onFolderRename?: (folderPath: string) => void;
 }
 
 const getFileIcon = (fileName: string) => {
@@ -53,14 +48,12 @@ const getFileIcon = (fileName: string) => {
     case 'webp':
     case 'bmp':
     case 'ico':
-      return <Image className="h-4 w-4 flex-shrink-0 text-gray-600" />;
     case 'pdf':
-      return <DocumentIcon className="h-4 w-4 flex-shrink-0 text-gray-600" />;
+      return <Image className="h-4 w-4 flex-shrink-0 text-gray-600" />;
     case 'doc':
     case 'docx':
-      return <DocumentIcon className="h-4 w-4 flex-shrink-0 text-gray-600" />;
     case 'txt':
-      return <FileText className="h-4 w-4 flex-shrink-0 text-gray-600" />;
+      return <DocumentIcon className="h-4 w-4 flex-shrink-0 text-gray-600" />;
     default:
       return <FileText className="h-4 w-4 flex-shrink-0 text-gray-600" />;
   }
@@ -126,22 +119,12 @@ interface FileTreeNodeProps {
   node: FileNode;
   selectedFileId: string | null;
   onFileSelect: (file: ProjectFile['file']) => void;
-  onFileRename: (fileId: string, fileName: string) => void;
-  onFileDelete: (fileId: string, fileName: string) => void;
-  onAddFile?: (folderPath?: string) => void;
-  onAddFolder?: (folderPath?: string) => void;
-  onFolderRename?: (folderPath: string) => void;
 }
 
 function FileTreeNode({
   node,
   selectedFileId,
   onFileSelect,
-  onFileRename,
-  onFileDelete,
-  onAddFile,
-  onAddFolder,
-  onFolderRename,
 }: FileTreeNodeProps) {
   if (node.type === 'folder') {
     return (
@@ -161,33 +144,29 @@ function FileTreeNode({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {onAddFile && (
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
-                  onSelect={() => onAddFile(node.path)}
-                >
-                  <Plus className="size-3.5" />
-                  Add File
-                </DropdownMenuItem>
-              )}
-              {onAddFolder && (
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
-                  onSelect={() => onAddFolder(node.path)}
-                >
-                  <FolderPlus className="size-3.5" />
-                  Add Folder
-                </DropdownMenuItem>
-              )}
-              {onFolderRename && (
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
-                  onSelect={() => onFolderRename(node.path)}
-                >
-                  <Pencil className="size-3.5" />
-                  Rename
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
+                onSelect={() => FileTreeActions.openAddFileDialog(node.path)}
+              >
+                <Plus className="size-3.5" />
+                Add File
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
+                onSelect={() => FileTreeActions.openAddFolderDialog(node.path)}
+              >
+                <FolderPlus className="size-3.5" />
+                Add Folder
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
+                onSelect={() =>
+                  FileTreeActions.openRenameFolderDialog(node.path)
+                }
+              >
+                <Pencil className="size-3.5" />
+                Rename
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
                 variant="destructive"
@@ -206,11 +185,6 @@ function FileTreeNode({
             node={child}
             selectedFileId={selectedFileId}
             onFileSelect={onFileSelect}
-            onFileRename={onFileRename}
-            onFileDelete={onFileDelete}
-            onAddFile={onAddFile}
-            onAddFolder={onAddFolder}
-            onFolderRename={onFolderRename}
           />
         ))}
       </Folder>
@@ -246,7 +220,8 @@ function FileTreeNode({
           <DropdownMenuItem
             className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
             onSelect={() =>
-              node.file && onFileRename(node.file.id, node.file.name)
+              node.file &&
+              FileTreeActions.openRenameFileDialog(node.file.id, node.file.name)
             }
           >
             <Pencil className="size-3.5" />
@@ -256,7 +231,8 @@ function FileTreeNode({
             className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
             variant="destructive"
             onSelect={() =>
-              node.file && onFileDelete(node.file.id, node.file.name)
+              node.file &&
+              FileTreeActions.openDeleteFileDialog(node.file.id, node.file.name)
             }
           >
             <Trash2 className="size-3.5 text-destructive" />
@@ -272,16 +248,28 @@ export function FileTree({
   files,
   selectedFileId,
   onFileSelect,
-  onFileRename,
-  onFileDelete,
   rootFolderName,
   projectId,
-  onAddFile,
-  onAddFolder,
-  onFolderRename,
 }: FileTreeProps) {
   const tree = buildFileTree(files);
   const isLoading = useFileTreeStore((state) => state.isLoading);
+
+  // Get all folder paths to expand them by default
+  const getAllFolderPaths = (nodes: FileNode[]): string[] => {
+    const paths: string[] = [];
+    nodes.forEach((node) => {
+      if (node.type === 'folder') {
+        paths.push(node.path);
+        if (node.children) {
+          paths.push(...getAllFolderPaths(node.children));
+        }
+      }
+    });
+    return paths;
+  };
+
+  // Always include the root project and all folder paths
+  const initialExpandedItems = [projectId, ...getAllFolderPaths(tree)];
 
   const rootAction = (
     <DropdownMenu>
@@ -296,48 +284,51 @@ export function FileTree({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {onAddFile && (
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
-            onSelect={() => onAddFile()}
-          >
-            <Plus className="size-3.5" />
-            Add File
-          </DropdownMenuItem>
-        )}
-        {onAddFolder && (
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
-            onSelect={() => onAddFolder()}
-          >
-            <FolderPlus className="size-3.5" />
-            Add Folder
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
+          onSelect={() => FileTreeActions.openAddFileDialog()}
+        >
+          <Plus className="size-3.5" />
+          Add File
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
+          onSelect={() => FileTreeActions.openAddFolderDialog()}
+        >
+          <FolderPlus className="size-3.5" />
+          Add Folder
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 px-1.5 py-1 text-xs"
+          onSelect={() =>
+            FileTreeActions.openRenameProjectDialog(projectId, rootFolderName)
+          }
+        >
+          <Pencil className="size-3.5" />
+          Rename
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 
   return (
-    <div className={cn('w-full', isLoading && 'pointer-events-none opacity-50')}>
+    <div
+      className={cn('w-full', isLoading && 'pointer-events-none opacity-50')}
+    >
       <Tree
+        key={`${projectId}-${files.length}`}
         className="w-full overflow-visible"
-        initialExpandedItems={[projectId]}
+        initialExpandedItems={initialExpandedItems}
       >
         <Folder element={rootFolderName} value={projectId} action={rootAction}>
-        {tree.map((node) => (
-          <FileTreeNode
-            key={node.path}
-            node={node}
-            selectedFileId={selectedFileId}
-            onFileSelect={onFileSelect}
-            onFileRename={onFileRename}
-            onFileDelete={onFileDelete}
-            onAddFile={onAddFile}
-            onAddFolder={onAddFolder}
-            onFolderRename={onFolderRename}
-          />
-        ))}
+          {tree.map((node) => (
+            <FileTreeNode
+              key={node.path}
+              node={node}
+              selectedFileId={selectedFileId}
+              onFileSelect={onFileSelect}
+            />
+          ))}
         </Folder>
       </Tree>
     </div>
