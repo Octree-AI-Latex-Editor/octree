@@ -33,6 +33,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
+  const [pageInput, setPageInput] = useState<string>('1');
   const [pageDimensions, setPageDimensions] = useState<{
     width: number;
     height: number;
@@ -69,6 +70,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
             const page = Number(entry.target.getAttribute('data-page-number'));
             if (page) {
               setPageNumber(page);
+              setPageInput(page.toString());
             }
           }
         });
@@ -96,6 +98,26 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     if (pageElement && containerRef.current) {
       pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setPageNumber(targetPage);
+      setPageInput(targetPage.toString());
+    }
+  }
+
+  function handlePageInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setPageInput(e.target.value);
+  }
+
+  function handlePageInputBlur() {
+    const page = parseInt(pageInput, 10);
+    if (!isNaN(page) && page >= 1 && page <= (numPages || 1)) {
+      scrollToPage(page);
+    } else {
+      setPageInput(pageNumber.toString());
+    }
+  }
+
+  function handlePageInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur();
     }
   }
 
@@ -312,7 +334,15 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
             </button>
 
             <p className="mx-2 text-xs text-slate-600">
-              <span className="font-medium">{pageNumber}</span>
+              <input
+                type='text'
+                value={pageInput}
+                onChange={handlePageInputChange}
+                onBlur={handlePageInputBlur}
+                onKeyDown={handlePageInputKeyDown}
+                className='w-8 rouded border-none bg-transparent text-center font-medium text-slate-600 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+                aria-label='Current page'
+              />
               <span className="mx-1">/</span>
               <span>{numPages}</span>
             </p>
