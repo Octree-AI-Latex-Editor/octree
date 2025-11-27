@@ -340,7 +340,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
                 onChange={handlePageInputChange}
                 onBlur={handlePageInputBlur}
                 onKeyDown={handlePageInputKeyDown}
-                className='w-8 rounded border border-ring bg-transparent text-center font-medium text-foreground focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring'
+                className='w-8 rounded border border-sidebar-border bg-transparent text-center font-medium text-foreground focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring'
                 aria-label='Current page'
               />
               <span className="mx-1">/</span>
