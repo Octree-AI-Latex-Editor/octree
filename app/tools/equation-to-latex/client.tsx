@@ -97,7 +97,6 @@ export default function EquationToLatexClient() {
       let imageLatex = '';
       let textLatex = '';
       
-      // Process image if provided
       if (uploadedImage) {
         const response = await fetch('/api/octra-agent/image-to-latex', {
           method: 'POST',
@@ -114,7 +113,6 @@ export default function EquationToLatexClient() {
           throw new Error('failed to convert image');
         }
 
-        // Stream the response
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
 
@@ -126,7 +124,6 @@ export default function EquationToLatexClient() {
             const chunk = decoder.decode(value, { stream: true });
             imageLatex += chunk;
             
-            // Show streaming result if only image is provided
             if (!equation.trim()) {
               setLatex(imageLatex);
             }
@@ -134,7 +131,6 @@ export default function EquationToLatexClient() {
         }
       }
       
-      // Process text equation if provided
       if (equation.trim()) {
         const response = await fetch('/api/equation-to-latex', {
           method: 'POST',
@@ -153,7 +149,6 @@ export default function EquationToLatexClient() {
         textLatex = data.latex;
       }
       
-      // Combine results if both are present
       let finalLatex = '';
       if (imageLatex && textLatex) {
         finalLatex = `% From image:\n${imageLatex}\n\n% From text:\n${textLatex}`;
@@ -165,7 +160,6 @@ export default function EquationToLatexClient() {
       
       setLatex(finalLatex);
       
-      // Auto-compile PDF preview
       await compilePdf(finalLatex);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'conversion failed');
@@ -179,7 +173,6 @@ export default function EquationToLatexClient() {
     
     setIsPdfCompiling(true);
     
-    // Wrap the equation in a complete LaTeX document
     const fullDocument = `\\documentclass{article}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
@@ -208,7 +201,6 @@ ${latexCode}
       setPdfData(data.pdf);
     } catch (err) {
       console.error('PDF compilation error:', err);
-      // Don't show error to user, PDF preview is optional
     } finally {
       setIsPdfCompiling(false);
     }
@@ -235,7 +227,6 @@ ${latexCode}
 
   return (
     <div className="grid grid-cols-2 gap-8">
-      {/* Left side - Input */}
       <div className="flex flex-col">
         <div className="h-[72px] mb-6 flex flex-col justify-start">
           <div className="mb-2 flex items-center gap-3">
