@@ -32,7 +32,7 @@ import { useParams } from 'next/navigation';
 import type { Project } from '@/types/project';
 import { ProjectActions } from '@/stores/project';
 import type { EditSuggestion } from '@/types/edit';
-import { isImageFile, isPDFFile } from '@/lib/constants/file-types';
+import { isImageFile, isPDFFile, isTextFile } from '@/lib/constants/file-types';
 import { ImageViewer } from '@/components/image-viewer';
 import { SimplePDFViewer } from '@/components/simple-pdf-viewer';
 
@@ -186,6 +186,7 @@ export default function ProjectPage() {
 
   const isImage = selectedFile ? isImageFile(selectedFile.name) : false;
   const isPDF = selectedFile ? isPDFFile(selectedFile.name) : false;
+  const isText = selectedFile ? isTextFile(selectedFile.name) : false;
 
   return (
     <div className="flex h-[calc(100vh-45px)] flex-col bg-slate-100">
@@ -222,7 +223,7 @@ export default function ProjectPage() {
                   projectId={projectId}
                   fileName={selectedFile.name}
                 />
-              ) : (
+              ) : isText && selectedFile ? (
                 <>
                   <MonacoEditor
                     content={content}
@@ -241,7 +242,22 @@ export default function ProjectPage() {
                     onReject={handleRejectEdit}
                   />
                 </>
-              )}
+              ) : selectedFile ? (
+                <div className="flex h-full items-center justify-center bg-slate-50">
+                  <div className="text-center">
+                    <div className="mb-2 text-4xl">📄</div>
+                    <h3 className="mb-1 text-lg font-medium text-slate-900">
+                      Unsupported File Type
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Cannot preview or edit {selectedFile.name}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Supported: .tex, .bib, .md, .txt, .json, images, and PDFs
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </ResizablePanel>

@@ -108,6 +108,11 @@ export function isPDFFile(filename: string): boolean {
   return filename.toLowerCase().endsWith('.pdf');
 }
 
+export function isTextFile(filename: string): boolean {
+  const lowerName = filename.toLowerCase();
+  return SUPPORTED_TEXT_FILE_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+}
+
 const BINARY_FILE_MIME_TYPES: Record<string, string> = {
   '.pdf': 'application/pdf',
   '.png': 'image/png',
