@@ -39,8 +39,6 @@ async function listAllFiles(
       sortBy: { column: 'created_at', order: 'desc' },
     });
 
-  console.log('items', items);
-
   if (error || !items) return [];
 
   const allFiles: any[] = [];
@@ -295,7 +293,7 @@ export const renameFolder = async (
     throw new Error('Failed to list folder contents');
   }
 
-  const filesToMove = files.filter((file) => 
+  const filesToMove = files.filter((file) =>
     file.name.startsWith(currentPath + '/')
   );
 

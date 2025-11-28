@@ -77,6 +77,7 @@ export default function ProjectPage() {
     handleCompile,
     handleExportPDF,
     setCompilationError,
+    setPdfData,
   } = useEditorCompilation({
     content,
     editorRef,
@@ -108,7 +109,6 @@ export default function ProjectPage() {
   } = useEditorInteractions();
 
   const [autoSendMessage, setAutoSendMessage] = useState<string | null>(null);
-  const [hasCompiledOnMount, setHasCompiledOnMount] = useState(false);
 
   const projectFileContext = useMemo(
     () =>
@@ -122,6 +122,12 @@ export default function ProjectPage() {
   );
 
   useEffect(() => {
+    FileActions.reset();
+    setPdfData(null);
+    setCompilationError(null);
+  }, [projectId, setPdfData, setCompilationError]);
+
+  useEffect(() => {
     if (filesData) {
       FileActions.init(filesData);
     }
@@ -132,13 +138,6 @@ export default function ProjectPage() {
       ProjectActions.init(projectData);
     }
   }, [projectData]);
-
-  useEffect(() => {
-    if (content && !hasCompiledOnMount) {
-      setHasCompiledOnMount(true);
-      handleCompile();
-    }
-  }, [content, hasCompiledOnMount]);
 
   const handleEditorChange = (value: string) => {
     setContent(value);

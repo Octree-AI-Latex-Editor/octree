@@ -58,11 +58,12 @@ export const FileActions = {
     setState({ projectFiles: updatedFiles });
   },
 
+  reset: () => {
+    setState(DEFAULT_STATE);
+  },
+
   init: (files: ProjectFile[]) => {
-    const currentState = getState();
-    const selectedFile = currentState.selectedFile
-      ? currentState.selectedFile
-      : selectInitialFile(files);
+    const selectedFile = selectInitialFile(files);
     setState({ projectFiles: files, selectedFile });
   },
 };
