@@ -1,10 +1,7 @@
 import type { CompileRequest, CompilerResponse } from './types';
 
-const COMPILE_TIMEOUT_MS = 60000; // 60 seconds
+const COMPILE_TIMEOUT_MS = 60_000;
 
-/**
- * Compiles LaTeX using the octree-compile service
- */
 export async function compileLatex(
   body: CompileRequest,
   compileServiceUrl: string
@@ -16,16 +13,11 @@ export async function compileLatex(
     projectId,
     lastModifiedFile,
   });
-  const requestHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-
-  console.log(`Multi-file compilation: ${files.length} files`, files.map(f => f.path));
-  if (projectId) {
-    console.log(`Project ID: ${projectId}`);
-  }
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
 
   try {
-    console.log('Attempting LaTeX compilation via octree-compile...');
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), COMPILE_TIMEOUT_MS);
 
@@ -51,7 +43,9 @@ export async function compileLatex(
 /**
  * Handles successful compilation response
  */
-async function handleCompileSuccess(response: Response): Promise<CompilerResponse> {
+async function handleCompileSuccess(
+  response: Response
+): Promise<CompilerResponse> {
   const requestId = response.headers.get('x-compile-request-id') || null;
   const durationMs = response.headers.get('x-compile-duration-ms');
   const queueMs = response.headers.get('x-compile-queue-ms');
@@ -74,14 +68,6 @@ async function handleCompileSuccess(response: Response): Promise<CompilerRespons
   // Convert to Base64
   const base64PDF = pdfBuffer.toString('base64');
 
-  console.log('octree-compile successful:', {
-    size: pdfBuffer.length,
-    requestId,
-    queueMs: queueMs ? Number(queueMs) : null,
-    durationMs: durationMs ? Number(durationMs) : null,
-    sha256,
-  });
-
   return {
     success: true,
     pdfBuffer,
@@ -96,9 +82,10 @@ async function handleCompileSuccess(response: Response): Promise<CompilerRespons
 /**
  * Handles compilation error response
  */
-async function handleCompileError(response: Response): Promise<CompilerResponse> {
+async function handleCompileError(
+  response: Response
+): Promise<CompilerResponse> {
   const errorText = await response.text();
-  console.error('octree-compile error response:', errorText);
 
   // Parse octree-compile error response (always JSON on error)
   let errorData;
@@ -108,7 +95,8 @@ async function handleCompileError(response: Response): Promise<CompilerResponse>
     errorData = { error: errorText };
   }
 
-  const requestId = response.headers.get('x-compile-request-id') || errorData.requestId || null;
+  const requestId =
+    response.headers.get('x-compile-request-id') || errorData.requestId || null;
   const durationMs = response.headers.get('x-compile-duration-ms');
   const queueMs = response.headers.get('x-compile-queue-ms');
 
@@ -116,7 +104,10 @@ async function handleCompileError(response: Response): Promise<CompilerResponse>
     success: false,
     error: {
       error: errorData.error || 'LaTeX compilation failed',
-      details: errorData.message || errorData.details || `Server returned status ${response.status}`,
+      details:
+        errorData.message ||
+        errorData.details ||
+        `Server returned status ${response.status}`,
       log: errorData.log,
       stdout: errorData.stdout,
       stderr: errorData.stderr,
@@ -131,15 +122,14 @@ async function handleCompileError(response: Response): Promise<CompilerResponse>
  * Handles compilation exceptions
  */
 function handleCompileException(error: unknown): CompilerResponse {
-  console.error('octree-compile error:', error);
-
   if (error instanceof Error && error.name === 'AbortError') {
     return {
       success: false,
       error: {
         error: 'LaTeX compilation timed out',
         details: `Request took longer than ${COMPILE_TIMEOUT_MS / 1000} seconds`,
-        suggestion: 'Try simplifying your LaTeX document or contact support if the issue persists',
+        suggestion:
+          'Try simplifying your LaTeX document or contact support if the issue persists',
       },
     };
   }
@@ -153,4 +143,3 @@ function handleCompileException(error: unknown): CompilerResponse {
     },
   };
 }
-

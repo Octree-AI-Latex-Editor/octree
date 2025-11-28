@@ -32,6 +32,9 @@ import { useParams } from 'next/navigation';
 import type { Project } from '@/types/project';
 import { ProjectActions } from '@/stores/project';
 import type { EditSuggestion } from '@/types/edit';
+import { isImageFile, isPDFFile, isTextFile } from '@/lib/constants/file-types';
+import { ImageViewer } from '@/components/image-viewer';
+import { SimplePDFViewer } from '@/components/simple-pdf-viewer';
 
 export default function ProjectPage() {
   const params = useParams();
@@ -74,6 +77,7 @@ export default function ProjectPage() {
     handleCompile,
     handleExportPDF,
     setCompilationError,
+    setPdfData,
   } = useEditorCompilation({
     content,
     editorRef,
@@ -105,7 +109,6 @@ export default function ProjectPage() {
   } = useEditorInteractions();
 
   const [autoSendMessage, setAutoSendMessage] = useState<string | null>(null);
-  const [hasCompiledOnMount, setHasCompiledOnMount] = useState(false);
 
   const projectFileContext = useMemo(
     () =>
@@ -119,6 +122,12 @@ export default function ProjectPage() {
   );
 
   useEffect(() => {
+    FileActions.reset();
+    setPdfData(null);
+    setCompilationError(null);
+  }, [projectId, setPdfData, setCompilationError]);
+
+  useEffect(() => {
     if (filesData) {
       FileActions.init(filesData);
     }
@@ -129,13 +138,6 @@ export default function ProjectPage() {
       ProjectActions.init(projectData);
     }
   }, [projectData]);
-
-  useEffect(() => {
-    if (content && !hasCompiledOnMount) {
-      setHasCompiledOnMount(true);
-      handleCompile();
-    }
-  }, [content, hasCompiledOnMount]);
 
   const handleEditorChange = (value: string) => {
     setContent(value);
@@ -181,6 +183,10 @@ export default function ProjectPage() {
     return <ErrorState error="Error fetching project" />;
   if (!filesData) return <ErrorState error="No files found" />;
 
+  const isImage = selectedFile ? isImageFile(selectedFile.name) : false;
+  const isPDF = selectedFile ? isPDFFile(selectedFile.name) : false;
+  const isText = selectedFile ? isTextFile(selectedFile.name) : false;
+
   return (
     <div className="flex h-[calc(100vh-45px)] flex-col bg-slate-100">
       <EditorToolbar
@@ -206,22 +212,51 @@ export default function ProjectPage() {
         <ResizablePanel defaultSize={50} minSize={30}>
           <div className="relative h-full">
             <div className="h-full overflow-hidden">
-              <MonacoEditor
-                content={content}
-                onChange={handleEditorChange}
-                onMount={handleEditorMount}
-                className="h-full"
-              />
-              <SelectionButton
-                show={showButton}
-                position={buttonPos}
-                onCopy={() => handleCopy()}
-              />
-              <SuggestionActions
-                suggestions={editSuggestions}
-                onAccept={handleAcceptEdit}
-                onReject={handleRejectEdit}
-              />
+              {isImage && selectedFile ? (
+                <ImageViewer
+                  projectId={projectId}
+                  fileName={selectedFile.name}
+                />
+              ) : isPDF && selectedFile ? (
+                <SimplePDFViewer
+                  projectId={projectId}
+                  fileName={selectedFile.name}
+                />
+              ) : isText && selectedFile ? (
+                <>
+                  <MonacoEditor
+                    content={content}
+                    onChange={handleEditorChange}
+                    onMount={handleEditorMount}
+                    className="h-full"
+                  />
+                  <SelectionButton
+                    show={showButton}
+                    position={buttonPos}
+                    onCopy={() => handleCopy()}
+                  />
+                  <SuggestionActions
+                    suggestions={editSuggestions}
+                    onAccept={handleAcceptEdit}
+                    onReject={handleRejectEdit}
+                  />
+                </>
+              ) : selectedFile ? (
+                <div className="flex h-full items-center justify-center bg-slate-50">
+                  <div className="text-center">
+                    <div className="mb-2 text-4xl">📄</div>
+                    <h3 className="mb-1 text-lg font-medium text-slate-900">
+                      Unsupported File Type
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Cannot preview or edit {selectedFile.name}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Supported: .tex, .bib, .md, .txt, .json, images, and PDFs
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </ResizablePanel>

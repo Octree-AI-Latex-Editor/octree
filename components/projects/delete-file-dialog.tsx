@@ -42,11 +42,12 @@ export function DeleteFileDialog({
 
     try {
       await deleteFile(projectId, fileId, fileName);
-
-      toast.success('File deleted successfully');
-      revalidate();
       onDeleted?.();
       onOpenChange(false);
+      
+      revalidate().then(() => {
+        toast.success('File deleted successfully');
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to delete file';

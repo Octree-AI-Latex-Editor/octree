@@ -14,76 +14,84 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
-import { renameFile } from '@/lib/requests/project';
+import { renameFolder } from '@/lib/requests/project';
 
-interface RenameFileDialogProps {
+interface RenameFolderDialogProps {
   projectId: string;
-  fileId: string;
-  currentName: string;
+  currentPath: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRenamed?: (newName: string) => void;
+  onRenamed?: (newPath: string) => void;
 }
 
-export function RenameFileDialog({
+export function RenameFolderDialog({
   projectId,
-  fileId,
-  currentName,
+  currentPath,
   open,
   onOpenChange,
   onRenamed,
-}: RenameFileDialogProps) {
-  const [fileName, setFileName] = useState('');
+}: RenameFolderDialogProps) {
+  const [folderName, setFolderName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { revalidate } = useProjectFilesRevalidation(projectId);
 
-  const folderPath = currentName.includes('/')
-    ? currentName.substring(0, currentName.lastIndexOf('/'))
+  const parentPath = currentPath.includes('/')
+    ? currentPath.substring(0, currentPath.lastIndexOf('/'))
     : '';
-  const currentFileName = currentName.includes('/')
-    ? currentName.substring(currentName.lastIndexOf('/') + 1)
-    : currentName;
+  const currentFolderName = currentPath.includes('/')
+    ? currentPath.substring(currentPath.lastIndexOf('/') + 1)
+    : currentPath;
 
   useEffect(() => {
     if (open) {
-      setFileName(currentFileName);
+      setFolderName(currentFolderName);
       setError(null);
     }
-  }, [open, currentFileName]);
+  }, [open, currentFolderName]);
 
   const handleRename = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const trimmedName = fileName.trim();
+    const trimmedName = folderName.trim();
 
     if (!trimmedName) {
-      setError('File name is required');
+      setError('Folder name is required');
       return;
     }
 
-    if (trimmedName === currentFileName) {
+    if (trimmedName === currentFolderName) {
       onOpenChange(false);
       return;
     }
 
-    const newFullPath = folderPath
-      ? `${folderPath}/${trimmedName}`
+    if (trimmedName.includes('/')) {
+      setError('Folder name cannot contain "/"');
+      return;
+    }
+
+    if (trimmedName.includes('..')) {
+      setError('Folder name cannot contain ".."');
+      return;
+    }
+
+    const newFullPath = parentPath
+      ? `${parentPath}/${trimmedName}`
       : trimmedName;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      await renameFile(projectId, currentName, newFullPath);
+      await renameFolder(projectId, currentPath, newFullPath);
       onRenamed?.(newFullPath);
       onOpenChange(false);
-      
+
       revalidate().then(() => {
-        toast.success('File renamed successfully');
+        toast.success('Folder renamed successfully');
       });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to rename file';
+        error instanceof Error ? error.message : 'Failed to rename folder';
       setError(message);
       toast.error(message);
     } finally {
@@ -95,20 +103,19 @@ export function RenameFileDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Rename File</DialogTitle>
+          <DialogTitle>Rename Folder</DialogTitle>
           <DialogDescription>
-            Update the file name. This will also update the associated document
-            name.
+            Update the folder name. All files within will be moved.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleRename} className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="file-name">File name</Label>
+            <Label htmlFor="folder-name">Folder name</Label>
             <Input
-              id="file-name"
-              value={fileName}
-              onChange={(event) => setFileName(event.target.value)}
-              placeholder="Enter a new file name"
+              id="folder-name"
+              value={folderName}
+              onChange={(event) => setFolderName(event.target.value)}
+              placeholder="Enter a new folder name"
               autoFocus
             />
           </div>

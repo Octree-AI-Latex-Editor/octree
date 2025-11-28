@@ -18,28 +18,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Upload, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import type { TablesInsert } from '@/database.types';
 import { useProjectFilesRevalidation } from '@/hooks/use-file-editor';
 import { FileActions } from '@/stores/file';
-import { createDocumentForFile } from '@/lib/requests/project';
 import {
-  SUPPORTED_TEXT_FILE_TYPES,
-  SUPPORTED_TEXT_FILE_EXTENSIONS,
-  MAX_TEXT_FILE_SIZE,
+  ALL_SUPPORTED_FILE_TYPES,
+  MAX_BINARY_FILE_SIZE,
+  getContentTypeByFilename,
 } from '@/lib/constants/file-types';
+import { toast } from 'sonner';
 
 interface AddFileDialogProps {
   projectId: string;
   projectTitle: string;
   onFileAdded?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  targetFolder?: string | null;
 }
 
 export function AddFileDialog({
   projectId,
   projectTitle,
   onFileAdded,
+  open: controlledOpen,
+  onOpenChange,
+  targetFolder = null,
 }: AddFileDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [fileName, setFileName] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -65,8 +72,8 @@ export function AddFileDialog({
     open: openFileDialog,
   } = useDropzone({
     onDrop,
-    accept: SUPPORTED_TEXT_FILE_TYPES,
-    maxSize: MAX_TEXT_FILE_SIZE,
+    accept: ALL_SUPPORTED_FILE_TYPES,
+    maxSize: MAX_BINARY_FILE_SIZE,
     multiple: false,
     disabled: isLoading,
     noClick: true,
@@ -89,38 +96,43 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const content = await selectedFile.text();
+      const fullPath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
+      const mimeType = getContentTypeByFilename(fileName);
+      const { error: uploadError } = await supabase.storage
+        .from('octree')
+        .upload(`projects/${projectId}/${fullPath}`, selectedFile, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: mimeType,
+        });
 
-      const fileInsert: TablesInsert<'files'> = {
-        project_id: projectId,
-        name: fileName,
-        type: selectedFile.type || 'text/plain',
-        size: selectedFile.size,
-      };
-      const { data: fileData, error: fileError } = await (
-        supabase.from('files') as any
-      )
-        .insert(fileInsert)
-        .select()
-        .single();
-
-      if (fileError) {
-        throw new Error('Failed to create file record');
+      if (uploadError) {
+        throw new Error('Failed to upload file');
       }
 
-      try {
-        await createDocumentForFile(projectId, fileName, content);
-      } catch (documentError) {
-        console.warn('Failed to create document record:', documentError);
+      const { data: storageFiles } = await supabase.storage
+        .from('octree')
+        .list(`projects/${projectId}`);
+
+      const uploadedFile = storageFiles?.find((f) => f.name === fileName);
+
+      if (uploadedFile) {
+        FileActions.setSelectedFile({
+          id: uploadedFile.id,
+          name: uploadedFile.name,
+          project_id: projectId,
+          size: uploadedFile.metadata?.size || null,
+          type: uploadedFile.metadata?.mimetype || null,
+          uploaded_at: uploadedFile.created_at,
+        });
       }
 
-      setOpen(false);
-      setFileName('');
-      setSelectedFile(null);
-      setUploadMode('create');
+      handleOpenChange(false);
       onFileAdded?.();
-      revalidate();
-      FileActions.setSelectedFile(fileData);
+
+      revalidate().then(() => {
+        toast.success('File uploaded successfully');
+      });
     } catch (error) {
       setError(
         error instanceof Error ? error.message : 'Failed to upload file'
@@ -147,41 +159,43 @@ export function AddFileDialog({
         throw new Error('User not authenticated');
       }
 
-      const fileInsert2: TablesInsert<'files'> = {
-        project_id: projectId,
-        name: fileName,
-        type: 'text/plain',
-        size: fileContent.length,
-      };
-      const { data: fileData, error: fileError } = await (
-        supabase.from('files') as any
-      )
-        .insert(fileInsert2)
-        .select()
-        .single();
+      const fullPath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
+      const content = fileContent || '';
+      const mimeType = getContentTypeByFilename(fileName);
+      const blob = new Blob([content], { type: mimeType });
 
-      if (fileError) {
-        throw new Error('Failed to create file record');
+      const { error: uploadError } = await supabase.storage
+        .from('octree')
+        .upload(`projects/${projectId}/${fullPath}`, blob, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: mimeType,
+        });
+
+      if (uploadError) {
+        throw new Error('Failed to create file');
       }
 
-      // Always create a document for the file
-      try {
-        await createDocumentForFile(
-          projectId,
-          fileName,
-          fileContent || undefined,
-          { useDefaultContent: false }
-        );
-      } catch (documentError) {
-        console.warn('Failed to create document record:', documentError);
-      }
+      const { data: storageFiles } = await supabase.storage
+        .from('octree')
+        .list(`projects/${projectId}`);
 
-      setOpen(false);
-      setFileName('');
-      setFileContent('');
+      const createdFile = storageFiles?.find((f) => f.name === fileName);
+
+      handleOpenChange(false);
       onFileAdded?.();
-      revalidate();
-      FileActions.setSelectedFile(fileData);
+      await revalidate();
+
+      if (createdFile) {
+        FileActions.setSelectedFile({
+          id: createdFile.id,
+          name: createdFile.name,
+          project_id: projectId,
+          size: createdFile.metadata?.size || null,
+          type: createdFile.metadata?.mimetype || null,
+          uploaded_at: createdFile.created_at,
+        });
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to add file');
     } finally {
@@ -192,19 +206,35 @@ export function AddFileDialog({
   const handleSubmit =
     uploadMode === 'upload' ? handleFileUpload : handleCreateFile;
 
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      setFileName('');
+      setFileContent('');
+      setSelectedFile(null);
+      setError(null);
+      setUploadMode('create');
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <div className="flex cursor-pointer items-center gap-3 rounded-md border-2 border-dashed border-gray-200 px-2 py-1 text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900">
-          <Plus className="h-4 w-4" />
-          <span className="text-sm font-medium">Add File</span>
-        </div>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Add File to {projectTitle}</DialogTitle>
           <DialogDescription>
-            Create a new file or upload an existing file to this project.
+            Create a new LaTeX file or upload files (PDFs, images, etc.) to this
+            project.
           </DialogDescription>
         </DialogHeader>
 
@@ -215,7 +245,7 @@ export function AddFileDialog({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="create" disabled={isLoading}>
               <FileText className="h-4 w-4" />
-              Create New
+              Create File
             </TabsTrigger>
             <TabsTrigger value="upload" disabled={isLoading}>
               <Upload className="h-4 w-4" />
@@ -240,7 +270,7 @@ export function AddFileDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setOpen(false)}
+                  onClick={() => handleOpenChange(false)}
                   disabled={isLoading}
                 >
                   Cancel
@@ -293,8 +323,8 @@ export function AddFileDialog({
                       </span>
                     </div>
                     <p className="text-xs text-neutral-500">
-                      {SUPPORTED_TEXT_FILE_EXTENSIONS.join(', ')} (max{' '}
-                      {MAX_TEXT_FILE_SIZE / 1024 / 1024}MB)
+                      Supports LaTeX files, PDFs, and images (max{' '}
+                      {MAX_BINARY_FILE_SIZE / 1024 / 1024}MB)
                     </p>
                   </div>
                 </div>
@@ -325,7 +355,7 @@ export function AddFileDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setOpen(false)}
+                  onClick={() => handleOpenChange(false)}
                   disabled={isLoading}
                 >
                   Cancel

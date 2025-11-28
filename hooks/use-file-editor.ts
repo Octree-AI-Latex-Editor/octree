@@ -5,6 +5,7 @@ import useSWR, { mutate } from 'swr';
 import { getProject, getProjectFiles } from '@/lib/requests/project';
 import type { Project } from '@/types/project';
 import { useFileStore } from '@/stores/file';
+import { FileTreeActions } from '@/stores/file-tree';
 
 export interface FileData {
   id: string;
@@ -82,9 +83,17 @@ export function useFileEditor(): FileEditorState {
 }
 
 export function useProjectFilesRevalidation(projectId: string) {
-  const revalidate = () => {
-    mutate(['project-files', projectId]);
-    mutate(['files', projectId]);
+  const revalidate = async () => {
+    FileTreeActions.setLoading(true);
+    
+    try {
+      await Promise.all([
+        mutate(['project-files', projectId]),
+        mutate(['files', projectId]),
+      ]);
+    } finally {
+      FileTreeActions.setLoading(false);
+    }
   };
 
   return { revalidate };

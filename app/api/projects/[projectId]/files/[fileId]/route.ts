@@ -1,7 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import type { Tables, TablesInsert, TablesUpdate } from '@/database.types';
+import {
+  getContentTypeByFilename,
+  isBinaryFile,
+} from '@/lib/constants/file-types';
 
 export async function GET(
   request: NextRequest,
@@ -10,7 +13,6 @@ export async function GET(
   try {
     const supabase = await createClient();
 
-    // Get current user
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -20,41 +22,63 @@ export async function GET(
 
     const { projectId, fileId } = await params;
 
-    // First, check if the file exists in the files table
-    const { data: fileData, error: fileError } = await supabase
-      .from('files' as const)
-      .select('*')
-      .eq('id', fileId)
-      .eq('project_id', projectId)
-      .single<Tables<'files'>>();
+    const { data: storageFiles, error: listError } = await supabase.storage
+      .from('octree')
+      .list(`projects/${projectId}`);
 
-    if (fileError || !fileData) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
-    }
-
-    const { data: documentData, error: documentError } = (await supabase
-      .from('documents' as const)
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('filename', fileData.name)
-      .eq('owner_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()) as {
-      data: Tables<'documents'> | null;
-      error: Error | null;
-    };
-
-    if (documentError || !documentData) {
+    if (listError || !storageFiles) {
       return NextResponse.json(
-        { error: 'Document not found for file' },
-        { status: 404 }
+        { error: 'Failed to list files' },
+        { status: 500 }
       );
     }
 
+    const file = storageFiles.find((f) => f.id === fileId);
+
+    if (!file) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+      .from('octree')
+      .download(`projects/${projectId}/${file.name}`);
+
+    if (downloadError || !fileBlob) {
+      return NextResponse.json(
+        { error: 'Failed to download file' },
+        { status: 500 }
+      );
+    }
+
+    let content: string;
+    if (isBinaryFile(file.name)) {
+      const arrayBuffer = await fileBlob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      content = btoa(String.fromCharCode(...uint8Array));
+    } else {
+      content = await fileBlob.text();
+    }
+
     return NextResponse.json({
-      file: fileData,
-      document: documentData,
+      file: {
+        id: file.id,
+        name: file.name,
+        project_id: projectId,
+        size: file.metadata?.size || null,
+        type: file.metadata?.mimetype || null,
+        uploaded_at: file.created_at,
+      },
+      document: {
+        id: file.id,
+        title: file.name,
+        content: content,
+        owner_id: user.id,
+        project_id: projectId,
+        filename: file.name,
+        document_type: file.name === 'main.tex' ? 'article' : 'file',
+        created_at: file.created_at,
+        updated_at: file.updated_at || file.created_at,
+      },
     });
   } catch (error) {
     console.error('Error fetching file:', error);
@@ -72,7 +96,6 @@ export async function PUT(
   try {
     const supabase = await createClient();
 
-    // Get current user
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -90,84 +113,75 @@ export async function PUT(
       );
     }
 
-    // First, check if the file exists in the files table
-    const { data: fileData, error: fileError } = await supabase
-      .from('files' as const)
-      .select('*')
-      .eq('id', fileId)
-      .eq('project_id', projectId)
-      .single<Tables<'files'>>();
+    const { data: storageFiles, error: listError } = await supabase.storage
+      .from('octree')
+      .list(`projects/${projectId}`);
 
-    if (fileError || !fileData) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
-    }
-
-    // Check if there's a corresponding document in the documents table
-    // Get the most recent document (in case of duplicates)
-    const { data: documentData, error: documentError } = (await supabase
-      .from('documents' as const)
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('filename', fileData.name)
-      .eq('owner_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()) as {
-      data: Tables<'documents'> | null;
-      error: Error | null;
-    };
-
-    if (documentError || !documentData) {
+    if (listError || !storageFiles) {
       return NextResponse.json(
-        { error: 'Document not found for file' },
-        { status: 404 }
-      );
-    }
-
-    // Update the existing document
-    const updateDoc: TablesUpdate<'documents'> = {
-      content: content,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { data: updatedDocument, error: updateError } =
-      await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from('documents') as any)
-        .update(updateDoc)
-        .eq('id', documentData.id)
-        .select('*')
-        .single();
-
-    if (updateError) {
-      console.error('Update error:', updateError);
-      return NextResponse.json(
-        { error: 'Failed to update document' },
+        { error: 'Failed to list files' },
         { status: 500 }
       );
     }
 
-    // Save version to document_versions table
-    const versionInsert: TablesInsert<'document_versions'> = {
-      document_id: documentData.id,
-      content: content,
-      change_summary: 'Auto-saved version',
-      created_by: user.id,
-    };
+    const file = storageFiles.find((f) => f.id === fileId);
 
-    const { error: versionError } =
-      await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from('document_versions') as any).insert(versionInsert);
+    if (!file) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
 
-    if (versionError) {
-      console.warn('Failed to save version:', versionError);
-      // Don't throw here as the main document was saved successfully
+    const contentType = getContentTypeByFilename(file.name);
+    let blob: Blob;
+
+    if (isBinaryFile(file.name)) {
+      const binaryString = atob(content);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      blob = new Blob([bytes], { type: contentType });
+    } else {
+      blob = new Blob([content], { type: contentType });
+    }
+
+    const { error: uploadError } = await supabase.storage
+      .from('octree')
+      .upload(`projects/${projectId}/${file.name}`, blob, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType,
+      });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to save file' },
+        { status: 500 }
+      );
     }
 
     revalidatePath(`/projects/${projectId}`);
 
     return NextResponse.json({
-      file: fileData,
-      document: updatedDocument,
+      file: {
+        id: file.id,
+        name: file.name,
+        project_id: projectId,
+        size: file.metadata?.size || null,
+        type: file.metadata?.mimetype || null,
+        uploaded_at: file.created_at,
+      },
+      document: {
+        id: file.id,
+        title: file.name,
+        content: content,
+        owner_id: user.id,
+        project_id: projectId,
+        filename: file.name,
+        document_type: file.name === 'main.tex' ? 'article' : 'file',
+        created_at: file.created_at,
+        updated_at: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error('Error saving file:', error);

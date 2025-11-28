@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ProjectFile } from '@/hooks/use-file-editor';
-import type { Tables, TablesInsert } from '@/database.types';
-import { DEFAULT_LATEX_CONTENT_FROM_FILENAME } from '@/data/constants';
+import { isBinaryFile } from '@/lib/constants/file-types';
 
 export const getProject = async (projectId: string) => {
   const supabase = createClient();
@@ -25,63 +24,41 @@ export const getProject = async (projectId: string) => {
   return data;
 };
 
-type CreateDocumentOptions = {
-  useDefaultContent?: boolean;
-};
-
-export const createDocumentForFile = async (
+async function listAllFiles(
+  supabase: any,
   projectId: string,
-  fileName: string,
-  content?: string,
-  options?: CreateDocumentOptions
-): Promise<Tables<'documents'>> => {
-  const supabase = createClient();
+  path: string = ''
+): Promise<any[]> {
+  const listPath = path
+    ? `projects/${projectId}/${path}`
+    : `projects/${projectId}`;
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { data: items, error } = await supabase.storage
+    .from('octree')
+    .list(listPath, {
+      sortBy: { column: 'created_at', order: 'desc' },
+    });
 
-  if (!session?.user) {
-    throw new Error('User not authenticated');
+  if (error || !items) return [];
+
+  const allFiles: any[] = [];
+
+  for (const item of items) {
+    if (item.id) {
+      const fullPath = path ? `${path}/${item.name}` : item.name;
+      allFiles.push({
+        ...item,
+        name: fullPath,
+      });
+    } else if (item.name !== '.emptyFolderPlaceholder') {
+      const subPath = path ? `${path}/${item.name}` : item.name;
+      const subFiles = await listAllFiles(supabase, projectId, subPath);
+      allFiles.push(...subFiles);
+    }
   }
 
-  const shouldUseDefaultContent = options?.useDefaultContent ?? true;
-
-  const documentContent = (() => {
-    if (typeof content === 'string') {
-      return content;
-    }
-
-    if (!shouldUseDefaultContent) {
-      return '';
-    }
-
-    if (fileName.endsWith('.bib')) {
-      return '';
-    }
-
-    return DEFAULT_LATEX_CONTENT_FROM_FILENAME(fileName);
-  })();
-
-  const insertDoc: TablesInsert<'documents'> = {
-    title: fileName,
-    content: documentContent,
-    owner_id: session.user.id,
-    project_id: projectId,
-    filename: fileName,
-    document_type: fileName === 'main.tex' ? 'article' : 'file',
-  };
-
-  const { data: newDocument, error: createError } =
-    await // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase.from('documents') as any).insert(insertDoc).select('*').single();
-
-  if (createError) {
-    throw new Error('Failed to create document');
-  }
-
-  return newDocument;
-};
+  return allFiles;
+}
 
 export const getProjectFiles = async (
   projectId: string
@@ -96,42 +73,86 @@ export const getProjectFiles = async (
     throw new Error('User not authenticated');
   }
 
-  const { data: filesData, error: filesError } = await supabase
-    .from('files')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('uploaded_at', { ascending: false });
+  const storageFiles = await listAllFiles(supabase, projectId);
 
-  if (filesError) throw filesError;
-  if (!filesData) return [];
+  if (!storageFiles || storageFiles.length === 0) return [];
 
-  const filesWithDocuments = await Promise.all(
-    filesData.map(async (file: Tables<'files'>) => {
-      const { data: documentData, error: documentError } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('filename', file.name)
-        .eq('owner_id', session.user.id)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const actualFiles = storageFiles.filter((item) => item.id !== null);
 
-      if (documentError || !documentData) {
+  const filesWithContent = await Promise.all(
+    actualFiles.map(async (storageFile) => {
+      try {
+        const cacheBuster = `?t=${Date.now()}`;
+        const { data: fileBlob, error: downloadError } = await supabase.storage
+          .from('octree')
+          .download(`projects/${projectId}/${storageFile.name}${cacheBuster}`);
+
+        if (downloadError || !fileBlob) {
+          console.warn(
+            `Failed to download file ${storageFile.name}:`,
+            downloadError
+          );
+          return {
+            file: {
+              id: storageFile.id,
+              name: storageFile.name,
+              project_id: projectId,
+              size: null,
+              type: null,
+              uploaded_at: storageFile.created_at,
+            },
+            document: null,
+          };
+        }
+
+        let content: string;
+        if (isBinaryFile(storageFile.name)) {
+          const arrayBuffer = await fileBlob.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          content = btoa(String.fromCharCode(...uint8Array));
+        } else {
+          content = await fileBlob.text();
+        }
+
         return {
-          file,
+          file: {
+            id: storageFile.id,
+            name: storageFile.name,
+            project_id: projectId,
+            size: storageFile.metadata?.size || null,
+            type: storageFile.metadata?.mimetype || null,
+            uploaded_at: storageFile.created_at,
+          },
+          document: {
+            id: storageFile.id,
+            title: storageFile.name,
+            content: content,
+            owner_id: session.user.id,
+            project_id: projectId,
+            filename: storageFile.name,
+            document_type: storageFile.name === 'main.tex' ? 'article' : 'file',
+            created_at: storageFile.created_at,
+            updated_at: storageFile.updated_at || storageFile.created_at,
+          },
+        };
+      } catch (error) {
+        console.error(`Error processing file ${storageFile.name}:`, error);
+        return {
+          file: {
+            id: storageFile.id,
+            name: storageFile.name,
+            project_id: projectId,
+            size: null,
+            type: null,
+            uploaded_at: storageFile.created_at,
+          },
           document: null,
         };
       }
-
-      return {
-        file,
-        document: documentData,
-      };
     })
   );
 
-  return filesWithDocuments.filter((item) => item.document !== null);
+  return filesWithContent.filter((item) => item.document !== null);
 };
 
 export interface ImportProjectResponse {
@@ -168,7 +189,6 @@ export const importProject = async (
 
 export const renameFile = async (
   projectId: string,
-  fileId: string,
   currentName: string,
   newName: string
 ): Promise<void> => {
@@ -182,32 +202,15 @@ export const renameFile = async (
     throw new Error('User not authenticated');
   }
 
-  const { error: updateFileError } = await (supabase.from('files') as any)
-    .update({ name: newName })
-    .eq('id', fileId)
-    .eq('project_id', projectId);
-
-  if (updateFileError) {
-    throw new Error('Failed to rename file');
-  }
-
-  const { error: updateDocumentError } = await (
-    supabase.from('documents') as any
-  )
-    .update({
-      title: newName,
-      filename: newName,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('project_id', projectId)
-    .eq('filename', currentName)
-    .eq('owner_id', session.user.id);
-
-  if (updateDocumentError) {
-    console.warn(
-      'Failed to update associated document name:',
-      updateDocumentError
+  const { error: moveError } = await supabase.storage
+    .from('octree')
+    .move(
+      `projects/${projectId}/${currentName}`,
+      `projects/${projectId}/${newName}`
     );
+
+  if (moveError) {
+    throw new Error('Failed to rename file');
   }
 };
 
@@ -226,24 +229,96 @@ export const deleteFile = async (
     throw new Error('User not authenticated');
   }
 
-  const { error: deleteDocumentError } = await (
-    supabase.from('documents') as any
-  )
-    .delete()
-    .eq('project_id', projectId)
-    .eq('filename', fileName)
-    .eq('owner_id', session.user.id);
+  const { error: deleteError } = await supabase.storage
+    .from('octree')
+    .remove([`projects/${projectId}/${fileName}`]);
 
-  if (deleteDocumentError) {
-    console.warn('Failed to delete associated document:', deleteDocumentError);
+  if (deleteError) {
+    throw new Error('Failed to delete file');
+  }
+};
+
+export const createFolder = async (
+  projectId: string,
+  folderPath: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
   }
 
-  const { error: deleteFileError } = await (supabase.from('files') as any)
-    .delete()
-    .eq('id', fileId)
-    .eq('project_id', projectId);
+  const gitkeepPath = `${folderPath}/.gitkeep`;
+  const blob = new Blob([''], { type: 'text/plain' });
 
-  if (deleteFileError) {
-    throw new Error('Failed to delete file');
+  const { error: uploadError } = await supabase.storage
+    .from('octree')
+    .upload(`projects/${projectId}/${gitkeepPath}`, blob, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: 'text/plain',
+    });
+
+  if (uploadError) {
+    throw new Error('Failed to create folder');
+  }
+};
+
+export const renameFolder = async (
+  projectId: string,
+  currentPath: string,
+  newPath: string
+): Promise<void> => {
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('User not authenticated');
+  }
+
+  const { data: files, error: listError } = await supabase.storage
+    .from('octree')
+    .list(`projects/${projectId}`, {
+      search: currentPath,
+    });
+
+  if (listError || !files) {
+    throw new Error('Failed to list folder contents');
+  }
+
+  const filesToMove = files.filter((file) =>
+    file.name.startsWith(currentPath + '/')
+  );
+
+  for (const file of filesToMove) {
+    const relativePath = file.name.substring(currentPath.length + 1);
+    const oldPath = `projects/${projectId}/${currentPath}/${relativePath}`;
+    const newFilePath = `projects/${projectId}/${newPath}/${relativePath}`;
+
+    const { error: moveError } = await supabase.storage
+      .from('octree')
+      .move(oldPath, newFilePath);
+
+    if (moveError) {
+      throw new Error(`Failed to move file: ${file.name}`);
+    }
+  }
+
+  const gitkeepOldPath = `projects/${projectId}/${currentPath}/.gitkeep`;
+  const gitkeepNewPath = `projects/${projectId}/${newPath}/.gitkeep`;
+
+  const { error: gitkeepMoveError } = await supabase.storage
+    .from('octree')
+    .move(gitkeepOldPath, gitkeepNewPath);
+
+  if (gitkeepMoveError) {
+    throw new Error('Failed to rename folder');
   }
 };
