@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { createClient } from '@/lib/supabase/client';
 import { useProject } from '@/stores/project';
@@ -45,6 +45,11 @@ export function useEditorCompilation({
   const [compilationError, setCompilationError] =
     useState<CompilationError | null>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
+
+  useEffect(() => {
+    setPdfData(null);
+    setCompilationError(null);
+  }, [projectId]);
 
   const fetchProjectFiles = useCallback(async () => {
     if (!project?.id) return null;
