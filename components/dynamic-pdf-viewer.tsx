@@ -41,12 +41,10 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
   const [zoom, setZoom] = useState<number>(1.0);
   const [containerWidth, setContainerWidth] = useState<number>(800);
 
-  // zoom reset
   useEffect(() => {
     setZoom(1.0);
   }, [pdfData]);
 
-  // Track container width
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
@@ -59,7 +57,6 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
-  // Track which page is currently visible
   useEffect(() => {
     if (!containerRef.current || !numPages) return;
 
@@ -141,7 +138,6 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     setZoom(1.0);
   }
 
-  // keyboard shortcuts for zoom
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey) {
@@ -174,8 +170,8 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     changePage(1);
   }
 
-  const onPageLoadSuccess = useCallback(
-    (pageNum: number) => (page: PageCallback) => {
+  function onPageLoadSuccess(pageNum: number) {
+    return (page: PageCallback) => {
       if (pageNum === 1) {
         const { width, height } = page.getViewport({ scale: 1 });
         setPageDimensions((prev) =>
@@ -184,9 +180,8 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
             : { width, height }
         );
       }
-    },
-    []
-  );
+    }
+  }
 
   if (isLoading && !pdfData) {
     return (
@@ -215,7 +210,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     }
 
     // I set it to 98% to account for padding and stuff
-    return containerWidth * 0.98;
+    return containerWidth * 0.80;
   };
 
   const pageWidth = calculatePageWidth();
