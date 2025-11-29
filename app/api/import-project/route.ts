@@ -11,7 +11,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB limit
 const MAX_FILES = 100; // Maximum files per project
 
 interface ExtractedFile {
-  name: string;
+  name: string; // Full relative path including folders (e.g., "figures/image.png")
   content: string | ArrayBuffer;
   isText: boolean;
   size: number;
@@ -71,17 +71,19 @@ export async function POST(request: NextRequest) {
     }
 
     for (const [relativePath, zipEntry] of fileEntries) {
-      if (zipEntry.dir) continue; // Skip directories
+      if (zipEntry.dir) continue;
 
       // Skip hidden files and common non-essential directories
       if (
         relativePath.startsWith('__MACOSX/') ||
         relativePath.includes('/.') ||
-        relativePath.startsWith('.')
+        relativePath.startsWith('.') ||
+        relativePath.includes('/._') // macOS resource forks
       ) {
         continue;
       }
 
+      // Use the full relative path as-is to preserve folder structure
       const fileName = relativePath.split('/').pop() || relativePath;
       const isTexFile = fileName.endsWith('.tex');
 
@@ -102,7 +104,7 @@ export async function POST(request: NextRequest) {
         }
 
         const extractedFile: ExtractedFile = {
-          name: fileName,
+          name: relativePath, // Use full relative path to preserve folder structure
           content,
           isText,
           size: isText
@@ -117,7 +119,6 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         console.error(`Failed to extract file ${relativePath}:`, error);
-        // Continue with other files
       }
     }
 
