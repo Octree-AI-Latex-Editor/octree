@@ -109,7 +109,14 @@ export const getProjectFiles = async (
         if (isBinaryFile(storageFile.name)) {
           const arrayBuffer = await fileBlob.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
-          content = btoa(String.fromCharCode(...uint8Array));
+          // Convert to base64 in chunks to avoid stack overflow with large files
+          let binary = '';
+          const chunkSize = 32768; // Process 32KB at a time
+          for (let i = 0; i < uint8Array.length; i += chunkSize) {
+            const chunk = uint8Array.subarray(i, i + chunkSize);
+            binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+          }
+          content = btoa(binary);
         } else {
           content = await fileBlob.text();
         }

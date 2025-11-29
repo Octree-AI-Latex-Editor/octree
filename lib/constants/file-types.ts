@@ -1,48 +1,72 @@
 export const SUPPORTED_TEXT_FILE_TYPES = {
-  'text/x-tex': ['.tex'],
-  'text/x-bibtex': ['.bib', '.bst'],
-  'text/x-latex': ['.sty', '.cls'],
-  'text/markdown': ['.md'],
-  'text/plain': ['.txt', '.log'],
-  'text/csv': ['.csv'],
+  // LaTeX files
+  'text/x-tex': ['.tex', '.ltx', '.dtx', '.ins'],
+  'text/x-bibtex': ['.bib', '.bst', '.bbx', '.cbx', '.lbx'],
+  'text/x-latex': ['.sty', '.cls', '.def', '.ldf', '.fd', '.cfg', '.clo'],
+  // Markup & docs
+  'text/markdown': ['.md', '.markdown'],
+  'text/plain': ['.txt', '.log', '.aux', '.toc', '.lof', '.lot', '.out', '.nav', '.snm', '.vrb'],
+  'text/csv': ['.csv', '.tsv'],
+  'text/x-rst': ['.rst'],
+  // Config files
   'application/json': ['.json'],
-  'text/javascript': ['.js'],
-  'text/typescript': ['.ts'],
-  'text/x-python': ['.py'],
-  'text/x-java': ['.java'],
-  'text/x-c++src': ['.cpp'],
-  'text/x-c': ['.c'],
-  'text/html': ['.html'],
-  'text/css': ['.css'],
-  'application/xml': ['.xml'],
   'application/x-yaml': ['.yaml', '.yml'],
+  'application/toml': ['.toml'],
+  'text/x-ini': ['.ini', '.cfg', '.conf'],
+  // Programming languages
+  'text/javascript': ['.js', '.mjs', '.cjs', '.jsx'],
+  'text/typescript': ['.ts', '.tsx'],
+  'text/x-python': ['.py', '.pyw'],
+  'text/x-java': ['.java'],
+  'text/x-c++src': ['.cpp', '.cxx', '.cc', '.hpp', '.hxx', '.h'],
+  'text/x-c': ['.c'],
+  'text/x-lua': ['.lua'],
+  'text/x-r': ['.r', '.R'],
+  'text/x-matlab': ['.m'],
+  'text/x-sh': ['.sh', '.bash', '.zsh'],
+  'text/x-bat': ['.bat', '.cmd'],
+  'text/x-sql': ['.sql'],
+  // Web files
+  'text/html': ['.html', '.htm'],
+  'text/css': ['.css', '.scss', '.sass', '.less'],
+  'application/xml': ['.xml', '.xsl', '.xslt'],
+  // Graphics source files
+  'text/x-tikz': ['.tikz', '.pgf'],
+  'text/x-asymptote': ['.asy'],
+  'text/x-metapost': ['.mp'],
+  'text/x-gnuplot': ['.gp', '.gnuplot'],
 };
 
 export const SUPPORTED_TEXT_FILE_EXTENSIONS = [
-  '.tex',
-  '.bib',
-  '.bst',
-  '.sty',
-  '.cls',
-  '.txt',
-  '.log',
-  '.csv',
-  '.md',
-  '.json',
-  '.js',
-  '.ts',
-  '.py',
+  // LaTeX
+  '.tex', '.ltx', '.dtx', '.ins',
+  '.bib', '.bst', '.bbx', '.cbx', '.lbx',
+  '.sty', '.cls', '.def', '.ldf', '.fd', '.cfg', '.clo',
+  '.aux', '.toc', '.lof', '.lot', '.out', '.nav', '.snm', '.vrb',
+  // Markup & docs
+  '.txt', '.log', '.md', '.markdown', '.rst',
+  '.csv', '.tsv',
+  // Config
+  '.json', '.yaml', '.yml', '.toml', '.ini', '.conf',
+  // Programming
+  '.js', '.mjs', '.cjs', '.jsx',
+  '.ts', '.tsx',
+  '.py', '.pyw',
   '.java',
-  '.cpp',
-  '.c',
-  '.html',
-  '.css',
-  '.xml',
-  '.yaml',
-  '.yml',
+  '.cpp', '.cxx', '.cc', '.hpp', '.hxx', '.h', '.c',
+  '.lua', '.r', '.R', '.m',
+  '.sh', '.bash', '.zsh', '.bat', '.cmd',
+  '.sql',
+  // Web
+  '.html', '.htm',
+  '.css', '.scss', '.sass', '.less',
+  '.xml', '.xsl', '.xslt',
+  // Graphics source
+  '.tikz', '.pgf', '.asy', '.mp', '.gp', '.gnuplot',
 ];
 
 export const BINARY_FILE_EXTENSIONS = [
+  // Images
   '.eps',
   '.png',
   '.jpg',
@@ -56,6 +80,52 @@ export const BINARY_FILE_EXTENSIONS = [
   '.svg',
   '.webp',
   '.ico',
+  '.heic',
+  '.heif',
+  '.avif',
+  '.raw',
+  '.psd',
+  '.ai',
+  // Fonts - TrueType, OpenType, Web fonts
+  '.ttf',
+  '.otf',
+  '.woff',
+  '.woff2',
+  '.eot',
+  // Fonts - PostScript Type 1
+  '.pfb',
+  '.pfa',
+  '.afm',
+  '.pfm',
+  // TeX fonts
+  '.tfm',
+  '.vf',
+  '.pk',
+  '.gf',
+  '.mf',
+  // Archives (in case someone uploads them)
+  '.zip',
+  '.tar',
+  '.gz',
+  '.bz2',
+  '.xz',
+  '.7z',
+  '.rar',
+  // Audio/Video (rare but possible)
+  '.mp3',
+  '.mp4',
+  '.wav',
+  '.ogg',
+  '.webm',
+  '.mov',
+  '.avi',
+  // Other binary
+  '.exe',
+  '.dll',
+  '.so',
+  '.dylib',
+  '.bin',
+  '.dat',
 ] as const;
 
 export const MAX_TEXT_FILE_SIZE = 10 * 1024 * 1024;
@@ -114,6 +184,7 @@ export function isTextFile(filename: string): boolean {
 }
 
 const BINARY_FILE_MIME_TYPES: Record<string, string> = {
+  // Images
   '.pdf': 'application/pdf',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -127,6 +198,39 @@ const BINARY_FILE_MIME_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
   '.eps': 'application/postscript',
   '.ps': 'application/postscript',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.avif': 'image/avif',
+  '.psd': 'image/vnd.adobe.photoshop',
+  '.ai': 'application/illustrator',
+  // Fonts - TrueType, OpenType, Web
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.eot': 'application/vnd.ms-fontobject',
+  // Fonts - PostScript Type 1
+  '.pfb': 'application/x-font-type1',
+  '.pfa': 'application/x-font-type1',
+  '.afm': 'application/x-font-afm',
+  // TeX fonts
+  '.tfm': 'application/x-tex-tfm',
+  // Archives
+  '.zip': 'application/zip',
+  '.tar': 'application/x-tar',
+  '.gz': 'application/gzip',
+  '.bz2': 'application/x-bzip2',
+  '.xz': 'application/x-xz',
+  '.7z': 'application/x-7z-compressed',
+  '.rar': 'application/vnd.rar',
+  // Audio/Video
+  '.mp3': 'audio/mpeg',
+  '.mp4': 'video/mp4',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.avi': 'video/x-msvideo',
 };
 
 export function getContentTypeByFilename(filename: string): string {

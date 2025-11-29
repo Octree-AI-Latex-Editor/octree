@@ -57,19 +57,44 @@ export function useEditorCompilation({
     try {
       const supabase = createClient();
 
-      const { data: storageFiles, error: storageError } = await supabase.storage
-        .from('octree')
-        .list(`projects/${project.id}`);
+      // Recursively list all files in the project, including subfolders
+      const listAllFiles = async (path: string = ''): Promise<{ name: string; id: string }[]> => {
+        const listPath = path
+          ? `projects/${project.id}/${path}`
+          : `projects/${project.id}`;
 
-      if (storageError || !storageFiles) {
-        console.error('Error fetching project files:', storageError);
+        const { data: items, error } = await supabase.storage
+          .from('octree')
+          .list(listPath);
+
+        if (error || !items) return [];
+
+        const allFiles: { name: string; id: string }[] = [];
+
+        for (const item of items) {
+          if (item.id) {
+            // It's a file
+            const fullPath = path ? `${path}/${item.name}` : item.name;
+            allFiles.push({ name: fullPath, id: item.id });
+          } else if (item.name !== '.emptyFolderPlaceholder') {
+            // It's a folder - recurse
+            const subPath = path ? `${path}/${item.name}` : item.name;
+            const subFiles = await listAllFiles(subPath);
+            allFiles.push(...subFiles);
+          }
+        }
+
+        return allFiles;
+      };
+
+      const storageFiles = await listAllFiles();
+
+      if (!storageFiles || storageFiles.length === 0) {
         return null;
       }
 
-      const actualFiles = storageFiles.filter((item) => item.id !== null);
-
       const filesWithContent = await Promise.all(
-        actualFiles.map(async (file) => {
+        storageFiles.map(async (file) => {
           try {
             const { data: fileBlob, error: downloadError } =
               await supabase.storage
@@ -180,6 +205,9 @@ export function useEditorCompilation({
       const filesPayload = projectId
         ? await buildFilesPayload(normalizedFileName, currentContent)
         : [{ path: normalizedFileName, content: currentContent }];
+
+      // Debug: Log files being sent for compilation
+      console.log('[Compile] Files being sent:', filesPayload.map(f => ({ path: f.path, encoding: f.encoding, size: f.content.length })));
 
       const { response, data } = await makeCompilationRequest(
         filesPayload,
