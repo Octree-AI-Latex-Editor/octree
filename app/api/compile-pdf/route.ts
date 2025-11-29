@@ -5,6 +5,13 @@ import { validateCompileRequest } from './validation';
 import { compileLatex } from './compiler';
 
 export const runtime = 'nodejs';
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '25mb',
+    },
+  },
+};
 
 const COMPILE_SERVICE_URL = process.env.COMPILE_SERVICE_URL || 'http://localhost:3001';
 
