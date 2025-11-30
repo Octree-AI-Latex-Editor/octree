@@ -9,5 +9,6 @@ export interface CompilationError {
   queueMs?: number | null;
   durationMs?: number | null;
   summary?: string;
+  pdf?: string; // Base64-encoded partial PDF if available despite error
 }
 

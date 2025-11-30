@@ -114,6 +114,7 @@ async function handleCompileError(
       requestId,
       queueMs: queueMs ? Number(queueMs) : errorData.queueMs,
       durationMs: durationMs ? Number(durationMs) : errorData.durationMs,
+      pdfBuffer: errorData.pdfBuffer, // Base64-encoded partial PDF if available
     },
   };
 }

@@ -28,6 +28,7 @@ export function createCompilationError(
     queueMs: data?.queueMs,
     durationMs: data?.durationMs,
     summary: summarizeLog(data?.log || data?.stderr || data?.stdout),
+    pdf: data?.pdf, // Include partial PDF if available despite error
   };
 }
 

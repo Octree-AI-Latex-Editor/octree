@@ -13,7 +13,10 @@ export const config = {
   },
 };
 
-const COMPILE_SERVICE_URL = process.env.COMPILE_SERVICE_URL || 'http://localhost:3001';
+const COMPILE_SERVICE_URL =
+  process.env.NODE_ENV === 'development'
+    ? process.env.COMPILE_SERVICE_URL_STAGING
+    : process.env.COMPILE_SERVICE_URL;
 
 function normalizeRequest(body: Partial<CompileRequest>): CompileRequest {
   if (body.files && body.files.length > 0) {
@@ -78,16 +81,21 @@ export async function POST(request: Request) {
       filesCount: body.files.length,
     });
 
-    const compileResult = await compileLatex(body, COMPILE_SERVICE_URL);
+    const compileResult = await compileLatex(body, COMPILE_SERVICE_URL as string);
 
     if (!compileResult.success || !compileResult.base64PDF || !compileResult.pdfBuffer) {
-      return NextResponse.json(
-        {
-          ...compileResult.error,
-          suggestion: compileResult.error?.suggestion || 'Check your LaTeX syntax and try again',
-        },
-        { status: 500 }
-      );
+      // Include partial PDF in error response if available from octree-compile
+      const errorResponse: Record<string, unknown> = {
+        ...compileResult.error,
+        suggestion: compileResult.error?.suggestion || 'Check your LaTeX syntax and try again',
+      };
+
+      // If a partial PDF was generated despite the error, include it
+      if (compileResult.error?.pdfBuffer) {
+        errorResponse.pdf = compileResult.error.pdfBuffer;
+      }
+
+      return NextResponse.json(errorResponse, { status: 500 });
     }
 
     const responsePayload: CompileCachePayload = {

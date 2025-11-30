@@ -220,6 +220,12 @@ export function useEditorCompilation({
           data?.error || `Compilation failed with status ${response.status}`;
         const structuredError = createCompilationError(data, errorMessage);
         setCompilationError(structuredError);
+
+        // If a partial PDF is available despite the error, display it
+        if (data?.pdf) {
+          setPdfData(data.pdf);
+        }
+
         handled = true;
         throw new Error(errorMessage);
       }

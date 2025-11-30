@@ -42,6 +42,7 @@ export interface CompilerResponse {
     requestId?: string | null;
     queueMs?: number | null;
     durationMs?: number | null;
+    pdfBuffer?: string; // Base64-encoded partial PDF if available
   };
 }
 
