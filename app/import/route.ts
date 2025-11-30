@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { TablesInsert } from '@/database.types';
+import { getContentTypeByFilename } from '@/lib/constants/file-types';
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -53,34 +54,44 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/', url.origin));
   }
 
-  const { error: docError } = await supabase
-    .from('documents')
-    .insert({
-      title: title.slice(0, 120),
-      content,
-      owner_id: user.id,
-      project_id: project.id,
-      filename: 'main.tex',
-      document_type: 'article',
+  // Upload file content to Supabase Storage
+  const mimeType = getContentTypeByFilename('main.tex');
+  const blob = new Blob([content], { type: mimeType });
+  const filePath = `projects/${project.id}/main.tex`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('octree')
+    .upload(filePath, blob, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: mimeType,
     });
 
-  if (docError) {
+  if (uploadError) {
+    console.error('Error uploading file to storage:', uploadError);
     return NextResponse.redirect(new URL('/', url.origin));
   }
 
-  // Insert file record and capture ID for redirect to editor
-  const { data: file, error: fileError } = await supabase
-    .from('files')
-    .insert({
-      project_id: project.id,
-      name: 'main.tex',
-      type: 'text/plain',
-      size: content.length,
-    })
-    .select('id')
-    .single();
+  // Get public URL for the file
+  const { data: urlData } = supabase.storage
+    .from('octree')
+    .getPublicUrl(filePath);
 
-  if (fileError || !file) {
+  // Insert file record
+  const fileToInsert: TablesInsert<'files'> = {
+    project_id: project.id,
+    name: 'main.tex',
+    type: mimeType,
+    size: content.length,
+    url: urlData.publicUrl,
+  };
+
+  const { error: fileError } = await supabase
+    .from('files')
+    .insert(fileToInsert);
+
+  if (fileError) {
+    console.error('Error creating file record:', fileError);
     return NextResponse.redirect(new URL(`/projects/${project.id}`, url.origin));
   }
 
