@@ -8,6 +8,61 @@ import katex from 'katex';
 // @ts-ignore
 import 'katex/dist/katex.min.css';
 
+const LATEX_TEMPLATE = `\\documentclass{article}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{hyperref}
+\\usepackage{graphicx}
+\\usepackage{booktabs}
+\\usepackage{listings}
+
+\\begin{document}
+
+{CONTENT}
+
+\\end{document}`;
+
+function extractBody(latex: string): string {
+  const documentMatch = latex.match(/\\begin\{document\}([\s\S]*?)\\end\{document\}/);
+  return documentMatch ? documentMatch[1].trim() : latex;
+}
+
+function cleanLatexForKatex(latex: string) {
+  let equationContent = extractBody(latex);
+  
+  equationContent = equationContent
+    .replace(/\\documentclass(\[.*?\])?\{.*?\}/g, '')
+    .replace(/\\usepackage(\[.*?\])?\{.*?\}/g, '')
+    .replace(/\\begin\{document\}/g, '')
+    .replace(/\\end\{document\}/g, '')
+    .replace(/\\maketitle/g, '')
+    .replace(/\\title\{.*?\}/g, '')
+    .replace(/\\author\{.*?\}/g, '')
+    .replace(/\\date\{.*?\}/g, '')
+    .trim();
+  
+  equationContent = equationContent
+    .replace(/\\begin\{equation\*?\}/g, '')
+    .replace(/\\end\{equation\*?\}/g, '\\\\');
+
+  equationContent = equationContent.replace(/\\\]\s*\\\[/g, '\\\\');
+
+  equationContent = equationContent
+    .replace(/\\\[/g, '')
+    .replace(/\\\]/g, '')
+    .replace(/\\\(/g, '')
+    .replace(/\\\)/g, '');
+
+  equationContent = equationContent.replace(/(^|[^\\])\$/g, '$1').trim();
+
+  equationContent = equationContent.replace(/([^\\])\n/g, '$1 \\\\ ');
+  
+  if (equationContent) {
+    return `\\begin{gathered}${equationContent}\\end{gathered}`;
+  }
+  return '';
+}
+
 export default function EquationToLatexClient() {
   const [equation, setEquation] = useState('');
   const [latex, setLatex] = useState('');
@@ -27,45 +82,10 @@ export default function EquationToLatexClient() {
 useEffect(() => {
   if (latex && katexRef.current && activeTab === 'preview') {
     try {
-      // Extract equation content between \begin{document} and \end{document}
-      const documentMatch = latex.match(/\\begin\{document\}([\s\S]*?)\\end\{document\}/);
-      let equationContent = documentMatch ? documentMatch[1].trim() : latex;
+      const equationContent = cleanLatexForKatex(latex);
       
-      // Remove common LaTeX document commands that KaTeX doesn't support
-      equationContent = equationContent
-        .replace(/\\documentclass(\[.*?\])?\{.*?\}/g, '')
-        .replace(/\\usepackage(\[.*?\])?\{.*?\}/g, '')
-        .replace(/\\begin\{document\}/g, '')
-        .replace(/\\end\{document\}/g, '')
-        .replace(/\\maketitle/g, '')
-        .replace(/\\title\{.*?\}/g, '')
-        .replace(/\\author\{.*?\}/g, '')
-        .replace(/\\date\{.*?\}/g, '')
-        .trim();
-      
-      // If content is wrapped in equation environments, extract just the math
-      const equationEnvMatch = equationContent.match(/\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}/);
-      if (equationEnvMatch) {
-        equationContent = equationEnvMatch[1].trim();
-      }
-
-      // Handle multiple display math blocks
-      equationContent = equationContent.replace(/\\\]\s*\\\[/g, '\\\\');
-
-      // Remove display math delimiters \[ \] and inline math delimiters \( \)
-      equationContent = equationContent
-        .replace(/\\\[/g, '')
-        .replace(/\\\]/g, '')
-        .replace(/\\\(/g, '')
-        .replace(/\\\)/g, '');
-
-      // Remove $ delimiters (careful not to remove \$)
-      equationContent = equationContent.replace(/(^|[^\\])\$/g, '$1').trim();
-      
-      // Clear the container first
       katexRef.current.innerHTML = '';
       
-      // Render the equation
       katex.render(equationContent, katexRef.current, {
         displayMode: true,
         throwOnError: false,
@@ -154,45 +174,64 @@ useEffect(() => {
     setLatex('');
 
     try {
-      let imageLatex = '';
-      let textLatex = '';
-      
+      const promises: Promise<string>[] = [];
+
       if (uploadedImage) {
-        const response = await fetch('/api/octra-agent/image-to-latex', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: uploadedImage, fileName: imageFileName }),
-        });
+        promises.push((async () => {
+          const response = await fetch('/api/octra-agent/image-to-latex', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: uploadedImage, fileName: imageFileName }),
+          });
 
-        if (!response.ok) throw new Error('failed to convert image');
+          if (!response.ok) throw new Error('failed to convert image');
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let result = '';
 
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            imageLatex += decoder.decode(value, { stream: true });
+          if (reader) {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              result += decoder.decode(value, { stream: true });
+            }
           }
-        }
+          return result.replace(/^```(?:latex)?\s*/i, '').replace(/\s*```$/, '').trim();
+        })());
+      } else {
+        promises.push(Promise.resolve(''));
       }
-      
-      if (equation.trim()) {
-        const response = await fetch('/api/equation-to-latex', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ equation }),
-        });
 
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'failed to convert equation');
-        textLatex = data.latex;
+      if (equation.trim()) {
+        promises.push((async () => {
+          const response = await fetch('/api/equation-to-latex', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ equation }),
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'failed to convert equation');
+          return data.latex.replace(/^```(?:latex)?\s*/i, '').replace(/\s*```$/, '').trim();
+        })());
+      } else {
+        promises.push(Promise.resolve(''));
       }
+
+      const [imageLatex, textLatex] = await Promise.all(promises);
       
-      const finalLatex = imageLatex && textLatex
-        ? `% From image:\n${imageLatex}\n\n% From text:\n${textLatex}`
-        : imageLatex || textLatex;
+      const imageContent = imageLatex ? extractBody(imageLatex) : '';
+      const textContent = textLatex ? extractBody(textLatex) : '';
+      
+      let combinedContent = '';
+      if (imageContent && textContent) {
+        combinedContent = `% From image:\n${imageContent}\n\n% From text:\n${textContent}`;
+      } else {
+        combinedContent = imageContent || textContent;
+      }
+
+      const finalLatex = combinedContent ? LATEX_TEMPLATE.replace('{CONTENT}', combinedContent) : '';
       
       setLatex(finalLatex);
     } catch (err) {
@@ -256,12 +295,7 @@ useEffect(() => {
     }
   };
 
-  const exampleEquations = [
-    { label: 'Quadratic Formula', value: 'x = (-b ± sqrt(b^2 - 4ac)) / 2a' },
-    { label: 'Pythagorean Theorem', value: 'a^2 + b^2 = c^2' },
-    { label: 'Integral', value: 'integral from 0 to infinity of e^(-x) dx' },
-    { label: 'Matrix', value: '2x2 matrix with entries 1, 2, 3, 4' },
-  ];
+
 
   return (
     <div className="grid grid-cols-2 gap-8">
@@ -471,11 +505,10 @@ useEffect(() => {
             ) : (
               <div className="flex-1 overflow-auto p-6">
                 {latex ? (
-                  <div className="flex items-center justify-center min-h-full">
+                  <div className="flex items-center justify-center min-h-full w-full overflow-x-auto p-4">
                     <div
                       ref={katexRef}
-                      className="text-2xl"
-                      style={{ fontSize: '2rem' }}
+                      className="text-xl"
                     />
                   </div>
                 ) : (
@@ -488,7 +521,6 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Export Dropdown */}
         {latex && (
           <div className="relative mt-4" ref={dropdownRef}>
             <button

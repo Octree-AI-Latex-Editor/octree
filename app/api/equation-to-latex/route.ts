@@ -39,48 +39,18 @@ export async function POST(request: NextRequest) {
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a LaTeX code generator. Your task is to convert natural language equation descriptions into complete LaTeX documents.
+                        content: `You are a LaTeX code generator. Your task is to convert natural language equation descriptions into LaTeX equations.
 
 CRITICAL RULES:
-1. Output a COMPLETE LaTeX document with the specified structure
-2. NO explanations, NO descriptions, NO markdown formatting, NO extra text
-3. Use this EXACT document structure:
-
-\\documentclass{article}
-\\usepackage{amsmath}
-\\usepackage{amssymb}
-\\usepackage{hyperref}
-\\usepackage{graphicx}
-\\usepackage{booktabs}
-\\usepackage{listings}
-
-\\begin{document}
-
-[YOUR EQUATIONS HERE]
-
-\\end{document}
-
-4. Place equations inside \\[ \\] for display math or $ $ for inline math
-5. Use correct LaTeX commands: \\frac, \\sqrt, \\sum, \\int, \\pm, etc.
-6. If multiple equations are present, output each one on separate lines
+1. Output ONLY the LaTeX equations.
+2. NO explanations, NO descriptions, NO markdown formatting, NO extra text.
+3. Do NOT include \\documentclass, \\begin{document}, etc. Just the equations.
+4. Place equations inside \\[ \\] for display math or $ $ for inline math.
+5. If multiple equations are present, output each one on separate lines.
 
 EXAMPLE INPUT: "quadratic formula"
 EXAMPLE OUTPUT:
-\\documentclass{article}
-\\usepackage{amsmath}
-\\usepackage{amssymb}
-\\usepackage{hyperref}
-\\usepackage{graphicx}
-\\usepackage{booktabs}
-\\usepackage{listings}
-
-\\begin{document}
-
-\\[ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]
-
-\\end{document}
-
-Remember: Output the COMPLETE LaTeX document structure with the equations. No other text whatsoever.`,
+\\[ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]`,
                     },
                     {
                         role: 'user',
