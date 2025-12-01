@@ -39,17 +39,52 @@ export async function POST(request: NextRequest) {
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a LaTeX expert. Convert natural language equation descriptions into proper LaTeX code. Follow these rules:
-1. Return ONLY the LaTeX code, no explanations or markdown
-2. Use appropriate math environments (inline $ $ or display $$ $$)
-3. Use proper LaTeX commands (\\frac, \\sqrt, \\sum, \\int, etc.)
-4. For display equations, use equation or align environments when appropriate
-5. Include necessary packages hints in comments if needed (e.g., % requires amsmath)
-6. Be concise and accurate`,
+                        content: `You are a LaTeX code generator. Your task is to convert natural language equation descriptions into complete LaTeX documents.
+
+CRITICAL RULES:
+1. Output a COMPLETE LaTeX document with the specified structure
+2. NO explanations, NO descriptions, NO markdown formatting, NO extra text
+3. Use this EXACT document structure:
+
+\\documentclass{article}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{hyperref}
+\\usepackage{graphicx}
+\\usepackage{booktabs}
+\\usepackage{listings}
+
+\\begin{document}
+
+[YOUR EQUATIONS HERE]
+
+\\end{document}
+
+4. Place equations inside \\[ \\] for display math or $ $ for inline math
+5. Use correct LaTeX commands: \\frac, \\sqrt, \\sum, \\int, \\pm, etc.
+6. If multiple equations are present, output each one on separate lines
+
+EXAMPLE INPUT: "quadratic formula"
+EXAMPLE OUTPUT:
+\\documentclass{article}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{hyperref}
+\\usepackage{graphicx}
+\\usepackage{booktabs}
+\\usepackage{listings}
+
+\\begin{document}
+
+\\[ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]
+
+\\end{document}
+
+Remember: Output the COMPLETE LaTeX document structure with the equations. No other text whatsoever.`,
                     },
                     {
                         role: 'user',
-                        content: `Convert this equation to LaTeX: ${equation}`,
+                        content: equation,
                     },
                 ],
                 temperature: 0.3,

@@ -1,22 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { CodeXml, Eye, Loader2, Copy, Check, Image as ImageIcon, X } from 'lucide-react';
-import dynamic from 'next/dynamic';
+import { useState, useRef, useEffect } from 'react';
+import { CodeXml, Eye, Loader2, Copy, Check, Image as ImageIcon, X, ChevronDown, Download } from 'lucide-react';
 import Image from 'next/image';
 import Editor from '@monaco-editor/react';
-
-const DynamicPDFViewer = dynamic(
-  () => import('@/components/dynamic-pdf-viewer'),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    ),
-  }
-);
+import katex from 'katex';
+// @ts-ignore
+import 'katex/dist/katex.min.css';
 
 export default function EquationToLatexClient() {
   const [equation, setEquation] = useState('');
@@ -24,12 +14,83 @@ export default function EquationToLatexClient() {
   const [isConverting, setIsConverting] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'code' | 'preview'>('code');
-  const [pdfData, setPdfData] = useState<string | null>(null);
-  const [isPdfCompiling, setIsPdfCompiling] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [imageFileName, setImageFileName] = useState<string>('');
+  const [imageFileName, setImageFileName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  
+  const katexRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  if (latex && katexRef.current && activeTab === 'preview') {
+    try {
+      // Extract equation content between \begin{document} and \end{document}
+      const documentMatch = latex.match(/\\begin\{document\}([\s\S]*?)\\end\{document\}/);
+      let equationContent = documentMatch ? documentMatch[1].trim() : latex;
+      
+      // Remove common LaTeX document commands that KaTeX doesn't support
+      equationContent = equationContent
+        .replace(/\\documentclass(\[.*?\])?\{.*?\}/g, '')
+        .replace(/\\usepackage(\[.*?\])?\{.*?\}/g, '')
+        .replace(/\\begin\{document\}/g, '')
+        .replace(/\\end\{document\}/g, '')
+        .replace(/\\maketitle/g, '')
+        .replace(/\\title\{.*?\}/g, '')
+        .replace(/\\author\{.*?\}/g, '')
+        .replace(/\\date\{.*?\}/g, '')
+        .trim();
+      
+      // If content is wrapped in equation environments, extract just the math
+      const equationEnvMatch = equationContent.match(/\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}/);
+      if (equationEnvMatch) {
+        equationContent = equationEnvMatch[1].trim();
+      }
+
+      // Handle multiple display math blocks
+      equationContent = equationContent.replace(/\\\]\s*\\\[/g, '\\\\');
+
+      // Remove display math delimiters \[ \] and inline math delimiters \( \)
+      equationContent = equationContent
+        .replace(/\\\[/g, '')
+        .replace(/\\\]/g, '')
+        .replace(/\\\(/g, '')
+        .replace(/\\\)/g, '');
+
+      // Remove $ delimiters (careful not to remove \$)
+      equationContent = equationContent.replace(/(^|[^\\])\$/g, '$1').trim();
+      
+      // Clear the container first
+      katexRef.current.innerHTML = '';
+      
+      // Render the equation
+      katex.render(equationContent, katexRef.current, {
+        displayMode: true,
+        throwOnError: false,
+        trust: true,
+        output: 'html',
+      });
+    } catch (err) {
+      console.error('KaTeX rendering error:', err);
+      if (katexRef.current) {
+        katexRef.current.textContent = 'Error rendering equation';
+      }
+    }
+  }
+}, [latex, activeTab]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsExportDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const processImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -91,7 +152,6 @@ export default function EquationToLatexClient() {
     setIsConverting(true);
     setError('');
     setLatex('');
-    setPdfData(null);
 
     try {
       let imageLatex = '';
@@ -100,18 +160,11 @@ export default function EquationToLatexClient() {
       if (uploadedImage) {
         const response = await fetch('/api/octra-agent/image-to-latex', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            image: uploadedImage,
-            fileName: imageFileName 
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: uploadedImage, fileName: imageFileName }),
         });
 
-        if (!response.ok) {
-          throw new Error('failed to convert image');
-        }
+        if (!response.ok) throw new Error('failed to convert image');
 
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
@@ -120,13 +173,7 @@ export default function EquationToLatexClient() {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
-            const chunk = decoder.decode(value, { stream: true });
-            imageLatex += chunk;
-            
-            if (!equation.trim()) {
-              setLatex(imageLatex);
-            }
+            imageLatex += decoder.decode(value, { stream: true });
           }
         }
       }
@@ -134,33 +181,20 @@ export default function EquationToLatexClient() {
       if (equation.trim()) {
         const response = await fetch('/api/equation-to-latex', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ equation }),
         });
 
         const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'failed to convert equation');
-        }
-
+        if (!response.ok) throw new Error(data.error || 'failed to convert equation');
         textLatex = data.latex;
       }
       
-      let finalLatex = '';
-      if (imageLatex && textLatex) {
-        finalLatex = `% From image:\n${imageLatex}\n\n% From text:\n${textLatex}`;
-      } else if (imageLatex) {
-        finalLatex = imageLatex;
-      } else {
-        finalLatex = textLatex;
-      }
+      const finalLatex = imageLatex && textLatex
+        ? `% From image:\n${imageLatex}\n\n% From text:\n${textLatex}`
+        : imageLatex || textLatex;
       
       setLatex(finalLatex);
-      
-      await compilePdf(finalLatex);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'conversion failed');
     } finally {
@@ -168,41 +202,45 @@ export default function EquationToLatexClient() {
     }
   };
 
-  const compilePdf = async (latexCode: string) => {
-    if (!latexCode.trim()) return;
-    
-    setIsPdfCompiling(true);
-    
-    const fullDocument = `\\documentclass{article}
-\\usepackage{amsmath}
-\\usepackage{amssymb}
-\\usepackage{graphicx}
-\\begin{document}
-${latexCode}
-\\end{document}`;
+  const downloadFile = (content: string | Blob, filename: string, type?: string) => {
+    const blob = content instanceof Blob ? content : new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAsLatex = () => {
+    if (!latex) return;
+    downloadFile(latex, 'equation.tex', 'text/plain');
+    setIsExportDropdownOpen(false);
+  };
+
+  const exportAsPdf = async () => {
+    if (!latex) return;
+
+    setIsExportingPdf(true);
+    setIsExportDropdownOpen(false);
 
     try {
       const response = await fetch('/api/compile-pdf', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          files: [{ path: 'main.tex', content: fullDocument }],
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: [{ path: 'main.tex', content: latex }] }),
       });
 
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'failed to compile pdf');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'failed to compile pdf');
-      }
-
-      setPdfData(data.pdf);
+      const pdfBlob = await fetch(`data:application/pdf;base64,${data.pdf}`).then(r => r.blob());
+      downloadFile(pdfBlob, 'equation.pdf');
     } catch (err) {
-      console.error('PDF compilation error:', err);
+      console.error('PDF export error:', err);
+      setError(err instanceof Error ? err.message : 'failed to export pdf');
     } finally {
-      setIsPdfCompiling(false);
+      setIsExportingPdf(false);
     }
   };
 
@@ -319,7 +357,7 @@ ${latexCode}
         <button
           onClick={handleConvert}
           disabled={isConverting || (!equation.trim() && !uploadedImage)}
-          className="mt-6 w-full px-6 py-3 bg-blue-600 text-white text-base font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="mt-4 w-full px-6 py-3 bg-blue-600 text-white text-base font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isConverting ? (
             <>
@@ -431,21 +469,65 @@ ${latexCode}
                 </div>
               )
             ) : (
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-auto p-6">
                 {latex ? (
-                  <DynamicPDFViewer
-                    pdfData={pdfData}
-                    isLoading={isPdfCompiling}
-                  />
+                  <div className="flex items-center justify-center min-h-full">
+                    <div
+                      ref={katexRef}
+                      className="text-2xl"
+                      style={{ fontSize: '2rem' }}
+                    />
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-400">PDF preview will appear here...</p>
+                    <p className="text-gray-400">Preview will appear here...</p>
                   </div>
                 )}
               </div>
             )}
           </div>
         </div>
+
+        {/* Export Dropdown */}
+        {latex && (
+          <div className="relative mt-4" ref={dropdownRef}>
+            <button
+              onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+              disabled={isExportingPdf}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExportingPdf ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Exporting PDF...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-4 w-4" />
+                </>
+              )}
+            </button>
+
+            {isExportDropdownOpen && (
+              <div className="absolute bottom-full mb-1 right-0 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden z-10 min-w-[180px]">
+                <button
+                  onClick={exportAsLatex}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Export as LaTeX
+                </button>
+                <button
+                  onClick={exportAsPdf}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                >
+                  Export as PDF
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
