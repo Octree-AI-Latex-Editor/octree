@@ -246,7 +246,7 @@ export function CompilationError({
         <CardHeader className="border-b pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500">
                 <AlertCircle className="h-5 w-5 text-white" />
               </div>
               <CardTitle className="text-lg font-semibold text-slate-900">
@@ -382,7 +382,7 @@ export function CompilationError({
                 variant="outline"
                 className="border-slate-200 text-slate-700 hover:bg-slate-50"
               >
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="h-4 w-4" />
                 Try Again
               </Button>
             )}
