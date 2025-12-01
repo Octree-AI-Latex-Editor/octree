@@ -214,6 +214,7 @@ export default function ProjectPage() {
         exportingPDF={exportingPDF}
         isSaving={isSaving}
         lastSaved={lastSaved}
+        hasPdfData={!!pdfData}
       />
 
       <ResizablePanelGroup
@@ -274,13 +275,15 @@ export default function ProjectPage() {
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={50} minSize={40}>
           <div className="h-full overflow-hidden border-l border-slate-200">
-            {compilationError ? (
+            {compilationError && !pdfData ? (
               <div className="flex h-full items-start justify-center overflow-auto p-4">
                 <CompilationError
                   error={compilationError}
+                  variant="overlay"
                   onRetry={handleCompile}
                   onDismiss={() => setCompilationError(null)}
                   onFixWithAI={() => {
+                    if (!compilationError) return;
                     const errorContext =
                       formatCompilationErrorForAI(compilationError);
                     setTextFromEditor(errorContext);
@@ -292,7 +295,25 @@ export default function ProjectPage() {
                 />
               </div>
             ) : (
-              <PDFViewer pdfData={pdfData} isLoading={compiling} />
+              <PDFViewer
+                pdfData={pdfData}
+                isLoading={compiling}
+                compilationError={compilationError}
+                onRetryCompile={handleCompile}
+                onDismissError={() => setCompilationError(null)}
+                onFixWithAI={
+                  compilationError
+                    ? () => {
+                        const errorContext =
+                          formatCompilationErrorForAI(compilationError);
+                        setTextFromEditor(errorContext);
+                        setChatOpen(true);
+                        setAutoSendMessage('Fix this error');
+                        setCompilationError(null);
+                      }
+                    : undefined
+                }
+              />
             )}
           </div>
         </ResizablePanel>

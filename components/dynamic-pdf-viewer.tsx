@@ -1,12 +1,20 @@
 'use client';
 
 import '@/lib/promise-polyfill';
-import { ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PageCallback } from 'react-pdf/dist/esm/shared/types.js';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import { CompilationError } from '@/components/latex/compilation-error';
+import type { CompilationError as CompilationErrorType } from '@/types/compilation';
 
 // Initialize the worker
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -24,11 +32,22 @@ const MAX_ZOOM = 3.0;
 const ZOOM_STEP = 0.1;
 
 interface PDFViewerProps {
-  pdfData?: string | null; // Accept null as a possible value
+  pdfData?: string | null;
   isLoading?: boolean;
+  compilationError?: CompilationErrorType | null;
+  onRetryCompile?: () => void;
+  onDismissError?: () => void;
+  onFixWithAI?: () => void;
 }
 
-function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
+function DynamicPDFViewer({
+  pdfData,
+  isLoading = false,
+  compilationError,
+  onRetryCompile,
+  onDismissError,
+  onFixWithAI,
+}: PDFViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -180,7 +199,7 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
             : { width, height }
         );
       }
-    }
+    };
   }
 
   if (isLoading && !pdfData) {
@@ -210,21 +229,38 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
     }
 
     // I set it to 98% to account for padding and stuff
-    return containerWidth * 0.80;
+    return containerWidth * 0.8;
   };
 
   const pageWidth = calculatePageWidth();
 
+  // Show error as bottom bar if there's both a PDF and an error
+  const showErrorBottomBar = pdfData && compilationError;
+
   return (
     <div className="relative flex h-full w-full flex-col">
+      {/* Compilation Error Top Bar */}
+      {showErrorBottomBar && (
+        <CompilationError
+          error={compilationError}
+          variant="bottom-bar"
+          onRetry={onRetryCompile}
+          onDismiss={onDismissError}
+          onFixWithAI={onFixWithAI}
+        />
+      )}
+
       {isLoading && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/50">
           <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
         </div>
       )}
       {/* Main PDF viewer area with scrolling */}
-      <div ref={containerRef} className="flex flex-1 justify-center overflow-auto py-2">
-
+      <div
+        ref={containerRef}
+        className="flex flex-1 justify-center overflow-auto py-2"
+        style={{ paddingTop: showErrorBottomBar ? '60px' : undefined }}
+      >
         <div className="flex flex-col items-center gap-4">
           <Document
             key={pdfData?.substring(0, 100)} // Force re-render when PDF data changes
@@ -314,48 +350,48 @@ function DynamicPDFViewer({ pdfData, isLoading = false }: PDFViewerProps) {
 
           {/* Pagination controls */}
           {numPages && numPages > 1 && (
-          <div className="flex items-center rounded-md border border-slate-100 bg-white/90 px-1.5 py-1 shadow-md backdrop-blur-sm">
-            <button
-              onClick={previousPage}
-              disabled={pageNumber <= 1}
-              className={`rounded-full p-0.5 transition-colors ${
-                pageNumber <= 1
-                  ? 'text-slate-300'
-                  : 'text-slate-500 hover:text-blue-500'
-              }`}
-              aria-label="Previous page"
-            >
-              <ChevronLeft size={16} />
-            </button>
+            <div className="flex items-center rounded-md border border-slate-100 bg-white/90 px-1.5 py-1 shadow-md backdrop-blur-sm">
+              <button
+                onClick={previousPage}
+                disabled={pageNumber <= 1}
+                className={`rounded-full p-0.5 transition-colors ${
+                  pageNumber <= 1
+                    ? 'text-slate-300'
+                    : 'text-slate-500 hover:text-blue-500'
+                }`}
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={16} />
+              </button>
 
-            <p className="mx-2 text-xs text-slate-600">
-              <input
-                type='text'
-                value={pageInput}
-                onChange={handlePageInputChange}
-                onBlur={handlePageInputBlur}
-                onKeyDown={handlePageInputKeyDown}
-                className='w-8 rounded border border-sidebar-border bg-transparent text-center font-medium text-foreground focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring'
-                aria-label='Current page'
-              />
-              <span className="mx-1">/</span>
-              <span>{numPages}</span>
-            </p>
+              <p className="mx-2 text-xs text-slate-600">
+                <input
+                  type="text"
+                  value={pageInput}
+                  onChange={handlePageInputChange}
+                  onBlur={handlePageInputBlur}
+                  onKeyDown={handlePageInputKeyDown}
+                  className="w-8 rounded border border-sidebar-border bg-transparent text-center font-medium text-foreground focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label="Current page"
+                />
+                <span className="mx-1">/</span>
+                <span>{numPages}</span>
+              </p>
 
-            <button
-              onClick={nextPage}
-              disabled={pageNumber >= numPages}
-              className={`rounded-full p-0.5 transition-colors ${
-                pageNumber >= numPages
-                  ? 'text-slate-300'
-                  : 'text-slate-400 hover:text-blue-500'
-              }`}
-              aria-label="Next page"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
+              <button
+                onClick={nextPage}
+                disabled={pageNumber >= numPages}
+                className={`rounded-full p-0.5 transition-colors ${
+                  pageNumber >= numPages
+                    ? 'text-slate-300'
+                    : 'text-slate-400 hover:text-blue-500'
+                }`}
+                aria-label="Next page"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
