@@ -287,7 +287,7 @@ export function useEditorCompilation({
 
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${fileName}.pdf`;
+        a.download = `${project?.title || 'document'}.pdf`;
         document.body.appendChild(a);
         a.click();
 
@@ -301,7 +301,7 @@ export function useEditorCompilation({
     } finally {
       setExportingPDF(false);
     }
-  }, [content, editorRef, fileName, projectId, buildFilesPayload]);
+  }, [content, editorRef, fileName, projectId, buildFilesPayload, project?.title]);
 
   // Auto-compile on content changes (debounced)
   const debouncedAutoCompile = useCallback(() => {}, []);
