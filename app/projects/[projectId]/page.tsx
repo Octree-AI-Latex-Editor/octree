@@ -73,9 +73,10 @@ export default function ProjectPage() {
     compiling,
     pdfData,
     compilationError,
-    exportingPDF,
+    exporting,
     handleCompile,
     handleExportPDF,
+    handleExportZIP,
     setCompilationError,
   } = useEditorCompilation({
     content,
@@ -204,6 +205,7 @@ export default function ProjectPage() {
         onTextFormat={handleTextFormat}
         onCompile={handleCompile}
         onExportPDF={handleExportPDF}
+        onExportZIP={handleExportZIP}
         onOpenChat={() => {
           if (selectedText.trim()) {
             setTextFromEditor(selectedText);
@@ -211,7 +213,7 @@ export default function ProjectPage() {
           setChatOpen(true);
         }}
         compiling={compiling}
-        exportingPDF={exportingPDF}
+        exporting={exporting}
         isSaving={isSaving}
         lastSaved={lastSaved}
         hasPdfData={!!pdfData}

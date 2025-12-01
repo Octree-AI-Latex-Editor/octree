@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import type * as Monaco from 'monaco-editor';
+import JSZip from 'jszip';
 import { createClient } from '@/lib/supabase/client';
 import { useProject } from '@/stores/project';
 import { useSelectedFile, useProjectFiles } from '@/stores/file';
@@ -18,9 +19,10 @@ export interface CompilationState {
   compiling: boolean;
   pdfData: string | null;
   compilationError: CompilationError | null;
-  exportingPDF: boolean;
+  exporting: boolean;
   handleCompile: () => Promise<boolean>;
   handleExportPDF: () => Promise<void>;
+  handleExportZIP: () => Promise<void>;
   debouncedAutoCompile: (content: string) => void;
   setCompilationError: (error: CompilationError | null) => void;
   setPdfData: (data: string | null) => void;
@@ -44,7 +46,7 @@ export function useEditorCompilation({
   const [pdfData, setPdfData] = useState<string | null>(null);
   const [compilationError, setCompilationError] =
     useState<CompilationError | null>(null);
-  const [exportingPDF, setExportingPDF] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     setPdfData(null);
@@ -254,7 +256,7 @@ export function useEditorCompilation({
   }, [compiling, content, editorRef, projectId, fileName, buildFilesPayload]);
 
   const handleExportPDF = useCallback(async () => {
-    setExportingPDF(true);
+    setExporting(true);
 
     try {
       // Use the already-compiled PDF if available, otherwise compile first
@@ -307,9 +309,52 @@ export function useEditorCompilation({
     } catch (error) {
       console.error('PDF export error:', error);
     } finally {
-      setExportingPDF(false);
+      setExporting(false);
     }
   }, [pdfData, content, editorRef, fileName, projectId, buildFilesPayload, project?.title]);
+
+  const handleExportZIP = useCallback(async () => {
+    setExporting(true);
+
+    try {
+      const currentContent = editorRef.current?.getValue() || content;
+      const normalizedFileName = normalizePath(fileName || 'document');
+
+      const filesPayload = projectId
+        ? await buildFilesPayload(normalizedFileName, currentContent)
+        : [{ path: normalizedFileName, content: currentContent }];
+
+      const zip = new JSZip();
+
+      // Add all project files to the ZIP
+      for (const file of filesPayload) {
+        if (file.encoding === 'base64') {
+          // Binary file - decode base64
+          zip.file(file.path, file.content, { base64: true });
+        } else {
+          // Text file
+          zip.file(file.path, file.content);
+        }
+      }
+
+      // Generate the ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project?.title || 'project'}.zip`;
+      document.body.appendChild(a);
+      a.click();
+
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('ZIP export error:', error);
+    } finally {
+      setExporting(false);
+    }
+  }, [content, editorRef, fileName, projectId, buildFilesPayload, project?.title]);
 
   // Auto-compile on content changes (debounced)
   const debouncedAutoCompile = useCallback(() => {}, []);
@@ -318,9 +363,10 @@ export function useEditorCompilation({
     compiling,
     pdfData,
     compilationError,
-    exportingPDF,
+    exporting,
     handleCompile,
     handleExportPDF,
+    handleExportZIP,
     debouncedAutoCompile,
     setCompilationError,
     setPdfData,
