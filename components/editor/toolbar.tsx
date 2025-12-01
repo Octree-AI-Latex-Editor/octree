@@ -2,17 +2,24 @@
 
 import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupItem } from '@/components/ui/button-group';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { UsageIndicator } from '@/components/subscription/usage-indicator';
-import { Loader2, Sparkles, WandSparkles } from 'lucide-react';
+import { Loader2, WandSparkles, ChevronDown, FileText, FolderArchive } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface EditorToolbarProps {
   onTextFormat: (format: 'bold' | 'italic' | 'underline') => void;
   onCompile: () => void;
   onExportPDF: () => void;
+  onExportZIP: () => void;
   onOpenChat: () => void;
   compiling: boolean;
-  exportingPDF: boolean;
+  exporting: boolean;
   isSaving: boolean;
   lastSaved: Date | null;
   hasPdfData?: boolean;
@@ -22,9 +29,10 @@ export function EditorToolbar({
   onTextFormat,
   onCompile,
   onExportPDF,
+  onExportZIP,
   onOpenChat,
   compiling,
-  exportingPDF,
+  exporting,
   isSaving,
   lastSaved,
   hasPdfData = false,
@@ -101,22 +109,45 @@ export function EditorToolbar({
             )}
           </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onExportPDF}
-            disabled={exportingPDF || isSaving || !hasPdfData}
-            className="gap-1"
-          >
-            {exportingPDF ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Exporting
-              </>
-            ) : (
-              'Export'
-            )}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={exporting || isSaving}
+                className="gap-1"
+              >
+                {exporting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Exporting
+                  </>
+                ) : (
+                  <>
+                    Export
+                    <ChevronDown className="size-3.5" />
+                  </>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={onExportPDF}
+                disabled={!hasPdfData}
+                className="gap-2"
+              >
+                <FileText className="size-4" />
+                Export as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={onExportZIP}
+                className="gap-2"
+              >
+                <FolderArchive className="size-4" />
+                Export as ZIP
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </div>
