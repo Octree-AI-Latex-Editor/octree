@@ -257,51 +257,59 @@ export function useEditorCompilation({
     setExportingPDF(true);
 
     try {
-      const currentContent = editorRef.current?.getValue() || content;
-      const normalizedFileName = normalizePath(fileName || 'document');
+      // Use the already-compiled PDF if available, otherwise compile first
+      let pdfBase64 = pdfData;
 
-      const filesPayload = projectId
-        ? await buildFilesPayload(normalizedFileName, currentContent)
-        : [{ path: normalizedFileName, content: currentContent }];
+      if (!pdfBase64) {
+        const currentContent = editorRef.current?.getValue() || content;
+        const normalizedFileName = normalizePath(fileName || 'document');
 
-      const { response, data } = await makeCompilationRequest(
-        filesPayload,
-        normalizedFileName,
-        projectId
-      );
+        const filesPayload = projectId
+          ? await buildFilesPayload(normalizedFileName, currentContent)
+          : [{ path: normalizedFileName, content: currentContent }];
 
-      if (!response.ok) {
-        const errorMessage = data?.error || 'PDF compilation failed';
-        throw new Error(errorMessage);
-      }
+        const { response, data } = await makeCompilationRequest(
+          filesPayload,
+          normalizedFileName,
+          projectId
+        );
 
-      if (data.pdf) {
-        const binaryString = atob(data.pdf);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
+        if (!response.ok) {
+          const errorMessage = data?.error || 'PDF compilation failed';
+          throw new Error(errorMessage);
         }
 
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
+        if (!data.pdf) {
+          throw new Error('No PDF data received from server');
+        }
 
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${project?.title || 'document'}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-
-        URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        throw new Error('No PDF data received from server');
+        pdfBase64 = data.pdf;
       }
+
+      // Download the PDF (pdfBase64 is guaranteed to be non-null at this point)
+      const binaryString = atob(pdfBase64 as string);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project?.title || 'document'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
       console.error('PDF export error:', error);
     } finally {
       setExportingPDF(false);
     }
-  }, [content, editorRef, fileName, projectId, buildFilesPayload, project?.title]);
+  }, [pdfData, content, editorRef, fileName, projectId, buildFilesPayload, project?.title]);
 
   // Auto-compile on content changes (debounced)
   const debouncedAutoCompile = useCallback(() => {}, []);
