@@ -19,11 +19,15 @@ export async function POST(request: NextRequest) {
         model: 'gpt-4o-mini',
         messages: [
           {
+            role: 'system',
+            content: 'You are a LaTeX converter. Your task is to extract mathematical equations from the image and convert them into valid LaTeX code. Output ONLY the LaTeX code. Do not include any conversational text, descriptions, or explanations. If there are multiple equations, separate them with newlines.',
+          },
+          {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Describe everything you see in this image. If there are mathematical expressions, equations, or formulas, transcribe them clearly. If it's handwritten, convert to readable text. Be concise but accurate.
+                text: `Convert the equations in this image to LaTeX.
 
 Image: ${fileName || 'image'}`,
               },
