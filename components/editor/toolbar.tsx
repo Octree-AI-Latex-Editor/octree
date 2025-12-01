@@ -15,6 +15,7 @@ interface EditorToolbarProps {
   exportingPDF: boolean;
   isSaving: boolean;
   lastSaved: Date | null;
+  hasPdfData?: boolean;
 }
 
 export function EditorToolbar({
@@ -26,6 +27,7 @@ export function EditorToolbar({
   exportingPDF,
   isSaving,
   lastSaved,
+  hasPdfData = false,
 }: EditorToolbarProps) {
   const [isMac, setIsMac] = useState(true);
 
@@ -103,7 +105,7 @@ export function EditorToolbar({
             variant="ghost"
             size="sm"
             onClick={onExportPDF}
-            disabled={exportingPDF || isSaving}
+            disabled={exportingPDF || isSaving || !hasPdfData}
             className="gap-1"
           >
             {exportingPDF ? (

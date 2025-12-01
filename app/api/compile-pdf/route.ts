@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { CompileRequest, CompileCachePayload } from './types';
-import { buildCacheKey, getCachedResponse, storeCachedResponse, getCacheStats } from './cache';
+import {
+  buildCacheKey,
+  getCachedResponse,
+  storeCachedResponse,
+  getCacheStats,
+} from './cache';
 import { validateCompileRequest } from './validation';
 import { compileLatex } from './compiler';
 
@@ -56,15 +61,21 @@ export async function POST(request: Request) {
     const body = normalizeRequest(rawBody);
 
     const cacheKey = buildCacheKey(body);
-    console.log('[COMPILE CACHE] Cache key generated:', cacheKey?.substring(0, 16) + '...');
+    console.log(
+      '[COMPILE CACHE] Cache key generated:',
+      cacheKey?.substring(0, 16) + '...'
+    );
 
     const cachedPayload = getCachedResponse(cacheKey);
     if (cachedPayload) {
-      console.log('🎯 [COMPILE CACHE] ⚡ CACHE HIT - Serving from cache instantly!', {
-        cacheKey: cacheKey?.substring(0, 16) + '...',
-        pdfSize: cachedPayload.size,
-        projectId: body.projectId,
-      });
+      console.log(
+        '🎯 [COMPILE CACHE] ⚡ CACHE HIT - Serving from cache instantly!',
+        {
+          cacheKey: cacheKey?.substring(0, 16) + '...',
+          pdfSize: cachedPayload.size,
+          projectId: body.projectId,
+        }
+      );
       return NextResponse.json({
         ...cachedPayload,
         debugInfo: {
@@ -81,13 +92,22 @@ export async function POST(request: Request) {
       filesCount: body.files.length,
     });
 
-    const compileResult = await compileLatex(body, COMPILE_SERVICE_URL as string);
+    const compileResult = await compileLatex(
+      body,
+      COMPILE_SERVICE_URL as string
+    );
 
-    if (!compileResult.success || !compileResult.base64PDF || !compileResult.pdfBuffer) {
+    if (
+      !compileResult.success ||
+      !compileResult.base64PDF ||
+      !compileResult.pdfBuffer
+    ) {
       // Include partial PDF in error response if available from octree-compile
       const errorResponse: Record<string, unknown> = {
         ...compileResult.error,
-        suggestion: compileResult.error?.suggestion || 'Check your LaTeX syntax and try again',
+        suggestion:
+          compileResult.error?.suggestion ||
+          'Check your LaTeX syntax and try again',
       };
 
       // If a partial PDF was generated despite the error, include it

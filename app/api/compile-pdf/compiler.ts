@@ -1,6 +1,6 @@
 import type { CompileRequest, CompilerResponse } from './types';
 
-const COMPILE_TIMEOUT_MS = 60_000;
+const COMPILE_TIMEOUT_MS = 180_000;
 
 export async function compileLatex(
   body: CompileRequest,
